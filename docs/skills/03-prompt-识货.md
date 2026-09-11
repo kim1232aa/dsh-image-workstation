@@ -47,3 +47,12 @@
 - UI：仅「提示词增强」按钮触发；**从不**自动改写用户原文
 - Skill：读本地 `SKILL.md` / 调作者 scripts；分数只展示
 - 密钥：只在 host；见 `$DSH_HOME/media.env`（本机测试），永不进 client / 日志 / git
+
+## 试出图禁题（用户硬令）
+- **禁止**：苹果（及水果静物默认 demo）
+- **禁止**：机器人 / robot / cyborg 默认 demo
+- 未指定题材时：从本文外参 skill（UltraReal / cinema-dna / FANTASY）里借**具体场景**，写成摄影 brief，不要用「一个苹果」「一个机器人」
+
+### 允许的试图示例（可直接用）
+Photorealistic travel photograph of a dusty Royal Enfield motorcycle leaned on a high-altitude Ladakh roadside curve. Late-morning hard sun from camera right, thin blue sky, ochre barren ridges, pale gravel and broken tarmac. 35mm at f/5.6, three-quarter front, unretouched documentary colour, fine dust in the light — not a poster, not CGI.
+
