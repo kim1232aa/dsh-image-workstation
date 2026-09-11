@@ -56,3 +56,8 @@
 ### 允许的试图示例（可直接用）
 Photorealistic travel photograph of a dusty Royal Enfield motorcycle leaned on a high-altitude Ladakh roadside curve. Late-morning hard sun from camera right, thin blue sky, ochre barren ridges, pale gravel and broken tarmac. 35mm at f/5.6, three-quarter front, unretouched documentary colour, fine dust in the light — not a poster, not CGI.
 
+## 验收出图路径（用户硬令）
+- **禁止**用 curl / 脚本 / 直调 Images API 当作验收
+- **唯一有效**：dsh web 打开插件 → 点「开始生成」→ CTA→RPC→host `mediaProxy` → 结果进工作室
+- 直调 API 出的图可以当通道探活，**不算**红线 1 通过
+
