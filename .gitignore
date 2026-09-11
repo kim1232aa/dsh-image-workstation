@@ -3,3 +3,11 @@ node_modules/
 *.log
 .env
 .env.*
+
+# local smoke screenshots
+.smoke-*.png
+
+.env
+.env.*
+*.pem
+media.env

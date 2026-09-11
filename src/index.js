@@ -1,4 +1,5 @@
 import { Config, resolveConfig } from './config.js'
+import { loadMediaEnv, mediaEnvSummary } from './protocol/load-media-env.js'
 import { attachHostProxy } from './protocol/host-proxy.js'
 
 export const name = 'dsh-image-workstation'
@@ -14,6 +15,10 @@ export function apply(ctx, config) {
   ctx.logger?.info?.(
     `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'}`,
   )
+  const media = loadMediaEnv()
+  ctx.dshImageWorkstation = ctx.dshImageWorkstation || {}
+  ctx.dshImageWorkstation.mediaEnv = media // host-only; never send token to client
+  ctx.logger?.info?.(`[dsh-image-workstation] mediaEnv ${JSON.stringify(mediaEnvSummary(media))}`)
   // Protocol seats only — no live upstream / no tools.register yet
   attachHostProxy(ctx, resolved)
 }
