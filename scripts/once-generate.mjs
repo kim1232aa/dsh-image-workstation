@@ -37,7 +37,7 @@ console.log(
 const started = Date.now()
 try {
   const out = await proxy.generate({
-    prompt: 'a simple red apple on a white table, product photo, soft light',
+    prompt: 'cinematic still, rainy neon street at night, shallow depth of field, 35mm film grain, no text',
     n: 1,
     model: 'grok-imagine-image',
     aspect_ratio: '1:1',

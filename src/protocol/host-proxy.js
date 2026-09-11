@@ -34,6 +34,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
     mediaConfigured: liveGenerate,
     baseUrlSet,
     tokenSet,
+    provider: mediaEnv?.provider || 'unknown',
     live: liveGenerate,
 
     /**
@@ -100,6 +101,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
           lane: 'images',
           configured: liveGenerate,
           protocol: 'openai.images',
+          provider: mediaEnv?.provider || 'unknown',
         },
       ]
     },

@@ -22,7 +22,7 @@ import { defaultStudioState } from '../ui/studio-stub.js'
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
 /**
- * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void }}
+ * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, setStatus: (text: string) => void, getHostEl: () => HTMLElement | undefined }}
  */
 export function createStudioHost() {
   let host
@@ -80,6 +80,7 @@ export function createStudioHost() {
       <div style="display:flex;flex:1;min-height:0;">
         <aside data-ws-col="history" style="width:${state.paneWidths.history}px;border-right:1px solid #333;padding:12px;overflow:auto;">
           <strong>${COLUMNS.history}</strong>
+          <div data-ws-history-list style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
         </aside>
         <section data-ws-col="studio" style="flex:1;padding:12px;overflow:auto;display:flex;flex-direction:column;gap:12px;">
           <strong>${COLUMNS.studio}</strong>
@@ -139,7 +140,8 @@ export function createStudioHost() {
             <button type="button" data-ws-empty="shuffle" style="padding:6px 10px;border:1px solid #444;border-radius:6px;background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:12px;">${EMPTY.shuffle}</button>
           </div>
           <p data-ws-status style="opacity:.7;font-size:12px;min-height:1.2em;"></p>
-          <p style="opacity:.5;font-size:11px;">host-proxy generate 已接线（media.env）；不选 Skill 也可点「${CTA}」；评分不锁出图；三联封面≠电影海报</p>
+          <div data-ws-results style="display:flex;flex-wrap:wrap;gap:8px;min-height:4rem;"></div>
+          <p style="opacity:.5;font-size:11px;">CTA→RPC→mediaProxy；不选 Skill 也可点「${CTA}」；评分不锁出图；三联封面≠电影海报</p>
         </section>
         <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;border-left:1px solid #333;padding:12px;display:none;">
           <strong>${COLUMNS.chat}</strong>
@@ -222,7 +224,7 @@ export function createStudioHost() {
       setStatus(`已填入${EMPTY.inspiration}`)
     })
     host.querySelector('[data-ws-empty="shuffle"]')?.addEventListener('click', () => {
-      const samples = ['雨夜霓虹街道', '山间云海日出', '静物咖啡杯特写', '未来都市天际线']
+      const samples = ['雨夜霓虹街道', '山间云海日出', '21:9 走廊对峙镜头', '自然光窗边人像']
       state.prompt = samples[Math.floor(Math.random() * samples.length)]
       syncFields()
       setStatus(`已${EMPTY.shuffle}`)
@@ -236,7 +238,7 @@ export function createStudioHost() {
     cta?.addEventListener('click', () => {
       const skillNote = state.skillId ? `skill=${state.skillId}` : '无 Skill'
       setStatus(
-        `已触发「${CTA}」（${skillNote}；提示词 ${state.prompt.length} 字；负面词 ${state.negativePrompt.length} 字；${state.ratio}/${state.clarity}/×${state.count}）— 已发 dsh-ws-generate（host-proxy 侧 generate 已接线）`,
+        `已触发「${CTA}」（${skillNote}；提示词 ${state.prompt.length} 字；负面词 ${state.negativePrompt.length} 字；${state.ratio}/${state.clarity}/×${state.count}）— 已发 dsh-ws-generate → /dsh-ws/generate`,
       )
       host.dispatchEvent(
         new CustomEvent('dsh-ws-generate', {
@@ -282,6 +284,77 @@ export function createStudioHost() {
       state.negativePrompt = text || ''
       syncFields()
     },
+    /** @param {string} text */
+    setStatus(text) {
+      ensure()
+      setStatus(text)
+    },
+    getHostEl() {
+      return host
+    },
+    /**
+     * Paint generate RPC result into studio result area + history.
+     * @param {{ jobId?: string, phase?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
+     */
+    paintGenerateResult(value) {
+      ensure()
+      const results = Array.isArray(value?.results) ? value.results : []
+      const resultsEl = host?.querySelector('[data-ws-results]')
+      const histEl = host?.querySelector('[data-ws-history-list]')
+      if (resultsEl) {
+        resultsEl.innerHTML = ''
+        for (const r of results) {
+          const src = pickDisplayUrl(r)
+          const card = document.createElement('div')
+          card.dataset.wsResultCard = ''
+          card.style.cssText =
+            'border:1px solid #444;border-radius:8px;padding:6px;background:#1a1a1a;max-width:280px;'
+          if (src) {
+            const img = document.createElement('img')
+            img.src = src
+            img.alt = '生成结果'
+            img.dataset.wsResult = ''
+            img.style.cssText = 'display:block;max-width:100%;border-radius:6px;'
+            card.appendChild(img)
+          } else {
+            const note = document.createElement('div')
+            note.style.cssText = 'font-size:11px;opacity:.8;word-break:break-all;'
+            note.textContent = r?.url || r?.localPath || '无可用预览 URL'
+            card.appendChild(note)
+          }
+          resultsEl.appendChild(card)
+        }
+        if (!results.length) resultsEl.textContent = '无结果'
+      }
+      if (histEl && results.length) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.dataset.wsHistoryItem = value?.jobId || ''
+        item.style.cssText =
+          'text-align:left;padding:6px;border:1px solid #444;border-radius:6px;background:#1a1a1a;color:inherit;cursor:pointer;font:inherit;font-size:11px;'
+        const thumb = pickDisplayUrl(results[0])
+        if (thumb) {
+          const img = document.createElement('img')
+          img.src = thumb
+          img.alt = ''
+          img.style.cssText = 'width:100%;border-radius:4px;display:block;margin-bottom:4px;'
+          item.appendChild(img)
+        }
+        const span = document.createElement('span')
+        span.textContent = (state.prompt || '').slice(0, 40) || '(无提示词)'
+        item.appendChild(span)
+        item.addEventListener('click', () => {
+          api.paintGenerateResult(value)
+          setStatus('已从历史载入结果')
+        })
+        histEl.insertBefore(item, histEl.firstChild)
+      }
+      setStatus(
+        results.length
+          ? `生成完成 ×${results.length}${value?.jobId ? ` · job ${String(value.jobId).slice(0, 8)}` : ''}`
+          : `生成完成但无图${value?.phase ? ` (${value.phase})` : ''}`,
+      )
+    },
     dispose() {
       host?.remove()
       host = undefined
@@ -289,4 +362,21 @@ export function createStudioHost() {
     },
   }
   return api
+}
+
+/** @param {{ url?: string, localPath?: string }} r */
+function pickDisplayUrl(r) {
+  const url = r?.url ? String(r.url) : ''
+  if (/^https?:\/\//i.test(url)) return url
+  if (url.startsWith('data:')) return url
+  return ''
+}
+
+/** @param {string} s */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }

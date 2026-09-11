@@ -80,9 +80,28 @@ if (!sidebar.includes("opts.onStudio()")) fail('sidebar-entry missing onStudio c
 const chatCol = studioTree.columns.find((c) => c.id === 'chat')
 if (!chatCol || chatCol.defaultCollapsed !== true) fail('chat not defaultCollapsed')
 
+const ctaRpc = readFileSync(join(root, 'src/protocol/cta-rpc.js'), 'utf8')
+if (!ctaRpc.includes("CTA_RPC_CHANNEL = '/dsh-ws'")) fail('cta-rpc missing /dsh-ws channel')
+if (!ctaRpc.includes('createCtaRpcHandler') || !ctaRpc.includes('attachCtaRpc')) fail('cta-rpc missing handler/attach')
+
+const hostIdx = readFileSync(join(root, 'src/index.js'), 'utf8')
+if (!hostIdx.includes("inject = ['connection']")) fail('host missing connection inject')
+if (!hostIdx.includes('attachCtaRpc')) fail('host missing attachCtaRpc')
+
+const clientSrc = readFileSync(join(root, 'src/client.js'), 'utf8')
+if (!clientSrc.includes("addEventListener('dsh-ws-generate'")) fail('client missing dsh-ws-generate listener')
+if (!clientSrc.includes("rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GENERATE")) fail('client missing rpc.call generate')
+if (!clientSrc.includes('paintGenerateResult')) fail('client missing paintGenerateResult')
+
+const studioSrc = readFileSync(join(root, 'src/client/studio-host.js'), 'utf8')
+if (!studioSrc.includes('paintGenerateResult')) fail('studio-host missing paintGenerateResult')
+if (studioSrc.includes('/api/dsh-image-workstation/generate')) fail('studio-host must not fetch /api/.../generate directly')
+if (!studioSrc.includes("CustomEvent('dsh-ws-generate'")) fail('studio-host missing dsh-ws-generate dispatch')
+
 console.log('OK verify-redlines')
 console.log('- labels/ratios/clarity/counts')
 console.log('- CTA requiresSkill:false disabledByScore:false')
 console.log('- 三联封面 ≠ 电影海报')
 console.log('- sidebar 生图 → studio.open()')
 console.log('- no moderation / 不能生成 patterns in src+lib')
+console.log('- CTA dsh-ws-generate → /dsh-ws/generate → paintGenerateResult')
