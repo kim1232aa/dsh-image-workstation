@@ -1,4 +1,5 @@
 import { Config, resolveConfig } from './config.js'
+import { attachHostProxy } from './protocol/host-proxy.js'
 
 export const name = 'dsh-image-workstation'
 export { Config }
@@ -13,5 +14,6 @@ export function apply(ctx, config) {
   ctx.logger?.info?.(
     `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'}`,
   )
-  // Future: ctx.tools.register for generate/edit — owned by 协议适配
+  // Protocol seats only — no live upstream / no tools.register yet
+  attachHostProxy(ctx, resolved)
 }

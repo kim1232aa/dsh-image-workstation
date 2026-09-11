@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>普通生图 · 线框（labels.js 锁死）</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --line:#333; --muted:#888; --accent:#3b82f6; --panel:#1a1a1a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:13px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  .app { display:flex; flex-direction:column; height:100vh; }
+  .top { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--line); align-items:center; }
+  .top button { padding:6px 10px; border:0; border-radius:6px; background:transparent; color:inherit; cursor:default; }
+  .top button[aria-current="true"] { background:#333; }
+  .top .spacer { flex:1; }
+  .cols { display:flex; flex:1; min-height:0; }
+  .col { border-right:1px solid var(--line); padding:12px; overflow:auto; }
+  .col:last-child { border-right:0; }
+  .history { width:240px; }
+  .studio { flex:1; display:flex; flex-direction:column; gap:10px; }
+  .chat { width:320px; opacity:.55; }
+  .chat.collapsed { display:none; }
+  h2 { margin:0 0 8px; font-size:13px; }
+  .modes { display:flex; gap:6px; }
+  .modes button { padding:4px 10px; border:1px solid #444; border-radius:6px; background:transparent; color:inherit; }
+  .modes button[aria-current="true"] { background:#333; }
+  label.field { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+  label.field .row { display:flex; align-items:center; gap:8px; }
+  label.field .row button { margin-left:auto; padding:2px 8px; border:0; border-radius:4px; background:#333; color:inherit; font:inherit; }
+  textarea, select { width:100%; padding:8px; border-radius:8px; border:1px solid #444; background:var(--panel); color:inherit; font:inherit; }
+  .params { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
+  .actions { display:flex; flex-wrap:wrap; gap:6px; }
+  .actions button, .skills button { padding:4px 8px; border:1px solid #444; border-radius:6px; background:transparent; color:inherit; font:inherit; }
+  .cta { align-self:flex-start; padding:8px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; }
+  /* 【必须】永不因分数 disabled */
+  .cta[disabled] { outline:2px solid red; } /* visual alarm if Looper regresses */
+  .note { color:var(--muted); font-size:11px; }
+  .empty { display:flex; gap:8px; flex-wrap:wrap; }
+  .card { width:120px; height:80px; border:1px dashed #444; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
+  .score { border:1px dashed #555; border-radius:8px; padding:8px; font-size:12px; }
+  .score .btns { display:flex; gap:6px; margin-top:6px; }
+  .score .btns button { padding:6px 10px; border-radius:6px; border:1px solid #444; background:#222; color:inherit; }
+  .score .btns button.primary { background:var(--accent); border:0; color:#fff; }
+  .hist-item { display:flex; gap:8px; padding:6px 0; border-bottom:1px solid #222; font-size:11px; color:var(--muted); }
+  .thumb { width:40px; height:40px; background:#222; border-radius:4px; }
+  .legend { padding:8px 14px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
+  code { color:#9cdcfe; }
+</style>
+</head>
+<body>
+<div class="app" data-wireframe="普通生图" data-labels="src/ui/labels.js">
+  <header class="top" aria-label="顶栏">
+    <button aria-current="true">普通生图</button>
+    <button>视频生成</button>
+    <button>无限画布</button>
+    <button>画廊</button>
+    <button>电商模式</button>
+    <span class="spacer"></span>
+    <button type="button" id="chatToggle">AI 对话</button>
+    <button>设置</button>
+  </header>
+  <div class="cols">
+    <aside class="col history" aria-label="历史记录">
+      <h2>历史记录</h2>
+      <input placeholder="关键词 / 模型 / 比例" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #444;background:#1a1a1a;color:inherit;margin-bottom:8px;" />
+      <div class="hist-item"><div class="thumb"></div><div>提示词摘要…<br/>模型 · 文生图</div></div>
+      <div class="hist-item"><div class="thumb"></div><div>…</div></div>
+      <button style="margin-top:8px;padding:4px 8px;border:1px solid #444;border-radius:6px;background:transparent;color:inherit;">清空</button>
+    </aside>
+    <section class="col studio" aria-label="生图区">
+      <h2>生图区</h2>
+      <div class="modes" role="tablist">
+        <button aria-current="true">文生图</button>
+        <button>图生图</button>
+      </div>
+      <label class="field">
+        <span>提示词</span>
+        <textarea rows="3" placeholder="写一句想法即可出图，不必选 Skill"></textarea>
+      </label>
+      <label class="field">
+        <span class="row">负面词 <button type="button">清除负面词</button></span>
+        <textarea rows="2" placeholder="Skill 预填负面词会出现在这里，可改可清"></textarea>
+      </label>
+      <div class="actions">
+        <button>提示词增强</button>
+        <button>模板库</button>
+        <button>创作 Skill</button>
+      </div>
+      <div class="skills" aria-label="创作 Skill 入口">
+        <button>电影三联</button>
+        <button>三联封面</button>
+        <button>电影海报</button>
+        <button>人像</button>
+        <button>摄影</button>
+        <button>角色</button>
+      </div>
+      <div class="params">
+        <label class="field">比例
+          <select>
+            <option>自动</option><option>1:1</option><option>3:4</option><option>4:3</option>
+            <option>9:16</option><option>16:9</option><option>2:3</option><option>3:2</option><option>21:9</option>
+          </select>
+        </label>
+        <label class="field">清晰度
+          <select><option>自动</option><option>1K</option><option>2K</option><option>4K</option></select>
+        </label>
+        <label class="field">张数
+          <select><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        </label>
+        <label class="field">细节
+          <select><option>自动</option></select>
+        </label>
+        <label class="field">模型
+          <select><option>（渠道检测）</option></select>
+        </label>
+      </div>
+      <!-- 主 CTA：disabledByScore=false；无 Skill 也可点 -->
+      <button class="cta" data-ws-cta type="button">开始生成</button>
+      <div class="score" aria-label="自检评分（仅展示）">
+        <div>自检评分示例 72（仅展示，不锁出图）</div>
+        <div class="btns">
+          <button class="primary" type="button">就这样出图</button>
+          <button type="button">重新想一版</button>
+          <button type="button">出图</button>
+        </div>
+      </div>
+      <div class="empty">
+        <div class="card">灵感案例</div>
+        <div class="card">灵感案例</div>
+        <button style="padding:4px 8px;border:1px solid #444;border-radius:6px;background:transparent;color:inherit;">随机</button>
+      </div>
+      <p class="note">线框 · 标签锁死 labels.js · 双 CTA 永不因分数 disabled · 三联封面 ≠ 电影海报</p>
+    </section>
+    <aside class="col chat collapsed" id="chat" aria-label="AI 对话">
+      <h2>AI 对话</h2>
+      <p class="note">默认收起；点顶栏「AI 对话」展开</p>
+    </aside>
+  </div>
+  <footer class="legend">
+    Source: <code>src/ui/labels.js</code> · Checklist: <code>docs/ui/02-looper-普通生图-diff.md</code>
+    · Superdesign 未登录，本线框为精确标签对齐稿（非生成审美稿）
+  </footer>
+</div>
+<script>
+  document.getElementById('chatToggle').onclick = () => {
+    document.getElementById('chat').classList.toggle('collapsed');
+  };
+</script>
+</body>
+</html>

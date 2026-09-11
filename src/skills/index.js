@@ -1,1 +1,7 @@
-export { discoverSkills, KNOWN_FOLDERS, ATTRIBUTION } from './discover.js'
+export {
+  discoverSkills,
+  KNOWN_FOLDERS,
+  SKILL_ENTRY_LABELS,
+  TRIPTYCH_COVER,
+  ATTRIBUTION,
+} from './discover.js'

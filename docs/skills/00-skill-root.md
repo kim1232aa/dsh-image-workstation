@@ -1,6 +1,6 @@
 # Skill root convention
 
-Authority: docs 00–01. Upstream `SKILL.md` is creative authority — never rewrite rules into app code.
+**Product authority: project docs 00–03 only.** Author FANTASY `SKILL.md` is runtime 识货 (read/plan/scripts) — never copy author rules, gates, score thresholds, or copy into the plugin product. Do not rewrite author scripts; call them.
 
 ## Path
 
@@ -27,7 +27,7 @@ Folder name may be a clone of the GitHub repo name (above) or any name; **discov
 
 ```
 <skill-folder>/
-├─ SKILL.md          必有 — 唯一权威规则
+├─ SKILL.md          必有 — 创作识货原文（产品门禁仍以 00–03 为准）
 ├─ references/       可选
 ├─ templates/        可选（海报: project-brief.json）
 ├─ scripts/          可选（海报: validate_*.py, build_prompt.py — call, don't reimplement）

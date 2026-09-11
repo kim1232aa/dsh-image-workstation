@@ -34,6 +34,25 @@ export const KNOWN_FOLDERS = Object.freeze({
   },
 })
 
+
+/** UI six entries — same order/text as `src/ui/labels.js` SKILL_ENTRIES. 三联封面 ≠ 电影海报. */
+export const SKILL_ENTRY_LABELS = Object.freeze([
+  '电影三联',
+  '三联封面',
+  '电影海报',
+  '人像',
+  '摄影',
+  '角色',
+])
+
+/** Derived UI entry when cinema-dna folder is present (not a sixth clone). */
+export const TRIPTYCH_COVER = Object.freeze({
+  id: 'triptych-cover',
+  label: '三联封面',
+  fromFolder: 'cinema-dna-21x9x3',
+  defaultAspect: '3:4',
+})
+
 export const ATTRIBUTION = 'GitHub: dacnay816y62-hub · FANTASY 梵想美学'
 
 /**
