@@ -52,7 +52,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
             prompt: req.prompt,
             size: req.size,
             n: req.n || 1,
-            model: req.model || 'grok-imagine-image',
+            model: req.model || process.env.MEDIA_IMAGE_MODEL || 'gpt-image-2',
             quality: req.quality,
             aspect_ratio: req.aspect_ratio || '1:1',
             resolution: req.resolution || '1k',

@@ -22,7 +22,7 @@ function scrub(text, token) {
  * @param {{ size?: string, aspect_ratio?: string, resolution?: string, quality?: string, model?: string }} req
  */
 function buildBody(req) {
-  const model = req.model || 'grok-imagine-image'
+  const model = req.model || 'gpt-image-2'
   const body = {
     model,
     prompt: req.prompt,

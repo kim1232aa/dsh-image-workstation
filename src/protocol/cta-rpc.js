@@ -151,14 +151,104 @@ export function createCtaRpcHandler(mediaProxy) {
 }
 
 /**
- * Register `/dsh-ws` Connection RPC channel on host.
- * @param {any} ctx Cordis context with connection
+ * Mount `/dsh-ws` on webServer directly (same shape as Connection's `/api`).
+ * Do NOT use connection.rpc.handle — its owner fiber is Connection's, which
+ * lacks webServer, so the route never sticks and SPA fallback returns 405.
+ *
+ * @param {any} ctx Cordis context with connection + webServer
  * @param {{ generate: Function, mediaConfigured?: boolean }} mediaProxy
  */
 export function attachCtaRpc(ctx, mediaProxy) {
-  if (!ctx?.connection?.rpc?.handle) {
-    throw new Error('[dsh-image-workstation] connection.rpc.handle unavailable')
+  if (!ctx?.webServer?.register) {
+    throw new Error('[dsh-image-workstation] webServer.register unavailable')
   }
-  const handler = createCtaRpcHandler(mediaProxy)
-  return ctx.connection.rpc.handle(CTA_RPC_CHANNEL, handler)
+  if (!ctx?.connection?.requestRejection) {
+    throw new Error('[dsh-image-workstation] connection.requestRejection unavailable')
+  }
+  const rpcHandler = createCtaRpcHandler(mediaProxy)
+  const route = {
+    kind: 'prefix',
+    path: CTA_RPC_CHANNEL,
+    handler: async (req, res) => {
+      const rejection = ctx.connection.requestRejection(req)
+      if (rejection !== undefined) {
+        res.writeHead(rejection)
+        res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
+        return
+      }
+      const url = new URL(req.url ?? '/', 'http://dsh.internal')
+      const endpoint = endpointFromChannel(CTA_RPC_CHANNEL, url.pathname)
+      if (req.method !== 'POST' || endpoint === undefined) {
+        res.writeHead(404)
+        res.end('not found')
+        return
+      }
+      const ctype = String(req.headers['content-type'] || '')
+        .split(';', 1)[0]
+        .trim()
+        .toLowerCase()
+      if (ctype !== 'application/json') {
+        res.writeHead(415)
+        res.end('content type must be application/json')
+        return
+      }
+      let raw = Buffer.alloc(0)
+      for await (const chunk of req) {
+        raw = Buffer.concat([raw, chunk])
+        if (raw.byteLength > 2 * 1024 * 1024) {
+          res.writeHead(413)
+          res.end()
+          req.destroy()
+          return
+        }
+      }
+      let body
+      try {
+        body = JSON.parse(raw.length ? raw.toString('utf8') : '{}')
+      } catch {
+        res.writeHead(400)
+        res.end('body is not JSON')
+        return
+      }
+      const rpcId = typeof body?.rpcId === 'string' ? body.rpcId : 'invalid'
+      if (body?.type !== 'client-request' || body?.method !== endpoint) {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            type: 'server-response',
+            rpcId,
+            result: {
+              ok: false,
+              error: {
+                code: 'gateway/bad-request',
+                message: 'invalid client-request envelope or method mismatch',
+                details: { issues: [] },
+              },
+            },
+          }),
+        )
+        return
+      }
+      try {
+        const result = await rpcHandler(endpoint, body.payload, req.signal ?? undefined)
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ type: 'server-response', rpcId, result }))
+      } catch (error) {
+        res.writeHead(500)
+        res.end(`handler failure: ${String(error)}`)
+      }
+    },
+  }
+  return ctx.effect(() => ctx.webServer.register(route), 'dsh-image-workstation: /dsh-ws rpc')
+}
+
+/**
+ * @param {string} channel
+ * @param {string} pathname
+ */
+function endpointFromChannel(channel, pathname) {
+  if (!pathname.startsWith(`${channel}/`)) return undefined
+  const endpoint = pathname.slice(channel.length + 1)
+  if (!endpoint || endpoint.includes('/') || endpoint.includes('..')) return undefined
+  return endpoint
 }

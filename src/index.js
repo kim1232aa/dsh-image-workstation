@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { Config, resolveConfig } from './config.js'
 import { loadMediaEnv, mediaEnvSummary } from './protocol/load-media-env.js'
 import { createHostProxy } from './protocol/host-proxy.js'
@@ -6,13 +7,11 @@ import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
 export const name = 'dsh-image-workstation'
 export { Config }
 
-/** Host needs Connection; webServer is injected only for the RPC mount fiber (same pattern as dsh-client-connection). */
+/** connection for RPC API; webServer mounted via nested inject (caller fiber for handle). */
 export const inject = ['connection']
 
 /**
- * Host half: data paths + host-only media bag + CTA RPC.
- * Provides `dshImageWorkstation` via Cordis provide (never bare ctx.foo assign).
- * Token stays closed over inside mediaProxy — never on the provided bag surface.
+ * Host half: media bag + CTA RPC /dsh-ws → mediaProxy.generate
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {Record<string, unknown>} [config]
  */
@@ -22,20 +21,47 @@ export function apply(ctx, config) {
   const mediaProxy = createHostProxy(resolved, media)
   const mediaSummary = mediaEnvSummary(media)
 
-  // Host-only bag — NO raw token/baseUrl secrets on the service object
   ctx.provide('dshImageWorkstation', {
     dataDir: resolved.dataDir,
     skillDir: resolved.skillDir,
-    mediaEnv: mediaSummary, // { baseUrlSet, tokenSet, provider, source } only
+    mediaEnv: mediaSummary,
     mediaProxy,
   })
 
-  // connection.rpc.handle registers via owner.webServer — must run on a fiber that injects webServer
+  // rpc.handle uses *caller* ctx (Cordis tracker). Mount from a fiber that has webServer.
   ctx.inject(['webServer'], (webCtx) => {
-    attachCtaRpc(webCtx, mediaProxy)
+    let rpcOk = false
+    let rpcErr = ''
+    try {
+      attachCtaRpc(webCtx, mediaProxy)
+      rpcOk = true
+    } catch (e) {
+      rpcErr = String(e?.stack || e)
+      webCtx.logger?.error?.(`[dsh-image-workstation] CTA RPC attach failed: ${e?.message || e}`)
+    }
+    try {
+      writeFileSync(
+        '/tmp/dsh-ws-apply.log',
+        JSON.stringify(
+          {
+            at: new Date().toISOString(),
+            rpcOk,
+            rpcErr: rpcErr.slice(0, 800),
+            channel: CTA_RPC_CHANNEL,
+            hasWebServer: Boolean(webCtx.webServer),
+            hasConnection: Boolean(webCtx.connection),
+            mediaConfigured: mediaProxy.mediaConfigured,
+          },
+          null,
+          2,
+        ),
+      )
+    } catch {
+      /* ignore */
+    }
   })
 
   ctx.logger?.info?.(
-    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaSummary)} proxy adapters=${mediaProxy.adapters.join(',')} configured=${mediaProxy.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate`,
+    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaSummary)} configured=${mediaProxy.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate`,
   )
 }
