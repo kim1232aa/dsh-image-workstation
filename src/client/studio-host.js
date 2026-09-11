@@ -139,7 +139,7 @@ export function createStudioHost() {
             <button type="button" data-ws-empty="shuffle" style="padding:6px 10px;border:1px solid #444;border-radius:6px;background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:12px;">${EMPTY.shuffle}</button>
           </div>
           <p data-ws-status style="opacity:.7;font-size:12px;min-height:1.2em;"></p>
-          <p style="opacity:.5;font-size:11px;">stub — 协议未接线；不选 Skill 也可点「${CTA}」；评分不锁出图；三联封面≠电影海报</p>
+          <p style="opacity:.5;font-size:11px;">host-proxy generate 已接线（media.env）；不选 Skill 也可点「${CTA}」；评分不锁出图；三联封面≠电影海报</p>
         </section>
         <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;border-left:1px solid #333;padding:12px;display:none;">
           <strong>${COLUMNS.chat}</strong>
@@ -236,7 +236,7 @@ export function createStudioHost() {
     cta?.addEventListener('click', () => {
       const skillNote = state.skillId ? `skill=${state.skillId}` : '无 Skill'
       setStatus(
-        `已触发「${CTA}」（${skillNote}；提示词 ${state.prompt.length} 字；负面词 ${state.negativePrompt.length} 字；${state.ratio}/${state.clarity}/×${state.count}）— 协议未接线`,
+        `已触发「${CTA}」（${skillNote}；提示词 ${state.prompt.length} 字；负面词 ${state.negativePrompt.length} 字；${state.ratio}/${state.clarity}/×${state.count}）— 已发 dsh-ws-generate（host-proxy 侧 generate 已接线）`,
       )
       host.dispatchEvent(
         new CustomEvent('dsh-ws-generate', {

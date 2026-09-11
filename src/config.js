@@ -20,7 +20,8 @@ export const Config = Schema.object({
  */
 export function resolveConfig(config = {}) {
   const home = process.env.HOME || process.env.USERPROFILE || '/tmp'
-  const dataDir = config.dataDir || `${home}/.dsh/dsh-image-workstation`
+  const dshHome = process.env.DSH_HOME || `${home}/.dsh`
+  const dataDir = config.dataDir || `${dshHome}/dsh-image-workstation`
   return {
     skillDir: config.skillDir || `${dataDir}/skills`,
     dataDir,

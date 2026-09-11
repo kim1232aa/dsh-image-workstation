@@ -1,3 +1,5 @@
 export { PROTOCOL_KINDS, CREDENTIAL_LANES, IMAGE_MODALITIES, VIDEO_MODALITIES } from './types.js'
 export { createAdapterStub, listPhase1Adapters } from './adapters.js'
 export { createHostProxy, attachHostProxy } from './host-proxy.js'
+export { loadMediaEnv, mediaEnvSummary } from './load-media-env.js'
+export { openaiImagesGenerate } from './openai-images.js'
