@@ -3,11 +3,8 @@ node_modules/
 *.log
 .env
 .env.*
+*.pem
+media.env
 
 # local smoke screenshots
 .smoke-*.png
-
-.env
-.env.*
-*.pem
-media.env

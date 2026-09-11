@@ -3,7 +3,7 @@
  * VisioWork is shape reference only.
  */
 
-/** @type {readonly string[]} 顶栏顺序：视频进顶栏，与图/画布平级 */
+/** @type {readonly string[]} 顶栏顺序：视频进顶栏，与图/画布平级（已确认） */
 export const TOP_TABS = Object.freeze([
   '普通生图',
   '视频生成',
@@ -102,3 +102,142 @@ export const CHROME = Object.freeze({
   settings: '设置',
   expandChat: 'AI 对话',
 })
+
+/* ─── 视频生成 ─── */
+
+export const VIDEO_MODE_TABS = Object.freeze(['文生视频', '图生视频'])
+
+export const VIDEO_FRAMES = Object.freeze({
+  first: '首帧图',
+  last: '尾帧图',
+})
+
+export const VIDEO_REFS = Object.freeze({
+  image: '参考图',
+  video: '参考视频',
+  audio: '参考音频',
+})
+
+export const VIDEO_PARAMS = Object.freeze({
+  duration: '时长',
+  clarity: '清晰度',
+  ratio: '比例',
+  model: '模型',
+})
+
+/** 渠道分档价差提示（有则显示） */
+export const VIDEO_CLARITY_TIERS = Object.freeze(['标准', '高清', '超清'])
+
+export const VIDEO_CTA = '开始生成'
+
+export const VIDEO_RESULT_ACTIONS = Object.freeze([
+  '播放',
+  '下载',
+  '加画廊',
+  '抽帧',
+  '重新生成',
+  '取消',
+  '重试',
+])
+
+export const VIDEO_CROSS = Object.freeze({
+  takeToVideo: '拿去做视频',
+})
+
+/* ─── 无限画布 ─── */
+
+export const CANVAS_NODES = Object.freeze({
+  image: '图片节点',
+  text: '文本节点',
+  genConfig: '生成配置节点',
+  video: '视频节点',
+})
+
+export const CANVAS_NODE_TOOLS = Object.freeze({
+  annotate: '标注',
+  removeBg: '移除背景',
+  setModel: '指定模型',
+})
+
+export const CANVAS_CHROME = Object.freeze({
+  fitAll: '适应全部内容',
+  send: '发送',
+  addToCanvas: '加入画布',
+  newProject: '新建',
+  rename: '重命名',
+})
+
+/* ─── 画廊 ─── */
+
+export const GALLERY_VIEWS = Object.freeze({
+  waterfall: '瀑布流',
+  grid: '规整网格',
+})
+
+export const GALLERY_SORT = Object.freeze({
+  newest: '最新',
+  oldest: '最早',
+})
+
+export const GALLERY_FILTERS = Object.freeze({
+  mode: '模式',
+  model: '模型',
+  ratio: '比例',
+  tag: '标签',
+})
+
+export const GALLERY_TAG_ACTIONS = Object.freeze({
+  create: '新建',
+  edit: '改',
+  remove: '删',
+  batchTag: '打标签',
+  batchDownload: '批量下载',
+})
+
+export const GALLERY_ACTIONS = Object.freeze([
+  '加画廊',
+  '当参考图',
+  '加对话',
+  '拿去做视频',
+  '加入画布',
+  '下载',
+])
+
+/* ─── 电商套图 ─── */
+
+export const ECOM_UPLOAD = Object.freeze({
+  product: '商品主图',
+  subject: '主体',
+  packaging: '包装',
+  detail: '细节',
+  styleRef: '风格参考图',
+})
+
+export const ECOM_FORM = Object.freeze({
+  name: '商品名称',
+  params: '参数信息',
+  aiWrite: 'AI 帮写',
+  locale: '文案语言',
+})
+
+export const ECOM_PURPOSES = Object.freeze([
+  '主图',
+  '卖点图',
+  '场景图',
+  '细节图',
+  '规格图',
+  '使用图',
+])
+
+export const ECOM_FLOW = Object.freeze({
+  planPreview: '套图预览',
+  confirmBatch: '确认批量生成',
+  exportList: '导出清单',
+})
+
+export const ECOM_RESULT_ACTIONS = Object.freeze([
+  '重新生成',
+  '下载',
+  '加画廊',
+  '加对话',
+])

@@ -10,12 +10,15 @@ DeepSeek Harness **生图工作台**插件骨架。按项目 brief 00–03 **重
 
 ```bash
 fnm use 22   # or any Node ^22.19
+export PATH="$HOME/.local/bin:$PATH"
 export DSH_HOME=/workspace/dsh/home
 dsh plugin --profile web add /workspace/dsh-image-workstation
 dsh --profile web --dump-config   # should show dsh-image-workstation layer
+dsh --profile web --no-open --port 3080
+# open the printed http://127.0.0.1:3080/?token=… URL (auth cookie)
 ```
 
-Browser half declared via `dsh.client` in package.json (same split as VisioWork). Sidebar/studio surface hooks TBD — see TODOs in src/client.js. Without it, host half still loads; client logs a warning.
+Browser half via `dsh.client` + `exports["./client"]` ModuleLoader bundle. Sidebar mounts 「新会话 | 生图」; 「生图」opens the 三栏 studio stub (host-proxy generate stays unwired — no paid upstream).
 
 ## Layout
 
