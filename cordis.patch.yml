@@ -1,0 +1,5 @@
+# Host row by package name. Browser half loads via package.json dsh.client
+# (served at /plugins/<id>/client.js) — same split as VisioWork; this is a rebuild.
+- insert:
+    - id: image-workstation
+      name: dsh-image-workstation

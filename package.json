@@ -1,0 +1,51 @@
+{
+  "name": "dsh-image-workstation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "dsh \u751f\u56fe\u5de5\u4f5c\u53f0 \u2014 Cordis plugin (rebuild, not a VisioWork/Nova fork)",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./src/client.js"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "VERSIONS.txt",
+    "docs"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ],
+      "platform": "web"
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/client.js && node --check src/config.js && node --check src/client/sidebar-entry.js && node --check src/client/studio-host.js"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.0"
+  }
+}

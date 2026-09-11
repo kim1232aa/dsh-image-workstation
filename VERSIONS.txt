@@ -1,0 +1,7 @@
+HOST_PIN
+  @deepseek-ai/dsh@0.1.5-rc.1
+  @deepseek-ai/cordis@4.0.2
+  @deepseek-ai/cordis-plugin-loader@^1.0.3
+  Node v22.23.2 (fnm); engines ^22.19 || >=24
+  DSH_HOME=/workspace/dsh/home
+  rebuild: not a fork of @dickpy/dsh-imagegen or nova-image-studio
