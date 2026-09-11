@@ -2,6 +2,12 @@
  * CTA → host Connection RPC → mediaProxy.generate
  * Channel is plugin-owned (not /api Typert). Token never crosses this boundary.
  */
+import {
+  scrubErrorMessage as scrubMessage,
+  HOST_GENERATE_TIMEOUT_MS,
+  anySignal,
+} from './rpc-errors.js'
+
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
 
@@ -62,16 +68,6 @@ function sizeFromRatio(ratio, clarity) {
   }
 }
 
-/**
- * Scrub accidental secrets from error strings before wire.
- * @param {string} msg
- */
-function scrubMessage(msg) {
-  return String(msg || 'generate failed')
-    .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
-    .replace(/sk-[A-Za-z0-9._-]{8,}/g, '[redacted]')
-    .slice(0, 500)
-}
 
 /**
  * @param {{ generate: (req: any) => Promise<any>, mediaConfigured?: boolean }} mediaProxy
@@ -109,8 +105,17 @@ export function createCtaRpcHandler(mediaProxy) {
         },
       }
     }
+    const timeoutAc = new AbortController()
+    const timer = setTimeout(() => {
+      const te = new Error(
+        `host generate timed out after ${Math.round(HOST_GENERATE_TIMEOUT_MS / 1000)}s waiting for upstream`,
+      )
+      te.code = 'GENERATE_TIMEOUT'
+      timeoutAc.abort(te)
+    }, HOST_GENERATE_TIMEOUT_MS)
     try {
-      const req = mapGenerateRequest(detail, signal)
+      const fused = anySignal(signal, timeoutAc.signal)
+      const req = mapGenerateRequest(detail, fused)
       // Only forward fields mediaProxy.generate understands today
       const out = await mediaProxy.generate({
         prompt: req.prompt,
@@ -138,14 +143,26 @@ export function createCtaRpcHandler(mediaProxy) {
         },
       }
     } catch (e) {
+      const timeoutHit = timeoutAc.signal.aborted && timeoutAc.signal.reason?.code === 'GENERATE_TIMEOUT'
+      const reasonCode = e?.code || timeoutAc.signal.reason?.code || signal?.reason?.code
+      const code = timeoutHit
+        ? 'GENERATE_TIMEOUT'
+        : reasonCode || (e?.name === 'AbortError' ? 'GENERATE_ABORTED' : 'GENERATE_FAILED')
+      const message = scrubMessage(
+        timeoutHit
+          ? timeoutAc.signal.reason?.message || e?.message || e
+          : e?.message || e,
+      )
       return {
         ok: false,
         error: {
-          code: e?.code || 'GENERATE_FAILED',
-          message: scrubMessage(e?.message || e),
+          code,
+          message,
           details: {},
         },
       }
+    } finally {
+      clearTimeout(timer)
     }
   }
 }
@@ -234,8 +251,23 @@ export function attachCtaRpc(ctx, mediaProxy) {
         res.writeHead(200, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ type: 'server-response', rpcId, result }))
       } catch (error) {
-        res.writeHead(500)
-        res.end(`handler failure: ${String(error)}`)
+        // Always return a Connection RPC envelope so the studio can show a
+        // scrubbed host message instead of bare HTTP 500 / Failed to fetch.
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            type: 'server-response',
+            rpcId,
+            result: {
+              ok: false,
+              error: {
+                code: 'HANDLER_FAILURE',
+                message: scrubMessage(error?.message || error),
+                details: {},
+              },
+            },
+          }),
+        )
       }
     },
   }

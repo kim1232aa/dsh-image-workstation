@@ -6,6 +6,12 @@ import { TOP_TABS, COLUMNS, CTA, SKILL_ENTRIES } from './ui/labels.js'
 import { studioTree, defaultStudioState } from './ui/studio-stub.js'
 import { mountSidebarEntry } from './client/sidebar-entry.js'
 import { createStudioHost } from './client/studio-host.js'
+import {
+  CLIENT_GENERATE_TIMEOUT_MS,
+  formatClientRpcFailure,
+  formatHostGenerateError,
+  scrubErrorMessage,
+} from './protocol/rpc-errors.js'
 
 export const name = 'dsh-image-workstation/client'
 export { TOP_TABS, COLUMNS, CTA, SKILL_ENTRIES, studioTree, defaultStudioState }
@@ -31,6 +37,7 @@ export function apply(ctx, _config) {
 
   /**
    * dsh-ws-generate → connection.rpc → paintGenerateResult
+   * Prefer host ok:false scrubbed messages over bare browser "Failed to fetch".
    * @param {CustomEvent} ev
    */
   const onGenerate = async (ev) => {
@@ -45,34 +52,41 @@ export function apply(ctx, _config) {
     }
     const rpc = ctx.connection?.rpc
     if (!rpc || typeof rpc.call !== 'function') {
-      studio.setStatus('connection.rpc 不可用 — 无法到达 host mediaProxy')
+      studio.setStatus('连接不可用，无法出图')
       return
     }
     inflight = true
-    studio.setStatus('出图中…（RPC → host mediaProxy.generate）')
+    studio.setStatus('出图中…')
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), CLIENT_GENERATE_TIMEOUT_MS)
     try {
-      const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GENERATE, {
-        prompt: detail.prompt,
-        negativePrompt: detail.negativePrompt,
-        mode: detail.mode,
-        skillId: detail.skillId,
-        ratio: detail.ratio,
-        clarity: detail.clarity,
-        count: detail.count,
-        detail: detail.detail,
-        modelId: detail.modelId,
-      })
+      const result = await rpc.call(
+        CTA_RPC_CHANNEL,
+        CTA_RPC_GENERATE,
+        {
+          prompt: detail.prompt,
+          negativePrompt: detail.negativePrompt,
+          mode: detail.mode,
+          skillId: detail.skillId,
+          ratio: detail.ratio,
+          clarity: detail.clarity,
+          count: detail.count,
+          detail: detail.detail,
+          modelId: detail.modelId,
+        },
+        ac.signal,
+      )
       if (result?.ok) {
         studio.paintGenerateResult(result.value || {})
       } else {
-        const err = result?.error || {}
-        studio.setStatus(
-          `出图失败：${err.message || 'unknown'}${err.code ? `（${err.code}）` : ''}`,
-        )
+        studio.setStatus(formatHostGenerateError(result?.error || {}))
       }
     } catch (e) {
-      studio.setStatus(`出图 RPC 失败：${e?.message || e}`)
+      studio.setStatus(formatClientRpcFailure(e))
+      // Extra scrubbed breadcrumb for console (never tokens)
+      console.warn('[dsh-image-workstation] CTA RPC failed:', scrubErrorMessage(e?.message || e))
     } finally {
+      clearTimeout(timer)
       inflight = false
     }
   }

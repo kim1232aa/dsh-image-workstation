@@ -3,6 +3,7 @@ import { Config, resolveConfig } from './config.js'
 import { loadMediaEnv, mediaEnvSummary } from './protocol/load-media-env.js'
 import { createHostProxy } from './protocol/host-proxy.js'
 import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
+import { attachAgentImageTools } from './agent/image-tools.js'
 
 export const name = 'dsh-image-workstation'
 export { Config }
@@ -12,6 +13,7 @@ export const inject = ['connection']
 
 /**
  * Host half: media bag + CTA RPC /dsh-ws → mediaProxy.generate
+ * + Agent generate_image tool (same mediaProxy path).
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {Record<string, unknown>} [config]
  */
@@ -26,6 +28,8 @@ export function apply(ctx, config) {
     skillDir: resolved.skillDir,
     mediaEnv: mediaSummary,
     mediaProxy,
+    allowAgentImageGeneration: resolved.allowAgentImageGeneration,
+    agentImageModels: resolved.agentImageModels,
   })
 
   // rpc.handle uses *caller* ctx (Cordis tracker). Mount from a fiber that has webServer.
@@ -51,6 +55,7 @@ export function apply(ctx, config) {
             hasWebServer: Boolean(webCtx.webServer),
             hasConnection: Boolean(webCtx.connection),
             mediaConfigured: mediaProxy.mediaConfigured,
+            agentTools: 'pending-tools-inject',
           },
           null,
           2,
@@ -61,7 +66,13 @@ export function apply(ctx, config) {
     }
   })
 
+  // Agent 对话生图: register generate_image when tools service is present.
+  attachAgentImageTools(ctx, mediaProxy, () => ({
+    allowAgentImageGeneration: resolved.allowAgentImageGeneration,
+    agentImageModels: resolved.agentImageModels,
+  }))
+
   ctx.logger?.info?.(
-    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaSummary)} configured=${mediaProxy.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate`,
+    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaSummary)} configured=${mediaProxy.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate agentImage=${resolved.allowAgentImageGeneration}`,
   )
 }

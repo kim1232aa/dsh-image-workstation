@@ -73,6 +73,45 @@ const bad = await boom(CTA_RPC_GENERATE, { prompt: 'x' })
 if (bad.ok !== false) fail('expected failure')
 if (String(bad.error?.message || '').includes('SECRETTOKEN123')) fail('token leaked in error')
 
+
+// host timeout surfaces as GENERATE_TIMEOUT (not a bare throw)
+const hang = createCtaRpcHandler({
+  mediaConfigured: true,
+  async generate(req) {
+    if (req.signal?.aborted) {
+      const e = new Error(req.signal.reason?.message || 'aborted')
+      e.name = 'AbortError'
+      e.code = req.signal.reason?.code || 'GENERATE_ABORTED'
+      throw e
+    }
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(resolve, 60_000)
+      req.signal?.addEventListener('abort', () => {
+        clearTimeout(t)
+        const e = new Error(req.signal.reason?.message || 'aborted')
+        e.name = 'AbortError'
+        e.code = req.signal.reason?.code || 'GENERATE_ABORTED'
+        reject(e)
+      })
+    })
+    return { jobId: 'x', phase: 'done', results: [] }
+  },
+})
+const ac = new AbortController()
+const te = new Error('host generate timed out after 120s waiting for upstream')
+te.code = 'GENERATE_TIMEOUT'
+ac.abort(te)
+const timed = await hang(CTA_RPC_GENERATE, { prompt: 'timeout probe rainy street' }, ac.signal)
+if (timed.ok !== false) fail(`timeout ok ${JSON.stringify(timed)}`)
+if (!String(timed.error?.message || '')) fail('timeout message empty')
+if (String(timed.error?.message || '').includes('SECRET')) fail('timeout leaked')
+// Prefer host timeout code when reason carries it
+if (timed.error?.code !== 'GENERATE_TIMEOUT' && timed.error?.code !== 'GENERATE_ABORTED') {
+  fail(`timeout code ${timed.error?.code}`)
+}
+
+console.log('- GENERATE_TIMEOUT / abort path returns ok:false scrubbed message')
+
 console.log('OK verify-cta-rpc')
 console.log('- mapGenerateRequest ratio/clarity/count')
 console.log('- handler spies mediaProxy.generate (no upstream)')

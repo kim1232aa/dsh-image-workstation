@@ -46,6 +46,7 @@ export const PARAM_LABELS = Object.freeze({
   count: '张数',
   detail: '细节',
   model: '模型',
+  compare: '多模型对比',
 })
 
 export const PROMPT_FIELDS = Object.freeze({
@@ -65,6 +66,9 @@ export const PROMPT_ACTIONS = Object.freeze({
 })
 
 export const CTA = '开始生成'
+
+/** VisioWork-shaped multi-model compare checkbox */
+export const COMPARE = '多模型对比'
 
 /** Skill 入口名 —— 三联封面 ≠ 电影海报 */
 export const SKILL_ENTRIES = Object.freeze([
@@ -123,6 +127,7 @@ export const VIDEO_PARAMS = Object.freeze({
   clarity: '清晰度',
   ratio: '比例',
   model: '模型',
+  compare: '多模型对比',
 })
 
 /** 渠道分档价差提示（有则显示） */

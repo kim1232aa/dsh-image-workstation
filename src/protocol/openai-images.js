@@ -86,15 +86,33 @@ export async function openaiImagesGenerate(cred, req, opts) {
   const url = `${base}/v1/images/generations`
   const body = buildBody(req)
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${cred.token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  })
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cred.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: opts.signal,
+    })
+  } catch (e) {
+    if (e?.name === 'AbortError' || opts.signal?.aborted) {
+      const reason = opts.signal?.reason
+      const err = new Error(
+        scrub(
+          reason?.message || e?.message || 'openai.images: request aborted (timeout or cancel)',
+          cred.token,
+        ),
+      )
+      err.code = reason?.code || 'GENERATE_ABORTED'
+      throw err
+    }
+    const err = new Error(`openai.images: fetch failed ${scrub(e?.message || e, cred.token)}`)
+    err.code = 'UPSTREAM_FETCH'
+    throw err
+  }
 
   const rawText = await res.text()
   let json

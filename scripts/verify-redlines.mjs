@@ -90,7 +90,7 @@ if (!hostIdx.includes('attachCtaRpc')) fail('host missing attachCtaRpc')
 
 const clientSrc = readFileSync(join(root, 'src/client.js'), 'utf8')
 if (!clientSrc.includes("addEventListener('dsh-ws-generate'")) fail('client missing dsh-ws-generate listener')
-if (!clientSrc.includes("rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GENERATE")) fail('client missing rpc.call generate')
+if (!clientSrc.includes('rpc.call') || !clientSrc.includes('CTA_RPC_CHANNEL') || !clientSrc.includes('CTA_RPC_GENERATE')) fail('client missing rpc.call generate')
 if (!clientSrc.includes('paintGenerateResult')) fail('client missing paintGenerateResult')
 
 const studioSrc = readFileSync(join(root, 'src/client/studio-host.js'), 'utf8')
@@ -105,3 +105,48 @@ console.log('- 三联封面 ≠ 电影海报')
 console.log('- sidebar 生图 → studio.open()')
 console.log('- no moderation / 不能生成 patterns in src+lib')
 console.log('- CTA dsh-ws-generate → /dsh-ws/generate → paintGenerateResult')
+
+// --- this loop: honest RPC errors + Agent generate_image register path ---
+const rpcErrors = readFileSync(join(root, 'src/protocol/rpc-errors.js'), 'utf8')
+if (!rpcErrors.includes('formatClientRpcFailure') || !rpcErrors.includes('Failed to fetch')) {
+  fail('rpc-errors missing formatClientRpcFailure / Failed to fetch guidance')
+}
+if (!rpcErrors.includes('HOST_GENERATE_TIMEOUT_MS') || !rpcErrors.includes('CLIENT_GENERATE_TIMEOUT_MS')) {
+  fail('rpc-errors missing timeout constants')
+}
+
+const clientHonest = readFileSync(join(root, 'src/client.js'), 'utf8')
+if (!clientHonest.includes('formatHostGenerateError') || !clientHonest.includes('formatClientRpcFailure')) {
+  fail('client.js missing honest error formatters')
+}
+if (!clientHonest.includes('CLIENT_GENERATE_TIMEOUT_MS') || !clientHonest.includes('AbortController')) {
+  fail('client.js missing generate AbortController timeout')
+}
+
+const ctaHonest = readFileSync(join(root, 'src/protocol/cta-rpc.js'), 'utf8')
+if (!ctaHonest.includes('HOST_GENERATE_TIMEOUT_MS') || !ctaHonest.includes('GENERATE_TIMEOUT')) {
+  fail('cta-rpc missing host generate timeout')
+}
+if (!ctaHonest.includes('HANDLER_FAILURE') || !ctaHonest.includes('server-response')) {
+  fail('cta-rpc outer failure must return server-response envelope')
+}
+
+const agentTools = readFileSync(join(root, 'src/agent/image-tools.js'), 'utf8')
+const agentPolicy = readFileSync(join(root, 'src/agent/model-policy.js'), 'utf8')
+if (!agentTools.includes("name: 'generate_image'")) fail('agent tools missing generate_image')
+if (!agentTools.includes('mediaProxy.generate')) fail('agent tools must call mediaProxy.generate')
+if (!agentPolicy.includes('MODEL_CHOICE_REQUIRED')) fail('agent tools missing multi-model ask')
+if (!agentPolicy.includes('IMAGE_API_NOT_CONFIGURED')) fail('agent tools missing not-configured guide')
+if (!agentTools.includes('ctx.tools.register')) fail('agent tools missing ctx.tools.register')
+if (!agentPolicy.includes('allowAgentImageGeneration')) fail('agent tools missing allowAgent toggle')
+
+const hostIdx2 = readFileSync(join(root, 'src/index.js'), 'utf8')
+if (!hostIdx2.includes('attachAgentImageTools')) fail('host index missing attachAgentImageTools')
+
+const cfg = readFileSync(join(root, 'src/config.js'), 'utf8')
+if (!cfg.includes('allowAgentImageGeneration') || !cfg.includes('agentImageModels')) {
+  fail('config missing Agent allow / models fields')
+}
+
+console.log('- honest CTA errors (host scrubbed + timeout + Failed to fetch guidance)')
+console.log('- Agent generate_image → mediaProxy.generate register path')
