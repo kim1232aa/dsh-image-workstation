@@ -68,16 +68,15 @@ export function createHostProxy(resolved) {
 }
 
 /**
- * Optional Cordis hook: stash proxy on ctx for later tools.register.
- * Does not register tools or open sockets.
+ * Legacy helper — prefer createHostProxy + ctx.provide in apply.
+ * Mutates an already-provided bag via ctx.get (requires inject/provide).
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {{ dataDir: string }} resolved
  */
 export function attachHostProxy(ctx, resolved) {
   const proxy = createHostProxy(resolved)
-  // Namespaced bag — avoid colliding with host services
-  ctx.dshImageWorkstation ??= {}
-  ctx.dshImageWorkstation.mediaProxy = proxy
+  const bag = ctx.get('dshImageWorkstation')
+  if (bag && typeof bag === 'object') bag.mediaProxy = proxy
   ctx.logger?.info?.(
     `[dsh-image-workstation] media host-proxy seats ready (adapters=${proxy.adapters.join(',')}; live=false)`,
   )

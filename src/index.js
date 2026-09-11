@@ -1,24 +1,30 @@
 import { Config, resolveConfig } from './config.js'
 import { loadMediaEnv, mediaEnvSummary } from './protocol/load-media-env.js'
-import { attachHostProxy } from './protocol/host-proxy.js'
+import { createHostProxy } from './protocol/host-proxy.js'
 
 export const name = 'dsh-image-workstation'
 export { Config }
 
 /**
- * Host half: data paths, future tools/queue. No paid API calls here.
+ * Host half: data paths + host-only media bag. No paid API calls here.
+ * Provides `dshImageWorkstation` via Cordis provide (never bare ctx.foo assign).
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {Record<string, unknown>} [config]
  */
 export function apply(ctx, config) {
   const resolved = resolveConfig(config)
-  ctx.logger?.info?.(
-    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'}`,
-  )
   const media = loadMediaEnv()
-  ctx.dshImageWorkstation = ctx.dshImageWorkstation || {}
-  ctx.dshImageWorkstation.mediaEnv = media // host-only; never send token to client
-  ctx.logger?.info?.(`[dsh-image-workstation] mediaEnv ${JSON.stringify(mediaEnvSummary(media))}`)
-  // Protocol seats only — no live upstream / no tools.register yet
-  attachHostProxy(ctx, resolved)
+  const mediaProxy = createHostProxy(resolved)
+
+  // Host-only bag — token stays here; never register a client-facing RPC that returns mediaEnv.token
+  ctx.provide('dshImageWorkstation', {
+    dataDir: resolved.dataDir,
+    skillDir: resolved.skillDir,
+    mediaEnv: media,
+    mediaProxy,
+  })
+
+  ctx.logger?.info?.(
+    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaEnvSummary(media))} proxy adapters=${mediaProxy.adapters.join(',')}`,
+  )
 }
