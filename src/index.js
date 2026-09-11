@@ -6,7 +6,7 @@ import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
 export const name = 'dsh-image-workstation'
 export { Config }
 
-/** Host needs Connection to expose `/dsh-ws` CTA RPC (client never holds token). */
+/** Host needs Connection; webServer is injected only for the RPC mount fiber (same pattern as dsh-client-connection). */
 export const inject = ['connection']
 
 /**
@@ -30,7 +30,10 @@ export function apply(ctx, config) {
     mediaProxy,
   })
 
-  ctx.effect(() => attachCtaRpc(ctx, mediaProxy), 'dsh-image-workstation: cta rpc /dsh-ws')
+  // connection.rpc.handle registers via owner.webServer — must run on a fiber that injects webServer
+  ctx.inject(['webServer'], (webCtx) => {
+    attachCtaRpc(webCtx, mediaProxy)
+  })
 
   ctx.logger?.info?.(
     `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaSummary)} proxy adapters=${mediaProxy.adapters.join(',')} configured=${mediaProxy.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate`,
