@@ -273,12 +273,12 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-results][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-results] {
   /* Pack to natural height — NEVER flex:1 sea that sinks RESULT_ACTIONS */
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
-  gap:10px; align-content:start; flex:0 1 auto; min-height:0; max-height:100%;
-  overflow:auto; padding:2px 0 4px;
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));
+  gap:12px; align-content:start; flex:0 1 auto; min-height:0; max-height:100%;
+  overflow:auto; padding:0;
 }
 [data-dsh-ws-studio-host] [data-ws-results] [data-ws-result-card] {
-  border:1px solid var(--dsw-alias-border-l2); border-radius:10px; padding:4px;
+  border:1px solid var(--dsw-alias-border-l2); border-radius:10px; padding:2px;
   background: var(--dsw-alias-bg-module-platform); overflow:hidden; min-width:0;
   cursor:pointer;
 }
@@ -287,7 +287,7 @@ const HOST_STYLES = `
   box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
 }
 [data-dsh-ws-studio-host] [data-ws-results] [data-ws-result-card] img {
-  display:block; width:100%; max-height:280px; border-radius:6px; object-fit:cover;
+  display:block; width:100%; max-height:420px; border-radius:8px; object-fit:cover;
   background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-tile] {
@@ -427,14 +427,16 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-fail][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] {
-  /* Directly under result grid — never margin-top:auto / column-bottom flex sea */
-  display:none; flex-wrap:wrap; gap:6px; padding:4px 0 2px; flex:0 0 auto; margin-top:0;
+  /* Directly under result grid — never margin-top:auto / column-bottom flex sea.
+     2-row wrap OK — roomy gap so seven chips aren't cramped. */
+  display:none; flex-wrap:wrap; gap:8px 10px; padding:8px 0 4px; flex:0 0 auto; margin-top:0;
+  align-content:flex-start;
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] button {
-  padding:4px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  padding:7px 14px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
   background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
-  cursor:pointer; font:inherit; font-size:11.5px;
+  cursor:pointer; font:inherit; font-size:12.5px; line-height:1.25; min-height:32px;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-panel] {
   display:none; flex-direction:column; gap:4px; padding:6px 8px;
@@ -1405,7 +1407,7 @@ export function createStudioHost() {
     }
     setStatus(
       results.length
-        ? `生成完成 ×${results.length}${value?.jobId ? ` · job ${String(value.jobId).slice(0, 8)}` : ''}`
+        ? `生成完成 ×${results.length}`
         : `生成完成但无图${value?.phase ? ` (${value.phase})` : ''}`,
     )
   }
