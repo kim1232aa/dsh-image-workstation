@@ -138,6 +138,104 @@ function extOfMime(mime) {
   }
 }
 
+/** Max bytes returned by storage.read (base64 expands ~4/3). */
+const STORAGE_READ_MAX_BYTES = 6 * 1024 * 1024
+
+/**
+ * MIME from filename extension for data URLs.
+ * @param {string} file
+ */
+function mimeOfExt(file) {
+  switch (path.extname(file).toLowerCase()) {
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg'
+    case '.webp':
+      return 'image/webp'
+    case '.gif':
+      return 'image/gif'
+    case '.mp4':
+      return 'video/mp4'
+    case '.webm':
+      return 'video/webm'
+    case '.mov':
+      return 'video/quicktime'
+    default:
+      return 'image/png'
+  }
+}
+
+/**
+ * Read a media file under dataDir as a browser-displayable data URL.
+ * Rejects path traversal and oversize files. Used by gallery thumbs when list
+ * entries only have relativePath/localPath (no http/data/blob url).
+ * @param {string} dataDir
+ * @param {{ relativePath?: string, localPath?: string }} input
+ * @returns {{ dataUrl: string, mime: string, relativePath?: string, size: number, kind: 'image'|'video' }}
+ */
+export function readMediaAsDataUrl(dataDir, input = {}) {
+  const root = path.resolve(String(dataDir || '').trim())
+  if (!root || root === '.') {
+    const err = new Error('dataDir required for storage.read')
+    err.code = 'STORAGE_NO_DATADIR'
+    throw err
+  }
+  const relRaw = String(input.relativePath || '').trim().replace(/^\/+/, '')
+  const localRaw = String(input.localPath || '').trim()
+  let abs = ''
+  let relativePath = relRaw || undefined
+  if (localRaw) {
+    const cleaned = localRaw.startsWith('file://') ? localRaw.slice(7) : localRaw
+    abs = path.resolve(cleaned)
+  } else if (relRaw) {
+    if (!relRaw.startsWith('media/')) {
+      const err = new Error('storage.read relativePath must start with media/')
+      err.code = 'STORAGE_BAD_PATH'
+      throw err
+    }
+    abs = path.resolve(root, relRaw)
+  } else {
+    const err = new Error('storage.read needs relativePath or localPath')
+    err.code = 'STORAGE_PATH_REQUIRED'
+    throw err
+  }
+  if (!abs.startsWith(root + path.sep) && abs !== root) {
+    const err = new Error('storage.read path outside dataDir')
+    err.code = 'STORAGE_PATH_TRAVERSAL'
+    throw err
+  }
+  if (!existsSync(abs)) {
+    const err = new Error('storage.read file not found')
+    err.code = 'STORAGE_NOT_FOUND'
+    throw err
+  }
+  const st = statSync(abs)
+  if (!st.isFile()) {
+    const err = new Error('storage.read target is not a file')
+    err.code = 'STORAGE_NOT_FILE'
+    throw err
+  }
+  if (st.size > STORAGE_READ_MAX_BYTES) {
+    const err = new Error(`storage.read file too large (${st.size} > ${STORAGE_READ_MAX_BYTES})`)
+    err.code = 'STORAGE_TOO_LARGE'
+    throw err
+  }
+  const buf = readFileSync(abs)
+  const mime = mimeOfExt(abs)
+  const kind = mime.startsWith('video/') ? 'video' : 'image'
+  if (!relativePath) {
+    const rel = path.relative(root, abs)
+    if (rel && !rel.startsWith('..')) relativePath = rel.split(path.sep).join('/')
+  }
+  return {
+    dataUrl: `data:${mime};base64,${buf.toString('base64')}`,
+    mime,
+    relativePath,
+    size: buf.length,
+    kind,
+  }
+}
+
 /**
  * Resolve bytes from src / localPath. Host cannot read blob: URLs.
  * @param {{ src?: string, localPath?: string, dataDir?: string }} input

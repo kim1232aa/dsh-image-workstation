@@ -275,11 +275,13 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage][data-has-results],
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage][data-busy] {
-  flex:1 1 auto; min-height:0;
+  /* Pack to image + actions — leftover column uses muted wall bg, not a white sea under the result */
+  flex:0 1 auto; min-height:0;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] {
-  /* Idle: don't stretch a tall white sea — leftover uses muted layer token */
+  /* Idle + with-results: pack content to top; leftover column = muted layer, not white sea */
   justify-content:flex-start;
+  align-content:flex-start;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
   display:flex; align-items:baseline; gap:8px; flex:none;
@@ -1571,7 +1573,8 @@ export function createStudioHost(opts = {}) {
     if (!histEl.querySelector('[data-ws-history-empty]')) {
       const empty = document.createElement('div')
       empty.dataset.wsHistoryEmpty = ''
-      empty.style.cssText = `padding:8px 4px;font-size:12px;color:${T.fg3};`
+      // Quiet hint — must not compete with host session list as a second "history"
+      empty.style.cssText = `padding:4px 2px;font-size:11px;color:${T.fg3};opacity:.65;line-height:1.4;`
       empty.textContent = HISTORY_EMPTY_HINT
       empty.removeAttribute('title')
       histEl.appendChild(empty)

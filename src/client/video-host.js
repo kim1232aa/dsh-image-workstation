@@ -240,7 +240,7 @@ export function buildVideoPageHtml(T, css, paneWidths, state) {
       <select aria-label="全部比例" style="flex:1;${css.select}"><option>全部比例</option></select>
     </div>
     <div data-ws-video-history-list style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;">
-      <div data-ws-history-empty style="padding:8px 4px;font-size:12px;color:${T.fg3};">${HISTORY_EMPTY_HINT}</div>
+      <div data-ws-history-empty style="padding:4px 2px;font-size:11px;color:${T.fg3};opacity:.65;line-height:1.4;">${HISTORY_EMPTY_HINT}</div>
     </div>
     <button type="button" data-ws-video-history-clear style="align-self:flex-start;${css.pill({ color: T.fg3 })}">${HISTORY_ACTIONS.clear}</button>
   </aside>
@@ -570,7 +570,7 @@ export function mountVideoPage(host, opts) {
   page.querySelector('[data-ws-video-history-clear]')?.addEventListener('click', () => {
     const list = page.querySelector('[data-ws-video-history-list]')
     if (list) {
-      list.innerHTML = `<div data-ws-history-empty style="padding:8px 4px;font-size:12px;color:${T.fg3};">${HISTORY_EMPTY_HINT}</div>`
+      list.innerHTML = `<div data-ws-history-empty style="padding:4px 2px;font-size:11px;color:${T.fg3};opacity:.65;line-height:1.4;">${HISTORY_EMPTY_HINT}</div>`
     }
     setStatus('已清空历史')
   })

@@ -84,7 +84,7 @@ export const PORTRAIT_SUB = Object.freeze(['升级已有照片', '原创人像']
 export const CASTING_EXTRA = '三视图'
 
 /** Studio/video history rail — local generate jobs (≠ host chat sessions) */
-export const HISTORY_EMPTY = '暂无本机生图记录'
+export const HISTORY_EMPTY = '生成后会出现在这里'
 
 export const HISTORY_ACTIONS = Object.freeze({
   clear: '清空',

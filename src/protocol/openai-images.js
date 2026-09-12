@@ -143,7 +143,13 @@ export async function openaiImagesGenerate(cred, req, opts) {
     if (item?.b64_json) {
       const file = path.join(outDir, `${randomUUID()}.png`)
       fs.writeFileSync(file, Buffer.from(item.b64_json, 'base64'))
-      results.push({ kind: 'image', url: `file://${file}`, localPath: file, mime: 'image/png' })
+      results.push({
+        kind: 'image',
+        url: `data:image/png;base64,${item.b64_json}`,
+        localPath: file,
+        relativePath: `media/generated/${path.basename(file)}`,
+        mime: 'image/png',
+      })
       continue
     }
     if (item?.url) {
@@ -152,7 +158,13 @@ export async function openaiImagesGenerate(cred, req, opts) {
       results.push({
         kind: 'image',
         url: remote,
-        ...(localPath ? { localPath, mime: 'image/png' } : { mime: 'image/png' }),
+        ...(localPath
+          ? {
+              localPath,
+              relativePath: `media/generated/${path.basename(localPath)}`,
+              mime: 'image/png',
+            }
+          : { mime: 'image/png' }),
       })
     }
   }
@@ -313,7 +325,13 @@ export async function openaiImagesEdit(cred, req, opts) {
     if (item?.b64_json) {
       const file = path.join(outDir, `${randomUUID()}.png`)
       fs.writeFileSync(file, Buffer.from(item.b64_json, 'base64'))
-      results.push({ kind: 'image', url: `file://${file}`, localPath: file, mime: 'image/png' })
+      results.push({
+        kind: 'image',
+        url: `data:image/png;base64,${item.b64_json}`,
+        localPath: file,
+        relativePath: `media/generated/${path.basename(file)}`,
+        mime: 'image/png',
+      })
       continue
     }
     if (item?.url) {
@@ -322,7 +340,13 @@ export async function openaiImagesEdit(cred, req, opts) {
       results.push({
         kind: 'image',
         url: remote,
-        ...(localPath ? { localPath, mime: 'image/png' } : { mime: 'image/png' }),
+        ...(localPath
+          ? {
+              localPath,
+              relativePath: `media/generated/${path.basename(localPath)}`,
+              mime: 'image/png',
+            }
+          : { mime: 'image/png' }),
       })
     }
   }

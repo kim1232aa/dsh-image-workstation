@@ -26,6 +26,7 @@ const HISTORY_KEY_BASE = 'dsh-ws-history-v1'
 const CTA_RPC_CHANNEL = '/dsh-ws'
 const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 const CTA_RPC_STORAGE_LIST = 'storage.list'
+const CTA_RPC_STORAGE_READ = 'storage.read'
 const CTA_RPC_GALLERY_ADD = 'gallery.add'
 const CTA_RPC_GALLERY_LIST = 'gallery.list'
 const CTA_RPC_GALLERY_TAGS = 'gallery.tags'
@@ -77,6 +78,33 @@ export function fingerprintSrc(src) {
     h = Math.imul(h, 0x01000193) >>> 0
   }
   return `fnv-${s.length}-${h.toString(16)}`
+}
+
+
+/** Browser-usable image/video src (http/data/blob). file:// is never displayable. */
+export function usableDisplaySrc(src) {
+  const s = String(src || '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  if (s.startsWith('data:')) return s
+  if (s.startsWith('blob:')) return s
+  return ''
+}
+
+/** HARD RULE: grid/count only for items with a real displayable thumb src. */
+export function itemHasDisplayableThumb(it) {
+  if (!it || typeof it !== 'object') return false
+  return Boolean(usableDisplaySrc(it.displayUrl || it.url))
+}
+
+/** Candidate for storage.read hydration (has disk path but no browser src yet). */
+export function itemNeedsHydration(it) {
+  if (!it || typeof it !== 'object') return false
+  if (itemHasDisplayableThumb(it)) return false
+  if (it.relativePath && String(it.relativePath).startsWith('media/')) return true
+  if (it.localPath) return true
+  if (String(it.url || '').startsWith('file://')) return true
+  return false
 }
 
 export function readLocalGalleryItems() {
@@ -230,10 +258,12 @@ export function readLocalHistoryItems() {
           const url = r?.url ? String(r.url) : ''
           const localPath = r?.localPath ? String(r.localPath) : ''
           if (!url && !localPath) return
+          const relativePath = r?.relativePath ? String(r.relativePath) : ''
           out.push({
             id: `${id || 'hist'}-${i}`,
             url: url || '',
             localPath: localPath || undefined,
+            relativePath: relativePath || undefined,
             kind: r?.kind === 'video' ? 'video' : 'image',
             mode: snap.mode ? String(snap.mode) : undefined,
             model: snap.modelId ? String(snap.modelId) : undefined,
@@ -563,7 +593,8 @@ export function mountGalleryPage(host, opts) {
   }
 
   const filteredItems = () => {
-    let list = [...state.items]
+    // HARD RULE: only items with displayable src — never lay empty card shells
+    let list = state.items.filter(itemHasDisplayableThumb)
     const { mode, model, ratio, tagIds } = state.filters
     if (mode && mode !== FILTER_ALL) list = list.filter((it) => it.mode === mode)
     if (model && model !== FILTER_ALL) list = list.filter((it) => it.model === model)
@@ -610,41 +641,90 @@ export function mountGalleryPage(host, opts) {
       .join('')
   }
 
+  const thumbInflight = new Map()
+
+  /** Resolve path-only items to data URLs via storage.read. Mutates items in place. */
+  const hydrateDisplayUrls = async (items) => {
+    const rpc = typeof getRpc === 'function' ? getRpc() : null
+    const need = items.filter(itemNeedsHydration)
+    if (!need.length) return
+    if (!rpc || typeof rpc.call !== 'function') return
+
+    const concurrency = 6
+    let i = 0
+    const worker = async () => {
+      while (i < need.length) {
+        const it = need[i++]
+        const rel = it.relativePath ? String(it.relativePath) : ''
+        let localPath = it.localPath ? String(it.localPath) : ''
+        if (!localPath && String(it.url || '').startsWith('file://')) {
+          localPath = String(it.url).slice(7)
+        }
+        const key = it.id || rel || localPath
+        if (!key) continue
+        try {
+          let job = thumbInflight.get(key)
+          if (!job) {
+            job = (async () => {
+              const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_READ, {
+                relativePath: rel || undefined,
+                localPath: localPath || undefined,
+                dataDir: state.paths?.dataDir,
+              })
+              if (result?.ok && result.value?.dataUrl) return String(result.value.dataUrl)
+              return ''
+            })().finally(() => {
+              thumbInflight.delete(key)
+            })
+            thumbInflight.set(key, job)
+          }
+          const dataUrl = await job
+          if (dataUrl) it.displayUrl = dataUrl
+        } catch (_) {
+          /* leave without displayUrl — filtered out of grid */
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, need.length) }, () => worker()))
+  }
+
+  const syncCountLabel = () => {
+    const countEl = page.querySelector('[data-ws-gallery-count]')
+    const grid = page.querySelector('[data-ws-gallery-grid]')
+    const n =
+      grid instanceof HTMLElement
+        ? grid.querySelectorAll('[data-ws-gallery-card]').length
+        : filteredItems().length
+    if (countEl) countEl.textContent = `共 ${n} 项`
+  }
+
   const paintGrid = () => {
     const grid = page.querySelector('[data-ws-gallery-grid]')
-    const countEl = page.querySelector('[data-ws-gallery-count]')
     if (!(grid instanceof HTMLElement)) return
     grid.setAttribute('data-view', state.view)
-    const items = filteredItems()
-    if (countEl) countEl.textContent = `共 ${items.length} 项`
+    // HARD RULE: only cards with a real <img>/<video> src — no empty shells, no 「无预览」tiles in the grid
+    const items = filteredItems().filter((it) => usableDisplaySrc(it.displayUrl || it.url))
 
     if (!items.length) {
-      const rawEmpty = !state.items.length
       const seats = state.paths
         ? `本地座位：${escapeHtml(state.paths.gallery)} · ${escapeHtml(state.paths.history)}`
         : ''
-      grid.innerHTML = `<div data-ws-gallery-empty role="status">${
-        rawEmpty
-          ? `${EMPTY_HINT}${seats ? `<div style="margin-top:8px;font-size:11px;opacity:.85;">${seats}</div>` : ''}`
-          : '当前筛选下没有素材。试试改模式 / 模型 / 比例 / 标签。'
+      grid.innerHTML = `<div data-ws-gallery-empty role="status">${EMPTY_HINT}${
+        seats ? `<div style="margin-top:8px;font-size:11px;opacity:.85;">${seats}</div>` : ''
       }</div>`
+      syncCountLabel()
       return
     }
 
     grid.innerHTML = items
       .map((it) => {
         const selected = state.selection.includes(it.id)
-        const src = it.url || ''
-        const isVideo = it.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(src || it.relativePath || '')
-        let media
-        if (src) {
-          media = isVideo
-            ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
-            : `<img src="${escapeHtml(src)}" alt="" loading="lazy" />`
-        } else {
-          const label = escapeHtml(it.name || it.relativePath || '本地文件')
-          media = `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:8px;font-size:11px;color:var(--dsw-alias-label-tertiary);text-align:center;background:var(--dsw-alias-bg-layer-1);">${label}</div>`
-        }
+        const src = usableDisplaySrc(it.displayUrl || it.url)
+        const isVideo =
+          it.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(src || it.relativePath || '')
+        const media = isVideo
+          ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
+          : `<img src="${escapeHtml(src)}" alt="" loading="lazy" />`
         const meta = escapeHtml(it.name || it.mode || it.model || it.ratio || it.relativePath || '素材')
         return `<article data-ws-gallery-card data-id="${escapeHtml(it.id)}" role="listitem" ${selected ? 'data-selected' : ''}>
           ${media}
@@ -652,6 +732,36 @@ export function mountGalleryPage(host, opts) {
         </article>`
       })
       .join('')
+
+    // Broken src → remove the card entirely (keep count = visible thumbs)
+    grid.querySelectorAll('[data-ws-gallery-card] img, [data-ws-gallery-card] video').forEach((el) => {
+      el.addEventListener(
+        'error',
+        () => {
+          const card = el.closest('[data-ws-gallery-card]')
+          const id = card?.getAttribute('data-id')
+          card?.remove()
+          if (id) {
+            const hit = state.items.find((x) => x.id === id)
+            if (hit) {
+              hit.displayUrl = ''
+              if (usableDisplaySrc(hit.url) === el.getAttribute('src')) hit.url = ''
+            }
+          }
+          if (!grid.querySelector('[data-ws-gallery-card]')) {
+            const seats = state.paths
+              ? `本地座位：${escapeHtml(state.paths.gallery)} · ${escapeHtml(state.paths.history)}`
+              : ''
+            grid.innerHTML = `<div data-ws-gallery-empty role="status">${EMPTY_HINT}${
+              seats ? `<div style="margin-top:8px;font-size:11px;opacity:.85;">${seats}</div>` : ''
+            }</div>`
+          }
+          syncCountLabel()
+        },
+        { once: true },
+      )
+    })
+    syncCountLabel()
   }
 
   const paintViewSort = () => {
@@ -685,10 +795,15 @@ export function mountGalleryPage(host, opts) {
     const box = page.querySelector('[data-ws-gallery-lightbox]')
     const body = page.querySelector('[data-ws-gallery-lightbox-body]')
     if (!(box instanceof HTMLElement) || !(body instanceof HTMLElement)) return
-    const isVideo = item.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(item.url || '')
-    body.innerHTML = isVideo
-      ? `<video data-ws-gallery-lightbox-media controls src="${escapeHtml(item.url || '')}" style="width:100%;max-height:70vh;border-radius:8px;background:${T.layer1};"></video>`
-      : `<img data-ws-gallery-lightbox-media src="${escapeHtml(item.url || '')}" alt="" style="width:100%;max-height:70vh;object-fit:contain;border-radius:8px;background:${T.layer1};" />`
+    const src = usableDisplaySrc(item.displayUrl || item.url)
+    const isVideo = item.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(src || item.relativePath || '')
+    if (!src) {
+      body.innerHTML = `<div style="padding:24px;text-align:center;color:${T.fg3};font-size:13px;">无预览</div>`
+    } else {
+      body.innerHTML = isVideo
+        ? `<video data-ws-gallery-lightbox-media controls src="${escapeHtml(src)}" style="width:100%;max-height:70vh;border-radius:8px;background:${T.layer1};"></video>`
+        : `<img data-ws-gallery-lightbox-media src="${escapeHtml(src)}" alt="" style="width:100%;max-height:70vh;object-fit:contain;border-radius:8px;background:${T.layer1};" />`
+    }
     box.setAttribute('data-open', '')
     box.setAttribute('aria-hidden', 'false')
   }
@@ -709,13 +824,16 @@ export function mountGalleryPage(host, opts) {
     state.paths = paths
     state.tags = readLocalTags()
     state.items = collectLocalMediaItems(diskItems)
+    // Hydrate path-only rows BEFORE paint — grid never shows empty shells
+    await hydrateDisplayUrls(state.items)
     paintModelFilter()
     paintTags()
     paintGrid()
     paintViewSort()
     const seatHint = `${paths.gallery} · ${paths.history}`
-    if (!state.items.length) setStatus(`本地座位 ${seatHint}（暂无媒体）`)
-    else setStatus(`已读 ${state.items.length} 项 · ${seatHint}`)
+    const visible = state.items.filter(itemHasDisplayableThumb).length
+    if (!visible) setStatus(`本地座位 ${seatHint}（暂无媒体）`)
+    else setStatus(`已读 ${visible} 项 · ${seatHint}`)
   }
 
   const addFromDetail = async (detail) => {
@@ -877,7 +995,7 @@ export function mountGalleryPage(host, opts) {
       setStatus('无选中素材')
       return
     }
-    const src = item.url || ''
+    const src = usableDisplaySrc(item.displayUrl || item.url)
     if (action === '下载') {
       setStatus(downloadUrl(src, `${item.name || 'gallery'}.png`) ? '已下载' : '无图可下载')
       return

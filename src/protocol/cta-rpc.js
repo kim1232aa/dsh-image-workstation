@@ -37,11 +37,13 @@ import {
   storagePathsOf,
   ensureMediaSeats,
   persistGenerateToSeats,
+  readMediaAsDataUrl,
 } from './media-storage.js'
 
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
 export const CTA_RPC_PROBE = 'probe'
+export const CTA_RPC_SETTINGS_EFFECTIVE = 'settings.effective'
 export const CTA_RPC_REVERSE_PROMPT = 'reversePrompt'
 export const CTA_RPC_ENHANCE_PROMPT = 'enhancePrompt'
 export const CTA_RPC_VIDEO_GENERATE = 'videoGenerate'
@@ -49,6 +51,7 @@ export { CTA_RPC_GIF_GENERATE, CTA_RPC_ECOM_GENERATE }
 export { CTA_RPC_CANVAS_GENERATE }
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 export const CTA_RPC_STORAGE_LIST = 'storage.list'
+export const CTA_RPC_STORAGE_READ = 'storage.read'
 export const CTA_RPC_GALLERY_ADD = 'gallery.add'
 export const CTA_RPC_GALLERY_LIST = 'gallery.list'
 export const CTA_RPC_GALLERY_REMOVE = 'gallery.remove'
@@ -250,7 +253,11 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
         }
       }
       // storage.list — Visio seats + Nova-shaped gallery index.json
-      const seatGallery = listMediaSeat(dataDir, paths.gallery)
+      const seatGallery = [
+        ...listMediaSeat(dataDir, paths.gallery),
+        // Nova gallery files land under media/gallery/images/
+        ...listMediaSeat(dataDir, `${paths.gallery}/images`),
+      ]
       const historyItems = listMediaSeat(dataDir, paths.history)
       const generatedItems = listMediaSeat(dataDir, paths.generated)
       let indexGallery = []
@@ -269,6 +276,32 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
           generatedItems,
           items: [...galleryItems, ...historyItems, ...generatedItems],
         },
+      }
+    }
+
+
+    if (endpoint === CTA_RPC_STORAGE_READ) {
+      const dataDir = String(
+        (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) ||
+          (payload && payload.dataDir) ||
+          '',
+      )
+      try {
+        const detail = payload && typeof payload === 'object' ? payload : {}
+        const value = readMediaAsDataUrl(dataDir, {
+          relativePath: detail.relativePath,
+          localPath: detail.localPath,
+        })
+        return { ok: true, value }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'STORAGE_READ_FAILED',
+            message: String(e?.message || e),
+            details: {},
+          },
+        }
       }
     }
 
@@ -339,6 +372,45 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
         }
       }
     }
+
+    if (endpoint === CTA_RPC_SETTINGS_EFFECTIVE) {
+      try {
+        const raw =
+          typeof mediaProxy?.effectiveSettings === 'function'
+            ? mediaProxy.effectiveSettings()
+            : null
+        const v = raw && typeof raw === 'object' ? raw : {}
+        // Whitelist only — never forward raw keys/tokens.
+        return {
+          ok: true,
+          value: {
+            mediaBaseUrl: String(v.mediaBaseUrl || ''),
+            mediaProvider: String(v.mediaProvider || ''),
+            mediaKeyConfigured: Boolean(v.mediaKeyConfigured),
+            mediaSource: String(v.mediaSource || ''),
+            videoBaseUrl: String(v.videoBaseUrl || ''),
+            videoProvider: String(v.videoProvider || 'video.async'),
+            videoDefaultModel: String(v.videoDefaultModel || ''),
+            videoKeyConfigured: Boolean(v.videoKeyConfigured),
+            videoSource: String(v.videoSource || ''),
+            visionBaseUrl: String(v.visionBaseUrl || ''),
+            visionModel: String(v.visionModel || ''),
+            visionKeyConfigured: Boolean(v.visionKeyConfigured),
+            visionSource: String(v.visionSource || ''),
+          },
+        }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'SETTINGS_EFFECTIVE_FAILED',
+            message: scrubMessage(e?.message || e),
+            details: {},
+          },
+        }
+      }
+    }
+
     if (endpoint === CTA_RPC_PROBE) {
       try {
         if (typeof mediaProxy?.detectModels !== 'function') {
