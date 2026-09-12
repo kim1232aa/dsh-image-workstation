@@ -1013,6 +1013,18 @@ export function createStudioHost(opts = {}) {
     syncFields?.()
   }
 
+
+  /** Prefer state; fall back to select DOM (automation may set value without change). */
+  const readSkillId = () => {
+    if (state.skillId) return state.skillId
+    const sel = host?.querySelector('[data-ws-param="skill"]')
+    if (sel instanceof HTMLSelectElement && sel.value) {
+      state.skillId = sel.value
+      return state.skillId
+    }
+    return null
+  }
+
   const paintSkillPlan = () => {
     const panel = host?.querySelector('[data-ws-plan-panel]')
     if (!(panel instanceof HTMLElement)) return
@@ -1905,7 +1917,7 @@ export function createStudioHost(opts = {}) {
       if (id === '电影海报') state.ratio = '9:16'
       if (id === '电影三联') state.ratio = '21:9'
     }
-    host.querySelector('[data-ws-param="skill"]')?.addEventListener('change', (e) => {
+    const onSkillSelect = (e) => {
       const t = /** @type {HTMLSelectElement} */ (e.target)
       const id = t.value || null
       state.skillId = id
@@ -1914,7 +1926,10 @@ export function createStudioHost(opts = {}) {
       syncFields()
       paintSkillPlan()
       setStatus(id ? `已选「${id}」` : '已取消 Skill')
-    })
+    }
+    const skillSelEl = host.querySelector('[data-ws-param="skill"]')
+    skillSelEl?.addEventListener('change', onSkillSelect)
+    skillSelEl?.addEventListener('input', onSkillSelect)
     host.querySelector('[data-ws-param-row]')?.addEventListener('click', (e) => {
       const t = /** @type {HTMLElement | null} */ (
         e.target instanceof Element ? e.target.closest('[data-ws-param][data-value]') : null
@@ -2165,10 +2180,13 @@ export function createStudioHost(opts = {}) {
       btn.addEventListener('click', () => {
         const action = btn.getAttribute('data-ws-plan-action')
         if (action === 'plan' || action === 'replan') {
-          if (!state.skillId) {
+          const skillId = readSkillId()
+          if (!skillId) {
             setStatus('请先选择创作 Skill')
             return
           }
+          applySkillSideEffects?.(skillId)
+          paintSkillPlan()
           const ta = host.querySelector('[data-ws-plan-text]')
           if (ta instanceof HTMLTextAreaElement) {
             ta.placeholder = '正在想方案…'
@@ -2177,7 +2195,7 @@ export function createStudioHost(opts = {}) {
           host.dispatchEvent(
             new CustomEvent('dsh-ws-plan', {
               bubbles: true,
-              detail: { action, skillId: state.skillId, prompt: state.prompt, skillPlan: state.skillPlan },
+              detail: { action, skillId, prompt: state.prompt, skillPlan: state.skillPlan },
             }),
           )
         } else if (action === 'accept') {
