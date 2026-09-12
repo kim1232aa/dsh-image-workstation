@@ -323,8 +323,11 @@ export function canvasHostStyles() {
   background: var(--dsw-alias-button-primary-hover);
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-send][disabled],
-[data-dsh-ws-studio-host] [data-ws-canvas-send]:disabled {
-  opacity:.3; cursor:not-allowed; filter:none; pointer-events:none; box-shadow:none;
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:disabled,
+[data-dsh-ws-studio-host] [data-ws-canvas-send][aria-disabled="true"] {
+  opacity:.38; cursor:not-allowed; filter:grayscale(.45); pointer-events:none; box-shadow:none;
+  background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-interactive-bg-disabled, var(--dsw-alias-bg-layer-2, #c8c8c8))) !important;
+  color: var(--dsw-alias-label-tertiary, rgba(0,0,0,.45)) !important;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:active:not([disabled]) { filter:brightness(.96); }
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:focus-visible {
@@ -498,6 +501,9 @@ export function mountCanvasPage(host, opts) {
   let activeConfigId = state.selection.find((id) =>
     state.nodes.some((n) => n.id === id && n.type === 'genConfig'),
   ) || null
+  /** Hoisted so paint/syncGenerator can call before late binding */
+  let syncCanvasCtaEnabled = () => {}
+  let generateBusy = false
 
   let styleEl = host.querySelector('style[data-ws-canvas-styles]')
   if (!styleEl) {
@@ -633,6 +639,9 @@ export function mountCanvasPage(host, opts) {
       // Linked text owns the prompt — sync into cfg for generate; don't dual-edit
       if (hasTextLink && linkedFilled.length) {
         selected.prompt = linkedFilled.join('\n\n')
+      } else if (hasTextLink && !linkedFilled.length) {
+        // Empty text node → empty prompt (CTA must stay disabled)
+        selected.prompt = ''
       } else if (!hasTextLink && !String(selected.prompt || '').trim()) {
         /* free composer path */
       }
@@ -1096,24 +1105,32 @@ export function mountCanvasPage(host, opts) {
   })
 
   // 发送 — Nova collect → client callCtaRpc(/dsh-ws/generate); never fake success
-  let generateBusy = false
   const sendBtn = page.querySelector('[data-ws-canvas-send]')
-  const syncCanvasCtaEnabled = () => {
+  syncCanvasCtaEnabled = () => {
     if (!(sendBtn instanceof HTMLButtonElement)) return
     const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
-    const composer = ta instanceof HTMLTextAreaElement ? String(ta.value || '').trim() : ''
+    // When linked-text path hides composer, ignore leftover textarea value
+    const composerVisible = ta instanceof HTMLTextAreaElement && !ta.hidden
+    const composer = composerVisible ? String(ta.value || '').trim() : ''
     const cfg = resolveActiveConfig() || state.nodes.find((n) => n.type === 'genConfig')
-    const linked = cfg
-      ? upstreamResourceNodes(state, cfg.id)
-          .filter((n) => n.type === 'text')
-          .map((n) => String(n.text || '').trim())
-          .filter(Boolean)
+    const linkedNodes = cfg
+      ? upstreamResourceNodes(state, cfg.id).filter((n) => n.type === 'text')
       : []
-    const hasPrompt = !!(composer || String(cfg?.prompt || '').trim() || linked.length)
+    const hasTextLink = linkedNodes.length > 0
+    const linked = linkedNodes.map((n) => String(n.text || '').trim()).filter(Boolean)
+    // Empty text node AND no composer prompt → disabled (do not treat hidden composer leftovers)
+    const cfgPrompt = hasTextLink ? linked.join('\n\n') : String(cfg?.prompt || '').trim()
+    if (hasTextLink && cfg) cfg.prompt = cfgPrompt
+    const hasPrompt = !!(composer || cfgPrompt)
     const disable = generateBusy || !hasPrompt
     sendBtn.disabled = disable
-    if (disable) sendBtn.setAttribute('disabled', '')
-    else sendBtn.removeAttribute('disabled')
+    if (disable) {
+      sendBtn.setAttribute('disabled', '')
+      sendBtn.setAttribute('aria-disabled', 'true')
+    } else {
+      sendBtn.removeAttribute('disabled')
+      sendBtn.setAttribute('aria-disabled', 'false')
+    }
   }
   syncCanvasCtaEnabled()
   page.querySelector('[data-ws-canvas-gen-prompt]')?.addEventListener('input', () => syncCanvasCtaEnabled())

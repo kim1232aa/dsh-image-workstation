@@ -122,6 +122,7 @@ export function videoHostStyles() {
 /* Form (dock+CTA) on TOP; results stage BELOW — Critiquito B. */
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"] {
   display:flex; flex-direction:column; justify-content:flex-start;
+  align-self:flex-start; height:auto; max-height:100%; flex:1 1 auto;
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-dock],
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-dock] {
@@ -137,21 +138,24 @@ export function videoHostStyles() {
   border-bottom:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage] {
-  /* Idle/unconfigured: pack short — no huge white void under form */
-  flex:0 0 auto; min-height:0; display:flex; flex-direction:column; gap:4px; order:3;
-  margin:0; padding:8px 12px; overflow:hidden;
-  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
+  /* Idle empty: hide entirely — no tall white stage with only 「生成后显示在这里」 */
+  display:none; flex:0 0 auto; min-height:0; flex-direction:column; gap:4px; order:3;
+  margin:0; padding:0; overflow:hidden; background:transparent;
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-busy],
-[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-has-results] {
-  flex:1.4 1 0; min-height:120px; padding:8px 12px; gap:6px;
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-has-results],
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage]:has([data-ws-video-fail][data-visible]) {
+  display:flex; flex:1.4 1 0; min-height:120px; padding:8px 12px; gap:6px;
   background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
 }
-/* Mid leftover under CTA when stage is idle: muted slab, not page white */
+/* No ::after white/muted sea under CTA */
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"]::after {
-  content:''; flex:1 1 auto; min-height:0;
-  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
-  pointer-events:none; order:4;
+  content: none; display: none;
+}
+/* E: hide image-style history rail on video tab (empty 生图 history looks wrong) */
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-history],
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-pane-drag="video-history"] {
+  display: none !important;
 }
 [data-dsh-ws-studio-host] [data-ws-video-cta][disabled],
 [data-dsh-ws-studio-host] [data-ws-video-cta]:disabled {
@@ -242,7 +246,7 @@ export function buildVideoPageHtml(T, css, paneWidths, state) {
   </aside>
   <div data-ws-pane-drag="video-history" title="拖拽调整历史栏宽度"></div>
 
-  <section data-ws-col="studio" data-ws-video-studio style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:${T.layer2};">
+  <section data-ws-col="studio" data-ws-video-studio style="flex:1 1 auto;align-self:flex-start;height:auto;max-height:100%;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:${T.layer2};">
     <div data-ws-video-stage aria-label="视频生成台">
       <div data-ws-stage-head>
         <strong>${STAGE_LABEL}</strong>

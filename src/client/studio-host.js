@@ -404,12 +404,23 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   border-top:1px solid var(--dsw-alias-border-l2);
   border-bottom:1px solid var(--dsw-alias-border-l2);
 }
-/* Mid leftover under CTA: no flex filler panel — column bg only, form+CTA hug content */
+/* Mid leftover under CTA: form column hugs content height — no tall empty slab under 「开始生成」.
+   Results column (inspire-wall) keeps stretch; form does not flex-grow vertically. */
 [data-dsh-ws-studio-host] [data-ws-page="image"] [data-ws-col="studio"] {
   justify-content: flex-start;
+  align-self: flex-start;
+  height: auto;
+  max-height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 [data-dsh-ws-studio-host] [data-ws-page="image"] [data-ws-col="studio"]::after {
   content: none; display: none;
+}
+[data-dsh-ws-studio-host] [data-ws-page="image"] [data-ws-inspire-wall] {
+  align-self: stretch;
+  min-height: 0;
 }
 [data-dsh-ws-studio-host] [data-ws-advanced] { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-advanced] > summary {
@@ -568,8 +579,9 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   background: var(--dsw-alias-interactive-bg-hover);
 }
 [data-dsh-ws-studio-host] [data-ws-col="studio"] {
-  /* Write+generate pack at top; leftover uses muted layer — not a #fff sea */
-  display:flex; flex-direction:column; justify-content:flex-start; flex:1; min-width:0; min-height:0;
+  /* Write+generate pack at top; height hugs content (image page sets align-self). */
+  display:flex; flex-direction:column; justify-content:flex-start; flex:1 1 auto; min-width:0; min-height:0;
+  height:auto; align-self:flex-start; max-height:100%;
   overflow:auto; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-module-platform, var(--dsw-specific-sidebar-fill, transparent)));
 }
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
@@ -1863,7 +1875,7 @@ export function createStudioHost(opts = {}) {
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
         <!-- CENTER: write + generate ONLY (muted leftover, no #fff sea) -->
-        <section data-ws-col="studio" style="flex:1;padding:0;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.layer2};border-left:0;border-right:0;">
+        <section data-ws-col="studio" style="flex:1 1 auto;align-self:flex-start;height:auto;max-height:100%;padding:0;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.layer2};border-left:0;border-right:0;">
 
           <div data-ws-dock>
             <div style="display:flex;gap:6px;align-items:center;" role="tablist">
@@ -2733,6 +2745,10 @@ export function createStudioHost(opts = {}) {
       el.style.display = 'flex'
       open = true
       try {
+        document.documentElement.setAttribute('data-dsh-ws-studio-open', '')
+        document.body?.setAttribute('data-dsh-ws-studio-open', '')
+      } catch (_) {}
+      try {
         const pending = loadPendingProposal()
         if (pending && (pending.prompt || pending.fillPrompt || pending.reason || pending.rationale)) {
           state.skillPlan = pending
@@ -2748,6 +2764,10 @@ export function createStudioHost(opts = {}) {
     close() {
       if (host) host.style.display = 'none'
       open = false
+      try {
+        document.documentElement.removeAttribute('data-dsh-ws-studio-open')
+        document.body?.removeAttribute('data-dsh-ws-studio-open')
+      } catch (_) {}
     },
     isOpen() {
       return open

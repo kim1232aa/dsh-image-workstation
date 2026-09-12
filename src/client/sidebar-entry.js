@@ -36,15 +36,38 @@ const TAB_STYLES = `
 [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"][data-dsh-ws-tab-current] {
   font-weight:600; background: var(--dsw-alias-interactive-bg-hover, transparent);
 }
-/* When studio module open, never leave host New Session looking selected */
+/* When studio module open, never leave host New Session / session rows looking selected.
+   Flag lives on html/body so host remounts cannot drop the chrome clear. */
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][data-active],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="SessionItem"][aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="page"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][data-active],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionList"] [aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionList"] [data-active],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="workspace"] [aria-current="true"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][data-active],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="Session"][aria-current="true"],
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"],
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-active],
 [data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="sessionItem"][aria-current="true"],
 [data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="sessionItem"][data-active],
-[data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="SessionItem"][aria-current="true"],
 [data-pane="sidebar"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"],
 [class*="sidebarCol"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"] {
   background: transparent !important;
+  background-color: transparent !important;
   font-weight: inherit !important;
   box-shadow: none !important;
+  outline: none !important;
+}
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][aria-current="true"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-active]::before {
+  opacity: 0 !important;
+  background: transparent !important;
 }
 `
 
@@ -110,28 +133,50 @@ export function mountSidebarEntry(opts) {
     }
   }
 
+  const clearHostSessionChrome = (scope) => {
+    const root = scope instanceof HTMLElement ? scope : sidebarColumn() || document
+    const nodes = root.querySelectorAll(
+      '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected]',
+    )
+    for (const el of nodes) {
+      if (!(el instanceof HTMLElement)) continue
+      if (el.closest(ENTRY_TABS) || el.closest('[data-dsh-ws-session-tabs]')) continue
+      if (el.getAttribute('data-dsh-ws-tab')) continue
+      // Never touch our studio frame / top tabs
+      if (el.closest('[data-dsh-ws-studio-host]')) continue
+      const cls = String(el.className || '')
+      const looksSession =
+        /session|Session|workspace|Workspace|conversation|Conversation/i.test(cls) ||
+        /session|Session|workspace|New Session|新会话/i.test(el.textContent || '')
+      // Only strip host session-list / New Session chrome — leave folders/settings alone
+      if (!looksSession && !el.hasAttribute('aria-current') && !el.hasAttribute('aria-selected')) continue
+      if (!looksSession && el.hasAttribute('data-active') && !/session|Session/i.test(cls)) continue
+      try {
+        if (el.hasAttribute('aria-current')) el.setAttribute('aria-current', 'false')
+        if (el.hasAttribute('aria-selected')) el.setAttribute('aria-selected', 'false')
+        if (/session|Session|workspace|Workspace/i.test(cls)) {
+          el.removeAttribute('data-active')
+          el.removeAttribute('data-selected')
+        }
+        if (/selected|active|current|session/i.test(cls)) {
+          el.style.setProperty('background', 'transparent', 'important')
+          el.style.setProperty('background-color', 'transparent', 'important')
+          el.style.setProperty('box-shadow', 'none', 'important')
+        }
+      } catch (_) {}
+    }
+  }
+
   const stampStudioOpen = (on) => {
     const root = sidebarRoot()
     const col = sidebarColumn()
-    for (const el of [root, col]) {
+    const targets = [document.documentElement, document.body, root, col]
+    for (const el of targets) {
       if (!(el instanceof HTMLElement)) continue
       if (on) el.setAttribute('data-dsh-ws-studio-open', '')
       else el.removeAttribute('data-dsh-ws-studio-open')
     }
-    // Soft-clear host session list selection chrome while workstation is open
-    if (on && col instanceof HTMLElement) {
-      col.querySelectorAll('[aria-current="true"],[aria-selected="true"]').forEach((el) => {
-        if (el.closest(ENTRY_TABS)) return
-        if (el.closest('[data-dsh-ws-session-tabs]')) return
-        // Don't strip our own tabs; only host session rows / New Session leftovers
-        if (el.getAttribute('data-dsh-ws-tab')) return
-        try {
-          el.setAttribute('aria-current', 'false')
-          el.setAttribute('aria-selected', 'false')
-          el.removeAttribute('data-active')
-        } catch (_) {}
-      })
-    }
+    if (on) clearHostSessionChrome(col || document)
   }
 
   const setSelected = (id) => {
@@ -194,13 +239,49 @@ export function mountSidebarEntry(opts) {
     paintSelected(tabs)
   }
 
-  place()
-  observer = new MutationObserver(() => place())
+  /** Host often re-applies session aria-current after route paint — keep clearing while open. */
+  let chromeObserver
+  let chromeQuiet = false
+  const watchHostChrome = () => {
+    chromeObserver?.disconnect()
+    const col = sidebarColumn()
+    if (!(col instanceof HTMLElement)) return
+    chromeObserver = new MutationObserver(() => {
+      if (disposed || current !== TAB_STUDIO || chromeQuiet) return
+      chromeQuiet = true
+      try {
+        // Re-stamp html/body flag + clear host selection chrome
+        stampStudioOpen(true)
+      } finally {
+        // Observer delivers records after this stack — keep quiet until next macrotask
+        setTimeout(() => {
+          chromeQuiet = false
+        }, 0)
+      }
+    })
+    chromeObserver.observe(col, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['aria-current', 'aria-selected', 'data-active', 'data-selected', 'class'],
+    })
+  }
+
+  const placeAndWatch = () => {
+    place()
+    if (!disposed && current === TAB_STUDIO) {
+      stampStudioOpen(true)
+      watchHostChrome()
+    }
+  }
+
+  placeAndWatch()
+  observer = new MutationObserver(() => placeAndWatch())
   observer.observe(document.documentElement, { childList: true, subtree: true })
 
   const dispose = () => {
     disposed = true
     observer?.disconnect()
+    chromeObserver?.disconnect()
     tabsEl?.remove()
     styleEl?.remove()
     styleEl = undefined
@@ -215,6 +296,8 @@ export function mountSidebarEntry(opts) {
       delete root.dataset.dshWsSidebarRoot
       root.removeAttribute('data-dsh-ws-studio-open')
     }
+    document.documentElement.removeAttribute('data-dsh-ws-studio-open')
+    document.body?.removeAttribute('data-dsh-ws-studio-open')
   }
 
   return { dispose, setSelected }
