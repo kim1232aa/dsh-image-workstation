@@ -159,6 +159,72 @@ export function resolveVisionCfg(cfg = {}) {
   }
 }
 
+
+/**
+ * Safe Settings→Plugins backfill for the client.
+ * Never includes raw api keys / tokens — only booleans + non-secret URLs.
+ * @param {Record<string, unknown>} [cfg]
+ */
+export function effectiveSettingsView(cfg = {}) {
+  const media = resolveMediaBag(cfg)
+  const video = media.video || {}
+  const vision = media.vision || {}
+
+  const settingsMediaUrl = String(cfg.mediaBaseUrl || '').trim()
+  const settingsMediaKey = String(cfg.mediaApiKey || '')
+  const settingsVideoUrl = String(cfg.videoBaseUrl || '').trim()
+  const settingsVideoKey = String(cfg.videoApiKey || '')
+  const settingsVisionUrl = String(cfg.visionBaseUrl || '').trim()
+  const settingsVisionKey = String(cfg.visionApiKey || '')
+
+  const settingsProvider = String(cfg.mediaProvider || '').trim()
+  let mediaProvider = 'openai-images'
+  if (
+    settingsProvider === 'gptimg' ||
+    settingsProvider === 'anthropic-compat' ||
+    settingsProvider === 'openai-images'
+  ) {
+    mediaProvider = settingsProvider
+  } else if (media.activeId === 'gptimg') {
+    mediaProvider = 'gptimg'
+  } else if (media.provider === 'anthropic-compat') {
+    mediaProvider = 'anthropic-compat'
+  }
+
+  const mediaSource =
+    settingsMediaUrl || settingsMediaKey
+      ? 'settings'
+      : media.source === 'process.env'
+        ? 'process.env'
+        : 'media.env'
+  const videoSource =
+    settingsVideoUrl || settingsVideoKey
+      ? 'settings'
+      : 'media.env'
+  const visionSource =
+    settingsVisionUrl || settingsVisionKey
+      ? 'settings'
+      : vision.source === 'process.env'
+        ? 'process.env'
+        : 'media.env'
+
+  return {
+    mediaBaseUrl: String(media.baseUrl || '').trim(),
+    mediaProvider,
+    mediaKeyConfigured: Boolean(media.token),
+    mediaSource,
+    videoBaseUrl: String(video.baseUrl || '').trim(),
+    videoProvider: String(video.provider || '').trim() || 'video.async',
+    videoDefaultModel: String(video.defaultModel || '').trim(),
+    videoKeyConfigured: Boolean(video.token),
+    videoSource,
+    visionBaseUrl: String(vision.baseUrl || '').trim(),
+    visionModel: String(vision.model || '').trim(),
+    visionKeyConfigured: Boolean(vision.apiKey || vision.configured),
+    visionSource,
+  }
+}
+
 /** @deprecated */
 export const resolveVideoBag = resolveVideoEnv
 /** @deprecated */

@@ -14,6 +14,7 @@ import { loadVisionEnv, reversePrompt as visionReversePrompt, visionEnvSummary }
 import { enhancePrompt as runEnhancePrompt } from './prompt-enhance.js'
 import { gifGenerate, ecommerceGenerate } from './gif-ecom.js'
 import { canvasGenerate } from './canvas-generate.js'
+import { effectiveSettingsView } from './resolve-media.js'
 
 const CTA_HIT_LOG = '/tmp/dsh-cta-hits.log'
 function logGenHit(line) {
@@ -83,6 +84,10 @@ export function createHostProxy(resolved, mediaEnv = null) {
     videoConfigured: videoLive,
     baseUrlSet,
     tokenSet,
+    /** Safe Settings card backfill — no raw keys. */
+    effectiveSettings() {
+      return effectiveSettingsView(resolved)
+    },
     provider: mediaEnv?.provider || 'unknown',
     activeId: mediaEnv?.activeId || '',
     defaultModel: mediaEnv?.defaultModel || DEFAULT_IMAGE_MODEL,

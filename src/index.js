@@ -39,6 +39,49 @@ export function ensureMediaStorageDirs(dataDir) {
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {Record<string, unknown>} [config]
  */
+
+/** Fill empty Cordis settings from media.env so Plugins card secrets.set=true (keys stay host-only via .role('secret')). */
+function seedConfigFromMediaEnv(config = {}) {
+  const resolved = resolveConfig(config)
+  const media = resolveMediaBag(resolved)
+  const vision = media.vision || resolveVisionCfg(resolved)
+  const video = media.video || {}
+  const out = { ...(config && typeof config === 'object' ? config : {}) }
+  if (!String(out.mediaBaseUrl || '').trim() && media.baseUrl) {
+    out.mediaBaseUrl = media.baseUrl
+  }
+  if (!String(out.mediaApiKey || '') && media.token) {
+    out.mediaApiKey = media.token
+  }
+  if (!String(out.mediaProvider || '').trim()) {
+    if (media.activeId === 'gptimg') out.mediaProvider = 'gptimg'
+    else if (media.provider === 'anthropic-compat') out.mediaProvider = 'anthropic-compat'
+    else if (media.provider === 'openai-images') out.mediaProvider = 'openai-images'
+  }
+  if (!String(out.videoBaseUrl || '').trim() && video.baseUrl) {
+    out.videoBaseUrl = video.baseUrl
+  }
+  if (!String(out.videoApiKey || '') && video.token) {
+    out.videoApiKey = video.token
+  }
+  if (!String(out.videoDefaultModel || '').trim() && video.defaultModel) {
+    out.videoDefaultModel = video.defaultModel
+  }
+  if (!String(out.videoProvider || '').trim() && video.provider) {
+    out.videoProvider = video.provider
+  }
+  if (!String(out.visionBaseUrl || '').trim() && vision.baseUrl) {
+    out.visionBaseUrl = vision.baseUrl
+  }
+  if (!String(out.visionApiKey || '') && vision.apiKey) {
+    out.visionApiKey = vision.apiKey
+  }
+  if (!String(out.visionModel || '').trim() && vision.model) {
+    out.visionModel = vision.model
+  }
+  return out
+}
+
 export function apply(ctx, config) {
   /** @type {{ proxy: ReturnType<typeof createHostProxy>, resolved: ReturnType<typeof resolveConfig> }} */
   const runtime = {
@@ -79,6 +122,7 @@ export function apply(ctx, config) {
     edit: (req) => runtime.proxy.edit(req),
     detectModels: (ch) => runtime.proxy.detectModels(ch),
     describeChannels: () => runtime.proxy.describeChannels(),
+    effectiveSettings: () => runtime.proxy.effectiveSettings(),
     status: (id) => runtime.proxy.status(id),
     cancel: (id) => runtime.proxy.cancel(id),
     reversePrompt: (req) => runtime.proxy.reversePrompt(req),
@@ -125,7 +169,7 @@ export function apply(ctx, config) {
   ctx.inject(['settings'], (settingsCtx) => {
     let getSection = () => config
     try {
-      settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+      settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, seedConfigFromMediaEnv(config), {
         setSource: (get) => {
           getSection = get
         },

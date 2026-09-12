@@ -3,12 +3,46 @@
  * Key / ns: dsh-image-workstation (stable). Cordis entry id: imagegen.
  * Light host-matching surface — not the studio dark theme.
  * Secret never echoed; draft password + Configured / Not configured.
+ * Empty Cordis fields backfill from host settings.effective (media.env) — no raw keys.
  * Compact layout: Subagent host card + Save stay in one viewport frame.
  */
 import { SETTINGS_NAMESPACE, PLUGIN_ENTRY_ID } from '../shared/ns.js'
 
 const NS = SETTINGS_NAMESPACE
 const ENTRY = PLUGIN_ENTRY_ID
+
+/** Same-origin fetch — avoid connection.rpc.call handshake stalls in Settings modal. */
+async function fetchSettingsEffective() {
+  const loc = globalThis.location
+  let base = ''
+  if (loc?.origin && loc.origin !== 'null') base = loc.origin
+  else if (typeof loc?.href === 'string' && /^https?:/i.test(loc.href)) {
+    try {
+      base = new URL(loc.href).origin
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  const rpcId = `settings-eff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const res = await globalThis.fetch(`${base}/dsh-ws/settings.effective`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId,
+      method: 'settings.effective',
+      payload: {},
+    }),
+  })
+  if (!res.ok) throw new Error(`settings.effective HTTP ${res.status}`)
+  const full = await res.json()
+  if (!full || full.type !== 'server-response') {
+    throw new TypeError('invalid settings.effective envelope')
+  }
+  return full.result
+}
+
 
 /**
  * @param {any} props
@@ -44,44 +78,104 @@ export function WorkstationSettingsCard(props) {
   const pull = useCallback(() => {
     if (!scope?.getSnapshot) return
     const snap = scope.getSnapshot()
+    let snapBase = ''
+    let snapProvider = 'anthropic-compat'
+    let snapKey = false
+    let snapVideoBase = ''
+    let snapVideoProvider = 'video.async'
+    let snapVideoModel = ''
+    let snapVideoKey = false
+    let snapVisionBase = ''
+    let snapVisionModel = ''
+    let snapVisionKey = false
     if (snap?.status === 'ready' && snap.value) {
       const v = snap.value
-      setBaseUrl(String(v.mediaBaseUrl || ''))
-      setProvider(['anthropic-compat','gptimg','openai-images'].includes(v.mediaProvider) ? v.mediaProvider : 'anthropic-compat')
+      snapBase = String(v.mediaBaseUrl || '')
+      snapProvider = ['anthropic-compat','gptimg','openai-images'].includes(v.mediaProvider)
+        ? v.mediaProvider
+        : 'anthropic-compat'
       setAllowAgent(v.allowAgentImageGeneration !== false)
-      setVideoBaseUrl(String(v.videoBaseUrl || ''))
-      setVideoProvider(String(v.videoProvider || '').trim() || 'video.async')
-      setVideoDefaultModel(String(v.videoDefaultModel || ''))
+      snapVideoBase = String(v.videoBaseUrl || '')
+      snapVideoProvider = String(v.videoProvider || '').trim() || 'video.async'
+      snapVideoModel = String(v.videoDefaultModel || '')
       const secrets = snap.secrets || {}
       const secretMeta = secrets.mediaApiKey
-      const keySet =
+      snapKey =
         secretMeta === true ||
         secretMeta?.set === true ||
         (typeof secretMeta === 'object' && secretMeta != null && 'set' in secretMeta && secretMeta.set)
-      setKeyConfigured(Boolean(keySet))
       const videoSecretMeta = secrets.videoApiKey
-      const videoKeySet =
+      snapVideoKey =
         videoSecretMeta === true ||
         videoSecretMeta?.set === true ||
         (typeof videoSecretMeta === 'object' &&
           videoSecretMeta != null &&
           'set' in videoSecretMeta &&
           videoSecretMeta.set)
-      setVideoKeyConfigured(Boolean(videoKeySet))
-      setVisionBaseUrl(String(v.visionBaseUrl || ''))
-      setVisionModel(String(v.visionModel || ''))
+      snapVisionBase = String(v.visionBaseUrl || '')
+      snapVisionModel = String(v.visionModel || '')
       const visionSecretMeta = secrets.visionApiKey
-      const visionKeySet =
+      snapVisionKey =
         visionSecretMeta === true ||
         visionSecretMeta?.set === true ||
         (typeof visionSecretMeta === 'object' &&
           visionSecretMeta != null &&
           'set' in visionSecretMeta &&
           visionSecretMeta.set)
-      setVisionKeyConfigured(Boolean(visionKeySet))
       setRevision(snap.revision)
     }
-  }, [scope])
+    setBaseUrl(snapBase)
+    setProvider(snapProvider)
+    setKeyConfigured(Boolean(snapKey))
+    setVideoBaseUrl(snapVideoBase)
+    setVideoProvider(snapVideoProvider)
+    setVideoDefaultModel(snapVideoModel)
+    setVideoKeyConfigured(Boolean(snapVideoKey))
+    setVisionBaseUrl(snapVisionBase)
+    setVisionModel(snapVisionModel)
+    setVisionKeyConfigured(Boolean(snapVisionKey))
+
+    // Host media.env backfill when Cordis settings are empty (no raw keys).
+    // Prefer same-origin fetch (Settings modal rpc.call can stall on handshake).
+    void (async () => {
+      try {
+        let result = null
+        if (typeof globalThis.fetch === 'function') {
+          result = await fetchSettingsEffective()
+        } else if (connection?.rpc?.call) {
+          result = await connection.rpc.call('/dsh-ws', 'settings.effective', {})
+        }
+        if (!result?.ok || !result.value) return
+        const e = result.value
+        if (!snapBase && e.mediaBaseUrl) {
+          setBaseUrl(String(e.mediaBaseUrl || ''))
+          if (['anthropic-compat', 'gptimg', 'openai-images'].includes(e.mediaProvider)) {
+            setProvider(e.mediaProvider)
+          }
+        }
+        if (!snapKey && e.mediaKeyConfigured) setKeyConfigured(true)
+        if (!snapVideoBase && e.videoBaseUrl) {
+          setVideoBaseUrl(String(e.videoBaseUrl || ''))
+          if (e.videoProvider) setVideoProvider(String(e.videoProvider))
+          if (e.videoDefaultModel) setVideoDefaultModel(String(e.videoDefaultModel))
+        }
+        if (!snapVideoKey && e.videoKeyConfigured) setVideoKeyConfigured(true)
+        if (!snapVisionBase && e.visionBaseUrl) {
+          setVisionBaseUrl(String(e.visionBaseUrl || ''))
+          if (e.visionModel) setVisionModel(String(e.visionModel))
+        }
+        if (!snapVisionKey && e.visionKeyConfigured) setVisionKeyConfigured(true)
+        const fromEnv =
+          (!snapBase && e.mediaSource && e.mediaSource !== 'settings') ||
+          (!snapKey && e.mediaKeyConfigured && e.mediaSource && e.mediaSource !== 'settings')
+        if (fromEnv) {
+          setStatus((s) => s || '已从 host media.env 回填（密钥仅宿主）')
+        }
+      } catch {
+        /* ignore — settings scope / seed still work alone */
+      }
+    })()
+  }, [scope, connection])
 
   useEffect(() => {
     pull()
@@ -304,7 +398,7 @@ export function WorkstationSettingsCard(props) {
                 h(
                   'span',
                   { style: { color: fgMuted, fontSize: 11 } },
-                  keyConfigured ? 'Configured' : 'Not configured',
+                  keyConfigured ? '已配置' : '未配置',
                 ),
               ),
               h('input', {
@@ -312,7 +406,7 @@ export function WorkstationSettingsCard(props) {
                 type: 'password',
                 autoComplete: 'new-password',
                 value: apiKeyDraft,
-                placeholder: keyConfigured ? 'Leave blank to keep stored key' : 'Paste key, then Save',
+                placeholder: keyConfigured ? '已配置（留空保留宿主密钥）' : '粘贴密钥后 Save',
                 onChange: (e) => setApiKeyDraft(e.target.value),
                 disabled: busy,
               }),
@@ -389,7 +483,7 @@ export function WorkstationSettingsCard(props) {
                 h(
                   'span',
                   { style: { color: fgMuted, fontSize: 11 } },
-                  videoKeyConfigured ? 'Configured' : 'Not configured',
+                  videoKeyConfigured ? '已配置' : '未配置',
                 ),
               ),
               h('input', {
@@ -398,8 +492,8 @@ export function WorkstationSettingsCard(props) {
                 autoComplete: 'new-password',
                 value: videoApiKeyDraft,
                 placeholder: videoKeyConfigured
-                  ? 'Leave blank to keep stored key'
-                  : 'Paste key, then Save',
+                  ? '已配置（留空保留宿主密钥）'
+                  : '粘贴密钥后 Save',
                 onChange: (e) => setVideoApiKeyDraft(e.target.value),
                 disabled: busy,
               }),
@@ -464,7 +558,7 @@ export function WorkstationSettingsCard(props) {
                 h(
                   'span',
                   { style: { color: fgMuted, fontSize: 11 } },
-                  visionKeyConfigured ? 'Configured' : 'Not configured',
+                  visionKeyConfigured ? '已配置' : '未配置',
                 ),
               ),
               h('input', {
@@ -473,8 +567,8 @@ export function WorkstationSettingsCard(props) {
                 autoComplete: 'new-password',
                 value: visionApiKeyDraft,
                 placeholder: visionKeyConfigured
-                  ? 'Leave blank to keep stored key'
-                  : 'Paste key, then Save',
+                  ? '已配置（留空保留宿主密钥）'
+                  : '粘贴密钥后 Save',
                 onChange: (e) => setVisionApiKeyDraft(e.target.value),
                 disabled: busy,
               }),
