@@ -79,6 +79,7 @@ export function apply(ctx, config) {
     enhancePrompt: (req) => runtime.proxy.enhancePrompt(req),
     gifGenerate: (req) => runtime.proxy.gifGenerate(req),
     ecommerceGenerate: (req) => runtime.proxy.ecommerceGenerate(req),
+    canvasGenerate: (req) => runtime.proxy.canvasGenerate(req),
     videoGenerate: (req) => runtime.proxy.videoGenerate(req),
     videoStatus: (id) => runtime.proxy.videoStatus(id),
     videoCancel: (id) => runtime.proxy.videoCancel(id),

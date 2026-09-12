@@ -37,7 +37,7 @@ export function ensureAgentImageConfigured(config, mediaProxy) {
   }
   if (!mediaProxy?.mediaConfigured) {
     const err = new Error(
-      '生图渠道未配置。请到 Settings → Plugins → dsh-image-workstation 配置渠道，或在宿主 media.env 填写地址与密钥后重试。',
+      'Image channel not configured. Open Settings → Plugins → dsh-image-workstation to set media base URL/key, or fill host media.env. / 生图渠道未配置。请到 Settings → Plugins → dsh-image-workstation 配置渠道，或在宿主 media.env 填写地址与密钥后重试。',
     )
     err.code = 'IMAGE_API_NOT_CONFIGURED'
     throw err

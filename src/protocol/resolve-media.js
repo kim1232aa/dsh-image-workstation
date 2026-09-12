@@ -45,8 +45,18 @@ export function resolveMediaBag(cfg = {}) {
     provider: settingsVideoProvider || envVideo.provider || 'video.async',
   }
 
+  const gif = {
+    baseUrl: String(env.gif?.baseUrl || '').trim(),
+    token: String(env.gif?.token || ''),
+    defaultModel: String(env.gif?.defaultModel || '').trim(),
+  }
+  const ecom = {
+    baseUrl: String(env.ecom?.baseUrl || '').trim(),
+    token: String(env.ecom?.token || ''),
+    defaultModel: String(env.ecom?.defaultModel || '').trim(),
+  }
   const vision = resolveVisionCfg(cfg)
-  const withLanes = (base) => ({ ...base, video, vision })
+  const withLanes = (base) => ({ ...base, video, vision, gif, ecom })
 
   if (settingsUrl || settingsKey) {
     const provider =

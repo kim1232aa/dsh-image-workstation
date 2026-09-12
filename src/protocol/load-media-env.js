@@ -49,17 +49,35 @@ function parseEnvFile(file) {
  * @returns {VideoEnv}
  */
 export function resolveVideoEnvFromMap(map = {}) {
-  const interval = Number(map.VIDEO_POLL_INTERVAL_MS)
-  const timeout = Number(map.VIDEO_POLL_TIMEOUT_MS)
+  const interval = Number(map.VIDEO_POLL_INTERVAL_MS || map.GPTIMG_VIDEO_POLL_INTERVAL_MS)
+  const timeout = Number(map.VIDEO_POLL_TIMEOUT_MS || map.GPTIMG_VIDEO_POLL_TIMEOUT_MS)
   return {
-    baseUrl: String(map.VIDEO_BASE_URL || '').trim(),
-    token: String(map.VIDEO_API_KEY || ''),
-    defaultModel: String(map.VIDEO_DEFAULT_MODEL || '').trim(),
-    submitPath: String(map.VIDEO_SUBMIT_PATH || '').trim(),
-    pollPath: String(map.VIDEO_POLL_PATH || '').trim(),
+    baseUrl: String(map.VIDEO_BASE_URL || map.GPTIMG_VIDEO_BASE_URL || '').trim(),
+    token: String(map.VIDEO_API_KEY || map.GPTIMG_VIDEO_API_KEY || ''),
+    defaultModel: String(map.VIDEO_DEFAULT_MODEL || map.GPTIMG_VIDEO_DEFAULT_MODEL || '').trim(),
+    submitPath: String(map.VIDEO_SUBMIT_PATH || map.GPTIMG_VIDEO_SUBMIT_PATH || '').trim(),
+    pollPath: String(map.VIDEO_POLL_PATH || map.GPTIMG_VIDEO_POLL_PATH || '').trim(),
     pollIntervalMs: Number.isFinite(interval) && interval > 0 ? interval : 2000,
     pollTimeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 600_000,
-    provider: String(map.VIDEO_PROVIDER || '').trim() || 'video.async',
+    provider: String(map.VIDEO_PROVIDER || map.GPTIMG_VIDEO_PROVIDER || '').trim() || 'video.async',
+  }
+}
+
+/** Optional GIF_* lane (Nova uses images media by default). Alias GIF_API_URL. */
+export function resolveGifEnvFromMap(map = {}) {
+  return {
+    baseUrl: String(map.GIF_BASE_URL || map.GIF_API_URL || '').trim(),
+    token: String(map.GIF_API_KEY || ''),
+    defaultModel: String(map.GIF_DEFAULT_MODEL || '').trim(),
+  }
+}
+
+/** Optional ECOM_* keys (documented; seat stub). Alias ECOM_API_URL. */
+export function resolveEcomEnvFromMap(map = {}) {
+  return {
+    baseUrl: String(map.ECOM_BASE_URL || map.ECOM_API_URL || '').trim(),
+    token: String(map.ECOM_API_KEY || ''),
+    defaultModel: String(map.ECOM_DEFAULT_MODEL || '').trim(),
   }
 }
 
@@ -148,6 +166,8 @@ export function loadMediaEnv() {
   }
 
   const video = resolveVideoEnvFromMap(map)
+  const gif = resolveGifEnvFromMap(map)
+  const ecom = resolveEcomEnvFromMap(map)
 
   // Prefer explicit MEDIA_ACTIVE_CHANNEL; else primary; else first
   const want = map.MEDIA_ACTIVE_CHANNEL || 'primary'
@@ -164,6 +184,8 @@ export function loadMediaEnv() {
       defaultModel: map.MEDIA_IMAGE_MODEL || 'gpt-image-2',
       source,
       video,
+      gif,
+      ecom,
     }
   }
 
@@ -176,6 +198,8 @@ export function loadMediaEnv() {
     defaultModel: active.defaultModel,
     source,
     video,
+    gif,
+    ecom,
   }
 }
 
@@ -203,6 +227,16 @@ export function mediaEnvSummary(env = loadMediaEnv()) {
       tokenSet: Boolean(video.token),
       defaultModel: video.defaultModel || '',
       provider: video.provider || 'video.async',
+    },
+    gif: {
+      baseUrlSet: Boolean(env.gif?.baseUrl),
+      tokenSet: Boolean(env.gif?.token),
+      defaultModel: env.gif?.defaultModel || '',
+    },
+    ecom: {
+      baseUrlSet: Boolean(env.ecom?.baseUrl),
+      tokenSet: Boolean(env.ecom?.token),
+      defaultModel: env.ecom?.defaultModel || '',
     },
     source: env.source === 'process.env' ? 'process.env' : 'file',
   }

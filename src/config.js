@@ -17,10 +17,13 @@ export { SETTINGS_NAMESPACE } from './shared/ns.js'
  *   videoDefaultModel: string,
  *   videoPollIntervalMs: number,
  *   videoPollTimeoutMs: number,
+ *   visionBaseUrl: string,
+ *   visionApiKey: string,
+ *   visionModel: string,
  * }} WorkstationConfig
  */
 
-/** Cordis Config schema — secret role redacts mediaApiKey / videoApiKey on the wire. */
+/** Cordis Config schema — secret role redacts *ApiKey fields on the wire. */
 export const Config = Schema.object({
   skillDir: Schema.string()
     .default('')
@@ -67,6 +70,16 @@ export const Config = Schema.object({
   videoPollTimeoutMs: Schema.number()
     .default(600000)
     .description('视频任务轮询超时（ms）；设置卡不展示。'),
+  visionBaseUrl: Schema.string()
+    .default('')
+    .description('Vision 反推/增强 API Base URL（OpenAI 兼容 chat/completions；与生图密钥分车道）。'),
+  visionApiKey: Schema.string()
+    .role('secret')
+    .default('')
+    .description('Vision 车道密钥（仅宿主；设置页只显示 Configured / Not configured）。也可写 media.env VISION_*。'),
+  visionModel: Schema.string()
+    .default('')
+    .description('Vision 模型 id（空 → gpt-4o-mini 或 media.env VISION_MODEL）。'),
 })
 
 /**
@@ -100,5 +113,8 @@ export function resolveConfig(config = {}) {
     videoDefaultModel: String(config.videoDefaultModel || '').trim(),
     videoPollIntervalMs: Number.isFinite(pollInterval) && pollInterval > 0 ? pollInterval : 2000,
     videoPollTimeoutMs: Number.isFinite(pollTimeout) && pollTimeout > 0 ? pollTimeout : 600000,
+    visionBaseUrl: String(config.visionBaseUrl || '').trim(),
+    visionApiKey: String(config.visionApiKey || ''),
+    visionModel: String(config.visionModel || '').trim(),
   }
 }
