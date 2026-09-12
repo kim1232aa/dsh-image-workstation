@@ -1,7 +1,8 @@
 /**
  * GIF + ecommerce seats (Nova-aligned).
- * GIF: live-when-configured via openai.images / mediaProxy.generate|edit
+ * GIF: host live-when-configured via openai.images / mediaProxy.generate|edit
  *   — sprite-sheet prompt → grid image URL(s) verbatim; client may encode GIF locally.
+ *   Honest: UI paint/encode not wired yet — STATUS = host-only partial (not CTA-Pass).
  * Ecommerce: Nova has no dedicated seat → honest ECOM_STUB_NOT_WIRED.
  */
 

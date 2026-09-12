@@ -6,7 +6,9 @@ Primary reference: **Nova** (`ref-nova-image-studio`) — GIF = sprite-sheet via
 
 ## RPC methods (`/dsh-ws`)
 
-### `gifGenerate` — **live-when-configured**
+### `gifGenerate` — **host-only partial** (not UI CTA-Pass)
+
+> Honest: host may return `results[].url` (sprite grid image). Client currently does **not** paint those URLs into GIF frames / encode GIF; gif-host CTA still pre-surfaces `GIF_STUB_NOT_WIRED`. Do not claim matrix live/Pass.
 
 Payload:
 
@@ -73,7 +75,7 @@ Optional future keys (names only): `ECOM_BASE_URL`, `ECOM_API_KEY`, `ECOM_DEFAUL
 
 ## Host
 
-- `mediaProxy.gifGenerate` → live-when-configured (deps: `generate` + optional `gifEnv`)
+- `mediaProxy.gifGenerate` → host live-when-configured (deps: `generate` + optional `gifEnv`); UI paint/encode still open
 - `mediaProxy.ecommerceGenerate` → `ECOM_STUB_NOT_WIRED`
 
 ## Env keys (names only — never values)

@@ -24,7 +24,7 @@ Studio 「开始生成」→ `dsh-ws-generate` → host `/dsh-ws` RPC → `media
 | `video.async` | **live-when-configured** (`VIDEO_*` / settings videoBaseUrl+videoApiKey; else `VIDEO_NOT_CONFIGURED`; `forceStub` → `VIDEO_STUB_NOT_WIRED`) |
 | `vision.reversePrompt` | **live-when-configured** (`VISION_*` / settings vision*; else `VISION_NOT_CONFIGURED`) |
 | `vision.enhancePrompt` | **live-when-configured** (`VISION_*`; else `ENHANCE_NOT_CONFIGURED`) |
-| `gif.generate` (`gifGenerate` RPC) | **live-when-configured** (Nova sprite-sheet via openai.images / optional `GIF_*`; else `GIF_NOT_CONFIGURED`) |
+| `gif.generate` (`gifGenerate` RPC) | **host-only partial** — RPC live-when-configured returns grid **image** URL(s) via openai.images / optional `GIF_*` (else `GIF_NOT_CONFIGURED`); **UI does not paint results / no GIF encode** (CTA still surfaces stub UX). Not CTA-Pass |
 | `ecommerce.generate` (`ecommerceGenerate` RPC) | **stub** (`ECOM_STUB_NOT_WIRED` — Nova has no dedicated ecom seat) |
 | `canvas.generate` (`canvasGenerate` RPC) | **live-when-configured** (thin wrap → generate/edit; no separate vendor) |
 | `detectModels` | live filter (drops chat/embedding) |
@@ -96,7 +96,7 @@ Rules: verbatim result URLs; same queue/history concepts as image; **no Nova JSO
 
 | Item | Status |
 |---|---|
-| `gifGenerate` | **live-when-configured** (Nova sprite-sheet → openai.images; else `GIF_NOT_CONFIGURED`) |
+| `gifGenerate` | **host-only partial** (grid image URL when media/`GIF_*` set; client `onGifGenerate` only setStatus on ok — no frame paint; gif-host CTA pre-paints `GIF_STUB_NOT_WIRED`) |
 | `ecommerceGenerate` | **stub** → `ECOM_STUB_NOT_WIRED` (no Nova ecom seat; no fake success) |
 | Verbatim URL rule | documented for live seats |
 
