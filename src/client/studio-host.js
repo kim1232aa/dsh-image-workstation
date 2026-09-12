@@ -299,6 +299,14 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-progress-bar] > i {
   display:block; height:100%; width:0%; background:#5b8def; border-radius:999px; transition:width .2s ease;
 }
+[data-dsh-ws-studio-host] [data-ws-progress-bar][data-indeterminate] > i {
+  width:36% !important; transition:none;
+  animation: dsh-ws-progress-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes dsh-ws-progress-indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(280%); }
+}
 [data-dsh-ws-studio-host] [data-ws-progress-meta] {
   display:flex; align-items:center; gap:10px; font-size:12px; color:#c5cad3; flex-wrap:wrap;
 }
@@ -624,11 +632,17 @@ export function createStudioHost() {
           task.status === 'downloading')
       if (running) prog.setAttribute('data-visible', '')
       else prog.removeAttribute('data-visible')
-      const pct = Math.max(0, Math.min(100, Number(task?.progress) || 0))
+      const hasPct = task?.progress != null && Number.isFinite(Number(task.progress))
+      const pct = hasPct ? Math.max(0, Math.min(100, Number(task.progress))) : null
+      const barWrap = prog.querySelector('[data-ws-progress-bar]')
       const bar = prog.querySelector('[data-ws-progress-bar] > i')
-      if (bar instanceof HTMLElement) bar.style.width = `${pct}%`
+      if (barWrap instanceof HTMLElement) {
+        if (hasPct) barWrap.removeAttribute('data-indeterminate')
+        else barWrap.setAttribute('data-indeterminate', '')
+      }
+      if (bar instanceof HTMLElement) bar.style.width = hasPct ? `${pct}%` : '36%'
       const label = prog.querySelector('[data-ws-progress-label]')
-      if (label) label.textContent = `进度 ${pct}%`
+      if (label) label.textContent = hasPct ? `进度 ${pct}%` : '等待宿主进度'
       const elapsed = prog.querySelector('[data-ws-progress-elapsed]')
       if (elapsed) elapsed.textContent = `耗时 ${formatElapsed(task?.elapsedMs || 0)}`
       const phase = prog.querySelector('[data-ws-progress-phase]')
@@ -845,7 +859,7 @@ export function createStudioHost() {
     state.task = {
       id: v.id || state.task?.id || `task-${Date.now()}`,
       status: normalized === 'done' ? 'done' : normalized,
-      progress: v.progress != null ? Number(v.progress) : state.task?.progress || 0,
+      progress: v.progress != null ? Number(v.progress) : state.task?.progress ?? null,
       elapsedMs:
         v.elapsedMs != null
           ? Number(v.elapsedMs)
@@ -863,19 +877,20 @@ export function createStudioHost() {
     }
     if (normalized === 'cancelled') {
       stopProgressClock()
-      setStatus('已取消')
+      setStatus('客户端已取消；宿主取消未挂')
     }
   }
 
   const beginLocalProgress = () => {
     stopProgressClock()
     progressStartedAt = Date.now()
+    // No invented % — wait for host setProgress / paintGenerateResult
     state.task = {
       id: `local-${progressStartedAt}`,
       status: 'running',
-      progress: 8,
+      progress: null,
       elapsedMs: 0,
-      phase: 'running',
+      phase: 'waiting',
     }
     paintProgressUi()
     paintResultActions(false)
@@ -883,14 +898,15 @@ export function createStudioHost() {
     if (fail) fail.removeAttribute('data-visible')
     const hint = host?.querySelector('[data-ws-stage-empty-hint]')
     if (hint) hint.hidden = true
+    setStatus('等待宿主进度…')
+    // Elapsed clock only (honest wall time); never bump fake progress
     progressTimer = window.setInterval(() => {
       if (!state.task || state.task.status === 'done' || state.task.status === 'failed' || state.task.status === 'cancelled') {
         stopProgressClock()
         return
       }
       const elapsed = Date.now() - progressStartedAt
-      const bump = Math.min(92, (state.task.progress || 8) + 2)
-      state.task = { ...state.task, elapsedMs: elapsed, progress: bump }
+      state.task = { ...state.task, elapsedMs: elapsed }
       paintProgressUi()
     }, 500)
   }
@@ -940,7 +956,7 @@ export function createStudioHost() {
         phase: 'cancelled',
       }
       paintProgressUi()
-      setStatus('已取消')
+      setStatus('客户端已取消；宿主取消未挂')
       return
     }
 
@@ -1275,7 +1291,7 @@ export function createStudioHost() {
 
             <div data-ws-plan-panel>
               <div style="${css.paramLabel}">创作方案（可编辑；评分只提示，永不锁出图）</div>
-              <textarea data-ws-plan-text rows="3" placeholder="点「想方案」后方案会出现在这里，可改" style="width:100%;resize:vertical;min-height:72px;padding:8px 10px;border-radius:8px;border:1px solid #2a3140;background:#0e1218;color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
+              <textarea data-ws-plan-text rows="3" placeholder="LLM 未接 — 可手写方案后点「就这样出图」" style="width:100%;resize:vertical;min-height:72px;padding:8px 10px;border-radius:8px;border:1px solid #2a3140;background:#0e1218;color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
               <div data-ws-plan-actions>
                 <button type="button" data-ws-plan-action="plan">${PROMPT_ACTIONS.plan}</button>
                 <button type="button" data-ws-plan-action="replan">${PROMPT_ACTIONS.replan}</button>
@@ -1523,11 +1539,11 @@ export function createStudioHost() {
       btn.addEventListener('click', () => {
         const action = btn.getAttribute('data-ws-plan-action')
         if (action === 'plan' || action === 'replan') {
-          const draft =
-            (state.prompt || '').trim() ||
-            `围绕「${state.skillId || '创作'}」的一版方案`
-          state.skillPlan =
-            `${draft}\n\n构图：主体清晰、层次分明\n光影：自然主光 + 柔和环境光\n风格：与所选 Skill「${state.skillId || ''}」对齐\n（可编辑；评分只提示，不锁出图）`
+          // Honesty: no canned plan / no fake 「已想方案」— LLM / planSkill not wired on client
+          const ta = host.querySelector('[data-ws-plan-text]')
+          if (ta instanceof HTMLTextAreaElement) {
+            ta.placeholder = 'LLM 未接 — 可手写方案后点「就这样出图」'
+          }
           paintSkillPlan()
           host.dispatchEvent(
             new CustomEvent('dsh-ws-plan', {
@@ -1535,7 +1551,7 @@ export function createStudioHost() {
               detail: { action, skillId: state.skillId, prompt: state.prompt, skillPlan: state.skillPlan },
             }),
           )
-          setStatus(action === 'replan' ? '已重新想一版（可继续改）' : '已想方案（可编辑后出图）')
+          setStatus('LLM 未接 / 想方案未接宿主（可手写方案后出图）')
         } else if (action === 'accept') {
           // Never disable from score — just generate with current plan
           dispatchGenerate({ fromPlan: true })
@@ -1552,7 +1568,7 @@ export function createStudioHost() {
         elapsedMs: progressStartedAt ? Date.now() - progressStartedAt : state.task?.elapsedMs || 0,
       }
       paintProgressUi()
-      setStatus('已取消')
+      setStatus('客户端已取消；宿主取消未挂')
       host.dispatchEvent(
         new CustomEvent('dsh-ws-cancel', {
           bubbles: true,
@@ -1571,24 +1587,49 @@ export function createStudioHost() {
       const action = btn.getAttribute('data-ws-result-action') || ''
       const firstImg = host.querySelector('[data-ws-results] img[data-ws-result]')
       const src = firstImg instanceof HTMLImageElement ? firstImg.src : ''
-      if (action === '下载' && src) {
-        const a = document.createElement('a')
-        a.href = src
-        a.download = `dsh-ws-${Date.now()}.png`
-        a.rel = 'noopener'
-        a.click()
-      } else if (action === '复制提示词') {
+      /** Host-only actions with no document listener / studio handler yet */
+      const UNWIRED = new Set(['加画廊', '加对话', '拿去做视频'])
+      if (action === '下载') {
+        if (src) {
+          const a = document.createElement('a')
+          a.href = src
+          a.download = `dsh-ws-${Date.now()}.png`
+          a.rel = 'noopener'
+          a.click()
+          setStatus('已下载')
+        } else {
+          setStatus('无图可下载')
+        }
+        return
+      }
+      if (action === '复制提示词') {
         const textPrompt = state.prompt || ''
         if (navigator.clipboard?.writeText) navigator.clipboard.writeText(textPrompt).catch(() => {})
-      } else if (action === '当参考图' && src) {
-        state.mode = MODE_IMG
-        state.refImages = [
-          ...(state.refImages || []),
-          { id: `ref-result-${Date.now()}`, url: src, name: '结果参考' },
-        ]
-        paintChips()
-      } else if (action === '重新生成') {
+        setStatus(textPrompt ? '已复制提示词' : '无提示词可复制')
+        return
+      }
+      if (action === '当参考图') {
+        if (src) {
+          state.mode = MODE_IMG
+          state.refImages = [
+            ...(state.refImages || []),
+            { id: `ref-result-${Date.now()}`, url: src, name: '结果参考' },
+          ]
+          paintChips()
+          setStatus('已设为参考图')
+        } else {
+          setStatus('无图可作参考')
+        }
+        return
+      }
+      if (action === '重新生成') {
         dispatchGenerate({ regenerate: true })
+        return
+      }
+      if (UNWIRED.has(action)) {
+        // Prefer 「未接线」 when no host listener — do NOT claim 「已触发」
+        setStatus(`「${action}」未接线`)
+        return
       }
       host.dispatchEvent(
         new CustomEvent('dsh-ws-result-action', {
@@ -1596,7 +1637,7 @@ export function createStudioHost() {
           detail: { action, src, prompt: state.prompt },
         }),
       )
-      setStatus(`已触发「${action}」`)
+      setStatus(`「${action}」未接线`)
     })
 
     // Pane drag + width memory

@@ -73,19 +73,12 @@ export function apply(ctx, _config) {
     }
     inflight = true
     studio.setConnected?.(true)
-    studio.setStatus('出图中…')
-    studio.setProgress?.({ status: 'running', phase: 'submitted', progress: 12 })
+    studio.setStatus('等待宿主进度…')
+    // No synthetic % climb — studio shows indeterminate until host setProgress/paint
+    studio.setProgress?.({ status: 'running', phase: 'submitted', elapsedMs: 0 })
     const ac = new AbortController()
     inflightAbort = ac
     const started = Date.now()
-    const tick = setInterval(() => {
-      studio.setProgress?.({
-        status: 'running',
-        phase: 'polling',
-        progress: Math.min(90, 12 + Math.floor((Date.now() - started) / 400)),
-        elapsedMs: Date.now() - started,
-      })
-    }, 400)
     const timer = setTimeout(() => ac.abort(), CLIENT_GENERATE_TIMEOUT_MS)
     try {
       const result = await rpc.call(
@@ -121,7 +114,7 @@ export function apply(ctx, _config) {
     } catch (e) {
       if (ac.signal.aborted) {
         studio.paintGenerateResult({ phase: 'cancelled', elapsedMs: Date.now() - started })
-        studio.setStatus('已取消')
+        studio.setStatus('客户端已取消；宿主取消未挂')
       } else {
         const msg = formatClientRpcFailure(e)
         studio.setStatus(msg)
@@ -131,17 +124,18 @@ export function apply(ctx, _config) {
       }
     } finally {
       clearTimeout(timer)
-      clearInterval(tick)
       inflight = false
       inflightAbort = null
     }
   }
 
+  /** Cancel button → same AbortController path as CTA generate in-flight abort */
   const onCancel = () => {
     if (inflightAbort) {
       try {
         inflightAbort.abort()
       } catch (_) {}
+      studio.setStatus('客户端已取消；宿主取消未挂')
     }
   }
 
