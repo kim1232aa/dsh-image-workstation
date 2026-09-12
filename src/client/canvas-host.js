@@ -26,6 +26,8 @@ const EDGE_HINT = '文本→配置＝提示词；图片→配置＝参考图（�
 const ADD_NODE_HINT = '双击空白或点「添加」建节点；选配置后底部发送真出图'
 const MODE_TXT = MODE_TABS[0]
 const MODE_IMG = MODE_TABS[1]
+/** Studio default — empty 「选择模型」 must not block or POST blank modelId */
+const DEFAULT_CANVAS_MODEL = 'grok-imagine-image'
 const STUB_ACTION = (name) => `「${name}」未接线`
 
 /** @param {string} s */
@@ -98,7 +100,7 @@ function buildCanvasGenerateDetail(state, cfg) {
     projectId: state.projectId,
     nodeId: cfg.id,
     prompt,
-    modelId: cfg.modelId || '',
+    modelId: String(cfg.modelId || '').trim() || DEFAULT_CANVAS_MODEL,
     ratio: cfg.ratio || RATIOS[0],
     count: Math.min(Math.max(Number(cfg.count) || 1, 1), 4),
     clarity: cfg.clarity || CLARITY[0],
@@ -111,7 +113,21 @@ function buildCanvasGenerateDetail(state, cfg) {
 
 /** Pick displayable result URL (same spirit as studio pickDisplayUrl). */
 function pickCanvasResultUrl(r) {
-  const url = r?.url != null ? String(r.url) : r?.dataUrl != null ? String(r.dataUrl) : ''
+  if (typeof r === 'string') {
+    const url = r.trim()
+    if (!url || /^file:/i.test(url)) return ''
+    return url
+  }
+  const url =
+    r?.url != null
+      ? String(r.url)
+      : r?.dataUrl != null
+        ? String(r.dataUrl)
+        : r?.src != null
+          ? String(r.src)
+          : r?.image != null
+            ? String(r.image)
+            : ''
   if (!url) return ''
   if (/^file:/i.test(url)) return ''
   return url
@@ -426,6 +442,10 @@ export function buildCanvasPageHtml(T, css, state) {
 export function mountCanvasPage(host, opts) {
   const { T, css } = opts
   const state = defaultCanvasState()
+  /** Last genConfig the composer was editing — survives blank/text clicks */
+  let activeConfigId = state.selection.find((id) =>
+    state.nodes.some((n) => n.id === id && n.type === 'genConfig'),
+  ) || null
 
   let styleEl = host.querySelector('style[data-ws-canvas-styles]')
   if (!styleEl) {
@@ -519,6 +539,20 @@ export function mountCanvasPage(host, opts) {
       .join('')
   }
 
+  const resolveActiveConfig = () => {
+    const selected = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    if (selected) {
+      activeConfigId = selected.id
+      return selected
+    }
+    if (activeConfigId) {
+      const kept = state.nodes.find((n) => n.id === activeConfigId && n.type === 'genConfig')
+      if (kept) return kept
+      activeConfigId = null
+    }
+    return null
+  }
+
   const syncGenerator = () => {
     const selected = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
     state.generatorOpen = !!selected
@@ -527,6 +561,15 @@ export function mountCanvasPage(host, opts) {
       else generator.removeAttribute('data-open')
     }
     if (selected) {
+      activeConfigId = selected.id
+      const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
+      // Keep composer text if user typed while selection flickered; then prefill from links
+      if (ta instanceof HTMLTextAreaElement) {
+        const composerVal = String(ta.value || '')
+        if (composerVal.trim() && !String(selected.prompt || '').trim()) {
+          selected.prompt = composerVal
+        }
+      }
       // Prefill empty composer from linked text nodes (Nova/VisioWork empty-state UX)
       if (!String(selected.prompt || '').trim()) {
         const texts = upstreamResourceNodes(state, selected.id)
@@ -535,7 +578,6 @@ export function mountCanvasPage(host, opts) {
           .filter(Boolean)
         if (texts.length) selected.prompt = texts.join('\n\n')
       }
-      const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
       if (ta instanceof HTMLTextAreaElement && ta.value !== (selected.prompt || '')) {
         ta.value = selected.prompt || ''
       }
@@ -608,6 +650,19 @@ export function mountCanvasPage(host, opts) {
         const node = state.nodes.find((x) => x.id === id)
         if (node && node.type === 'text') {
           node.text = /** @type {HTMLTextAreaElement} */ (e.target).value
+          // Linked text → empty genConfig prompt (Nova: composer can stay empty until send)
+          for (const edge of state.edges) {
+            if (edge.from !== id) continue
+            const cfg = state.nodes.find((n) => n.id === edge.to && n.type === 'genConfig')
+            if (!cfg || String(cfg.prompt || '').trim()) continue
+            cfg.prompt = node.text
+            if (activeConfigId === cfg.id || state.selection.includes(cfg.id)) {
+              const composer = page.querySelector('[data-ws-canvas-gen-prompt]')
+              if (composer instanceof HTMLTextAreaElement && !String(composer.value || '').trim()) {
+                composer.value = node.text
+              }
+            }
+          }
         }
       })
       ta.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -880,15 +935,15 @@ export function mountCanvasPage(host, opts) {
     setStatus(CANVAS_CHROME.fitAll)
   })
 
-  // Generator params / prompt
+  // Generator params / prompt — always sync to active genConfig (not only current selection)
   page.querySelector('[data-ws-canvas-gen-prompt]')?.addEventListener('input', (e) => {
     const t = /** @type {HTMLTextAreaElement} */ (e.target)
-    const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    const cfg = resolveActiveConfig()
     if (cfg) cfg.prompt = t.value
   })
   page.querySelector('[data-ws-canvas-param-model]')?.addEventListener('input', (e) => {
     const t = /** @type {HTMLInputElement} */ (e.target)
-    const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    const cfg = resolveActiveConfig()
     if (cfg) cfg.modelId = t.value
   })
   page.querySelectorAll('[data-ws-canvas-chips]').forEach((group) => {
@@ -956,23 +1011,35 @@ export function mountCanvasPage(host, opts) {
    * Apply host generate result onto placeholder image nodes (keep edges).
    * @param {{ ok?: boolean, phase?: string, error?: string, resultNodeIds?: string[], value?: any, nodeId?: string }} detail
    */
+  const markPlaceholderError = (resultNodeIds, msg) => {
+    for (const id of resultNodeIds) {
+      const node = state.nodes.find((n) => n.id === id)
+      if (node && node.type === 'image' && !node.src) {
+        node.status = 'error'
+        node.error = msg
+      }
+    }
+  }
+
   const applyGenerateResult = (detail) => {
     const d = detail && typeof detail === 'object' ? detail : {}
     const phase = String(d.phase || '')
     const resultNodeIds = Array.isArray(d.resultNodeIds) ? d.resultNodeIds : []
-    if (d.ok && (phase === 'done' || phase === 'completed' || !phase)) {
-      const results = Array.isArray(d.value?.results) ? d.value.results : []
-      const urls = results.map(pickCanvasResultUrl).filter(Boolean)
+    const failPhase = phase === 'failed' || phase === 'error' || phase === 'cancelled'
+    // ok:true with URLs → image nodes (Nova result→node); never silently clear placeholders
+    if (d.ok && !failPhase) {
+      const rawResults = Array.isArray(d.value?.results)
+        ? d.value.results
+        : Array.isArray(d.results)
+          ? d.results
+          : Array.isArray(d.value?.images)
+            ? d.value.images
+            : []
+      const urls = rawResults.map(pickCanvasResultUrl).filter(Boolean)
       if (!urls.length) {
         generateBusy = false
         if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
-        for (const id of resultNodeIds) {
-          const node = state.nodes.find((n) => n.id === id)
-          if (node && node.type === 'image') {
-            node.status = 'error'
-            node.error = '生成完成但无可用图片 URL'
-          }
-        }
+        markPlaceholderError(resultNodeIds, '生成完成但无可用图片 URL')
         setStatus('生成完成但无可用图片 URL')
         paintNodes()
         return
@@ -999,7 +1066,10 @@ export function mountCanvasPage(host, opts) {
       })
       for (let i = urls.length; i < resultNodeIds.length; i += 1) {
         const node = state.nodes.find((n) => n.id === resultNodeIds[i])
-        if (node && node.type === 'image' && !node.src) node.status = 'idle'
+        if (node && node.type === 'image' && !node.src) {
+          node.status = 'error'
+          node.error = '未返回对应图片'
+        }
       }
       generateBusy = false
       if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
@@ -1008,13 +1078,7 @@ export function mountCanvasPage(host, opts) {
       return
     }
     if (phase === 'cancelled') {
-      for (const id of resultNodeIds) {
-        const node = state.nodes.find((n) => n.id === id)
-        if (node && node.type === 'image' && !node.src) {
-          node.status = 'idle'
-          node.error = '已取消'
-        }
-      }
+      markPlaceholderError(resultNodeIds, '已取消')
       generateBusy = false
       if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
       setStatus('客户端已取消；宿主取消未挂')
@@ -1022,13 +1086,7 @@ export function mountCanvasPage(host, opts) {
       return
     }
     const msg = String(d.error || '画布出图失败')
-    for (const id of resultNodeIds) {
-      const node = state.nodes.find((n) => n.id === id)
-      if (node && node.type === 'image' && !node.src) {
-        node.status = 'error'
-        node.error = msg
-      }
-    }
+    markPlaceholderError(resultNodeIds, msg)
     generateBusy = false
     if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
     setStatus(msg)
@@ -1038,10 +1096,16 @@ export function mountCanvasPage(host, opts) {
   const onCanvasGenerateResult = (ev) => {
     applyGenerateResult(ev?.detail && typeof ev.detail === 'object' ? ev.detail : {})
   }
+  // document + host: composed events survive shadow / remount-adjacent dispatch
   document.addEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
+  host.addEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
 
   sendBtn?.addEventListener('click', () => {
-    const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    let cfg = resolveActiveConfig()
+    if (!cfg) {
+      const configs = state.nodes.filter((n) => n.type === 'genConfig')
+      if (configs.length === 1) cfg = configs[0]
+    }
     if (!cfg) {
       setStatus('请先选中生成配置节点')
       return
@@ -1050,13 +1114,22 @@ export function mountCanvasPage(host, opts) {
       setStatus('已有画布出图任务进行中…')
       return
     }
+    // Sync composer → cfg; empty composer keeps prior cfg.prompt for linked-text merge
     const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
-    if (ta instanceof HTMLTextAreaElement) cfg.prompt = ta.value
+    const composer = ta instanceof HTMLTextAreaElement ? String(ta.value || '') : ''
+    if (composer.trim()) cfg.prompt = composer
+    else if (ta instanceof HTMLTextAreaElement && String(cfg.prompt || '').trim()) {
+      // keep cfg.prompt; linked texts still collected in buildCanvasGenerateDetail
+    } else if (ta instanceof HTMLTextAreaElement) {
+      cfg.prompt = composer
+    }
     const detail = buildCanvasGenerateDetail(state, cfg)
     if (!String(detail.prompt || '').trim()) {
       setStatus('请先输入提示词（文本节点或底部输入框）')
       return
     }
+    // 「选择模型」 placeholder alone must not POST blank modelId
+    if (!String(detail.modelId || '').trim()) detail.modelId = DEFAULT_CANVAS_MODEL
     const resultNodeIds = placeResultNodes(cfg, detail.count)
     detail.resultNodeIds = resultNodeIds
     generateBusy = true
@@ -1154,6 +1227,7 @@ export function mountCanvasPage(host, opts) {
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('keyup', onKeyUp)
       document.removeEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
+      host.removeEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
       page.remove()
       styleEl?.remove()
     },

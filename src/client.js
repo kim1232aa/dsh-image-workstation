@@ -249,13 +249,16 @@ export function apply(ctx, _config) {
   /** @type {AbortController | null} */
   let canvasAbort = null
   const emitCanvasResult = (detail) => {
-    document.dispatchEvent(
-      new CustomEvent('dsh-ws-canvas-generate-result', {
-        bubbles: true,
-        composed: true,
-        detail: detail && typeof detail === 'object' ? detail : {},
-      }),
-    )
+    const payload = {
+      bubbles: true,
+      composed: true,
+      detail: detail && typeof detail === 'object' ? detail : {},
+    }
+    document.dispatchEvent(new CustomEvent('dsh-ws-canvas-generate-result', payload))
+    const hostEl = studio.getHostEl?.()
+    if (hostEl instanceof HTMLElement) {
+      hostEl.dispatchEvent(new CustomEvent('dsh-ws-canvas-generate-result', payload))
+    }
   }
   const onCanvasGenerate = async (ev) => {
     const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
@@ -312,7 +315,7 @@ export function apply(ctx, _config) {
           clarity: detail.clarity,
           count: detail.count,
           detail: detail.detail,
-          modelId: detail.modelId,
+          modelId: String(detail.modelId || '').trim() || 'grok-imagine-image',
           compareModels: detail.compareModels,
           refImages: detail.refImages,
         },
