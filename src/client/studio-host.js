@@ -230,8 +230,9 @@ const HOST_STYLES = `
   opacity:.7;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage] {
-  /* Right column = result landing (fills column). Center has no stage. */
-  flex:1 1 auto; min-height:0; max-height:none; display:flex; flex-direction:column; gap:8px;
+  /* Right column = result landing. Pack head+grid+actions at TOP (same lesson as CTA). */
+  flex:1 1 auto; min-height:0; max-height:none; display:flex; flex-direction:column;
+  justify-content:flex-start; gap:8px;
   margin:0; padding:0; overflow:hidden; background:transparent; border:0;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
@@ -249,7 +250,11 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty][hidden],
 [data-dsh-ws-studio-host] [data-ws-stage][data-has-results] [data-ws-stage-empty],
-[data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-empty] {
+[data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-empty],
+[data-dsh-ws-studio-host] [data-ws-stage][data-has-results] [data-ws-stage-empty-title],
+[data-dsh-ws-studio-host] [data-ws-stage][data-has-results] [data-ws-stage-empty-hint],
+[data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-empty-title],
+[data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-empty-hint] {
   display:none !important;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-title] {
@@ -267,12 +272,19 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-stage-samples][hidden],
 [data-dsh-ws-studio-host] [data-ws-results][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-results] {
+  /* Pack to natural height — NEVER flex:1 sea that sinks RESULT_ACTIONS */
   display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
-  gap:10px; align-content:start; flex:1; min-height:0; overflow:auto; padding:2px 0 4px;
+  gap:10px; align-content:start; flex:0 1 auto; min-height:0; max-height:100%;
+  overflow:auto; padding:2px 0 4px;
 }
 [data-dsh-ws-studio-host] [data-ws-results] [data-ws-result-card] {
   border:1px solid var(--dsw-alias-border-l2); border-radius:10px; padding:4px;
   background: var(--dsw-alias-bg-module-platform); overflow:hidden; min-width:0;
+  cursor:pointer;
+}
+[data-dsh-ws-studio-host] [data-ws-results] [data-ws-result-card][data-selected] {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
 }
 [data-dsh-ws-studio-host] [data-ws-results] [data-ws-result-card] img {
   display:block; width:100%; max-height:280px; border-radius:6px; object-fit:cover;
@@ -415,7 +427,8 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-fail][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] {
-  display:none; flex-wrap:wrap; gap:6px; padding:4px 0 2px; flex:none;
+  /* Directly under result grid — never margin-top:auto / column-bottom flex sea */
+  display:none; flex-wrap:wrap; gap:6px; padding:4px 0 2px; flex:0 0 auto; margin-top:0;
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] button {
@@ -963,15 +976,19 @@ export function createStudioHost() {
   }
 
   /**
-   * Screenshot / Critiquito: paint 1–2 prior local gens into right [data-ws-results].
+   * Dev/screenshot helper: paint prior local gens into right [data-ws-results].
    * Honest local files (data URLs from fixtures) — NOT a fake CTA / generate success.
-   * Trigger: ?wsDemoResults=1 on open, console __dshWsPaintDemoResults(), or api.paintDemoLocalResults().
+   * Trigger: ?wsDemoResults=1, console __dshWsPaintDemoResults(), or api.paintDemoLocalResults().
+   * Status disclaimer is console-only (never setStatus 「非本次 CTA」).
    */
   const paintDemoLocalResults = () => {
     ensure()
-    const urls = DEMO_LOCAL_RESULT_URLS.filter(Boolean)
+    const want = Math.max(1, Math.min(Number(state.count) || 1, DEMO_LOCAL_RESULT_URLS.length || 1))
+    const urls = DEMO_LOCAL_RESULT_URLS.filter(Boolean).slice(0, want)
     if (!urls.length) {
-      setStatus('无本地出图预览资源')
+      try {
+        console.info('[dsh-ws] demo local results: no fixtures')
+      } catch (_) {}
       return
     }
     applyGenerateResult({
@@ -979,13 +996,18 @@ export function createStudioHost() {
       phase: 'done',
       results: urls.map((url) => ({ kind: 'image', url })),
     })
-    setStatus(DEMO_LOCAL_STATUS)
+    // Mute user-visible demo disclaimer (「非本次 CTA」) — console-only
+    try {
+      console.info('[dsh-ws]', DEMO_LOCAL_STATUS)
+    } catch (_) {}
   }
 
+  /** Opt-in only via console / API — never auto-paint on open (production path) */
   const maybePaintDemoFromQuery = () => {
     try {
       if (typeof location === 'undefined') return
       if (/(?:\?|&)wsDemoResults=1(?:&|$)/.test(String(location.search || ''))) {
+        // Kept for explicit ?wsDemoResults=1 debug; prefer __dshWsPaintDemoResults()
         paintDemoLocalResults()
       }
     } catch (_) {}
@@ -1070,6 +1092,7 @@ export function createStudioHost() {
       samples.hidden = true
     }
     if (resultsEl) resultsEl.hidden = false
+    // Hide empty immediately — do NOT syncStageWeight yet (results may still be empty mid-paint)
     if (empty instanceof HTMLElement) empty.hidden = true
     const title = stage?.querySelector('[data-ws-stage-empty-title]')
     if (title) {
@@ -1080,7 +1103,7 @@ export function createStudioHost() {
       hint.hidden = true
       hint.textContent = STAGE_EMPTY_HINT
     }
-    syncStageWeight()
+    if (stage instanceof HTMLElement) stage.setAttribute('data-has-results', '')
   }
 
   /** True empty history only — no ghost placeholder rows; demote filters when empty */
@@ -1262,31 +1285,49 @@ export function createStudioHost() {
         paintStageIdle()
       } else {
         showResultStage()
+        let painted = 0
+        const selectFirst = () => {
+          const cards = resultsEl.querySelectorAll('[data-ws-result-card]')
+          cards.forEach((c) => c.removeAttribute('data-selected'))
+          const first = cards[0]
+          if (first instanceof HTMLElement) first.setAttribute('data-selected', '')
+        }
         for (const r of results) {
           const src = pickDisplayUrl(r)
+          if (!src) continue // skip unusable — no near-black placeholder card
           const card = document.createElement('div')
           card.dataset.wsResultCard = ''
           /* Card chrome via HOST_STYLES [data-ws-result-card] — grid landing */
-          if (src) {
-            const img = document.createElement('img')
-            img.src = src
-            img.alt = '生成结果'
-            img.dataset.wsResult = ''
-            img.addEventListener('error', () => {
-              if (img.dataset.failed) return
-              img.dataset.failed = '1'
-              img.src = inspireFallbackSvg(0)
-            })
-            card.appendChild(img)
-          } else {
-            const note = document.createElement('div')
-            note.style.cssText = 'font-size:11px;opacity:.8;word-break:break-all;padding:4px;'
-            note.textContent = r?.url || r?.localPath || '无可用预览'
-            card.appendChild(note)
-          }
+          const img = document.createElement('img')
+          img.src = src
+          img.alt = '生成结果'
+          img.dataset.wsResult = ''
+          img.addEventListener('error', () => {
+            // Fixture / URL failed — skip card (no near-black inspireFallbackSvg)
+            card.remove()
+            selectFirst()
+            if (!resultsEl.querySelector('[data-ws-result-card]')) {
+              paintResultActions(false)
+              paintStageIdle()
+            } else {
+              syncStageWeight()
+            }
+          })
+          card.addEventListener('click', () => {
+            resultsEl.querySelectorAll('[data-ws-result-card]').forEach((c) => c.removeAttribute('data-selected'))
+            card.setAttribute('data-selected', '')
+          })
+          card.appendChild(img)
           resultsEl.appendChild(card)
+          painted += 1
         }
-        paintResultActions(true)
+        if (!painted) {
+          paintStageIdle()
+        } else {
+          selectFirst()
+          paintResultActions(true)
+          syncStageWeight() // AFTER cards exist — hide empty (showResultStage sync was premature)
+        }
       }
     }
     if (histEl && results.length) {
@@ -1853,8 +1894,11 @@ export function createStudioHost() {
       const btn = e.target instanceof Element ? e.target.closest('[data-ws-result-action]') : null
       if (!btn) return
       const action = btn.getAttribute('data-ws-result-action') || ''
-      const firstImg = host.querySelector('[data-ws-inspire-wall] [data-ws-results] img[data-ws-result]') || host.querySelector('[data-ws-results] img[data-ws-result]')
-      const src = firstImg instanceof HTMLImageElement ? firstImg.src : ''
+      const selectedImg =
+        host.querySelector('[data-ws-inspire-wall] [data-ws-results] [data-ws-result-card][data-selected] img[data-ws-result]') ||
+        host.querySelector('[data-ws-inspire-wall] [data-ws-results] img[data-ws-result]') ||
+        host.querySelector('[data-ws-results] img[data-ws-result]')
+      const src = selectedImg instanceof HTMLImageElement ? selectedImg.src : ''
       /** Host-only actions with no document listener / studio handler yet */
       const UNWIRED = new Set(['加画廊', '加对话', '拿去做视频'])
       if (action === '下载') {
@@ -1957,7 +2001,7 @@ export function createStudioHost() {
     paintRefSlot()
     paintSkillPlan()
     paintConnStatus(true)
-    maybePaintDemoFromQuery()
+    // Do NOT auto-paint demo results on mount — production stays empty until real CTA
     return host
   }
 
@@ -1968,6 +2012,7 @@ export function createStudioHost() {
       mountStudioHostEl(el)
       el.style.display = 'flex'
       open = true
+      // Opt-in only: ?wsDemoResults=1 (production open stays empty until real CTA)
       maybePaintDemoFromQuery()
     },
     close() {
@@ -2022,7 +2067,7 @@ export function createStudioHost() {
     },
     /**
      * Dev/screenshot: paint prior local gens into right results (not CTA success).
-     * Also: ?wsDemoResults=1 or window.__dshWsPaintDemoResults()
+     * Also: ?wsDemoResults=1 or window.__dshWsPaintDemoResults(). No user-visible demo status.
      */
     paintDemoLocalResults() {
       paintDemoLocalResults()

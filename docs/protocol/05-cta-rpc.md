@@ -23,12 +23,23 @@ URLs verbatim. Errors scrubbed (no token).
 ## 图生图
 mode=`图生图` + `refImages[0].url` (data URL) → `mediaProxy.edit` → `POST /v1/images/edits`.
 
-## Screenshot: real results on right (not fake generate)
+## Screenshot: real results on right (preferred = real CTA)
 
-For Critiquito / UI shots that need 出图 visible without another paid CTA:
+**Preferred for Critiquito results shot** — real generate, not demo:
 
-1. Open studio with `?wsDemoResults=1`, **or**
-2. Console: `window.__dshWsPaintDemoResults()`, **or**
-3. `studio.paintDemoLocalResults()`
+1. Set 张数=`1`, prompt simple (e.g. `一只红苹果` or other short prompt)
+2. Click 「开始生成」
+3. Wait for host RPC → `paintGenerateResult` on the right column
+4. Expect: empty hint gone, thumb count matches 张数, no 「非本次 CTA」 / demo disclaimer, RESULT_ACTIONS packed under the grid
 
-This paints 1–2 **prior local gens** (resized copies of `$DSH_HOME/dsh-image-workstation/media/generated/…`) into right `[data-ws-results]` via `paintGenerateResult`. Status reads 「本地出图预览（既有生成文件 · 非本次 CTA）」 — not a claim that CTA just succeeded. No picsum / stock placeholders.
+If generate needs accounts / model keys, check host logs and default model (`gpt-image-2`); do not invent success.
+
+## Dev helper: prior local gens (not CTA success)
+
+For layout-only shots without another paid CTA:
+
+1. Console: `window.__dshWsPaintDemoResults()`, **or**
+2. `studio.paintDemoLocalResults()`, **or**
+3. `?wsDemoResults=1` (opt-in; production open does not auto-paint)
+
+Paints prior local fixtures into right `[data-ws-results]` via `paintGenerateResult`. Demo disclaimer is **console-only** — never user-visible `setStatus`. Respects current 张数. Broken fixtures are skipped (no near-black fallback). No picsum / stock placeholders.

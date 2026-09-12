@@ -11,7 +11,7 @@ import realGen02 from './fixtures/real-gen-02.jpg'
 /** @type {readonly string[]} */
 export const DEMO_LOCAL_RESULT_URLS = Object.freeze([realGen01, realGen02])
 
-/** Honest provenance note for status / comments */
+/** Honest provenance note — console-only; never setStatus in UI */
 export const DEMO_LOCAL_STATUS =
   '本地出图预览（既有生成文件 · 非本次 CTA）'
 
