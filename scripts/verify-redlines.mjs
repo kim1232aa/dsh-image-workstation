@@ -91,6 +91,7 @@ if (!hostIdx.includes('attachCtaRpc')) fail('host missing attachCtaRpc')
 const clientSrc = readFileSync(join(root, 'src/client.js'), 'utf8')
 if (!clientSrc.includes("addEventListener('dsh-ws-generate'")) fail('client missing dsh-ws-generate listener')
 if (!clientSrc.includes('rpc.call') || !clientSrc.includes('CTA_RPC_CHANNEL') || !clientSrc.includes('CTA_RPC_GENERATE')) fail('client missing rpc.call generate')
+if (!clientSrc.includes('postDshWs') || !clientSrc.includes('callCtaRpc')) fail('client missing direct POST /dsh-ws/generate')
 if (!clientSrc.includes('paintGenerateResult')) fail('client missing paintGenerateResult')
 
 const studioSrc = readFileSync(join(root, 'src/client/studio-host.js'), 'utf8')

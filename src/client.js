@@ -33,6 +33,87 @@ export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
 export const SKILL_RPC_PLAN = 'plan'
 
 /**
+ * Connection rpc.call POSTs `${resolveBase()}${channel}/${endpoint}`.
+ * resolveBase() is location.origin, or http://dsh.internal when origin is null.
+ * A custom __DSH_TRANSPORT__.fetch may wait on the $events handshake and never
+ * send — UI then sits on `submitted` with an empty /dsh-ws/generate hits log.
+ * Same-origin fetch of the Connection envelope always produces the POST.
+ * Token query is only for GET / cookie exchange; do not add ?token= to this POST.
+ * @returns {string} origin or '' (relative /dsh-ws/... )
+ */
+function resolveCtaBase() {
+  const loc = globalThis.location
+  if (loc?.origin && loc.origin !== 'null') return loc.origin
+  if (typeof loc?.href === 'string' && /^https?:/i.test(loc.href)) {
+    try {
+      return new URL(loc.href).origin
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return ''
+}
+
+function newRpcId() {
+  try {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  } catch (_) {
+    /* ignore */
+  }
+  return `dsh-ws-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/**
+ * POST /dsh-ws/<endpoint> with the Connection client-request envelope.
+ * @param {string} endpoint
+ * @param {unknown} payload
+ * @param {AbortSignal} [signal]
+ */
+async function postDshWs(endpoint, payload, signal) {
+  const base = resolveCtaBase()
+  const url = `${base}${CTA_RPC_CHANNEL}/${endpoint}`
+  const rpcId = newRpcId()
+  const res = await globalThis.fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId,
+      method: endpoint,
+      payload,
+    }),
+    ...(signal ? { signal } : {}),
+  })
+  if (!res.ok) {
+    throw new Error(`transport failure for ${CTA_RPC_CHANNEL}/${endpoint}: HTTP ${res.status}`)
+  }
+  const full = await res.json()
+  if (!full || full.type !== 'server-response' || typeof full.rpcId !== 'string') {
+    throw new TypeError('connection: invalid server-response envelope')
+  }
+  return full.result
+}
+
+/**
+ * Prefer a real POST to /dsh-ws/<endpoint>. Fall back to connection.rpc.call
+ * only when fetch is unavailable (worker / fixture).
+ * @param {any} rpc
+ * @param {string} endpoint
+ * @param {unknown} payload
+ * @param {AbortSignal} [signal]
+ */
+async function callCtaRpc(rpc, endpoint, payload, signal) {
+  if (typeof globalThis.fetch === 'function') {
+    return postDshWs(endpoint, payload, signal)
+  }
+  if (rpc && typeof rpc.call === 'function') {
+    return rpc.call(CTA_RPC_CHANNEL, endpoint, payload, signal)
+  }
+  throw new Error('fetch and connection.rpc.call unavailable')
+}
+
+/**
  * @param {any} ctx
  * @param {Record<string, unknown>} [_config]
  */
@@ -59,7 +140,8 @@ export function apply(ctx, _config) {
   } catch (_) {}
 
   /**
-   * dsh-ws-generate → connection.rpc → paintGenerateResult
+   * dsh-ws-generate → POST /dsh-ws/generate → paintGenerateResult
+   * Direct fetch first so we never sit on submitted waiting for rpc.call handshake.
    * Prefer host ok:false scrubbed messages over bare browser "Failed to fetch".
    * @param {CustomEvent} ev
    */
@@ -75,7 +157,8 @@ export function apply(ctx, _config) {
       return
     }
     const rpc = ctx.connection?.rpc
-    if (!rpc || typeof rpc.call !== 'function') {
+    const canCall = typeof globalThis.fetch === 'function' || (rpc && typeof rpc.call === 'function')
+    if (!canCall) {
       const msg = '连接不可用，无法出图'
       studio.setStatus(msg)
       studio.setConnected?.(false)
@@ -92,8 +175,8 @@ export function apply(ctx, _config) {
     const started = Date.now()
     const timer = setTimeout(() => ac.abort(), CLIENT_GENERATE_TIMEOUT_MS)
     try {
-      const result = await rpc.call(
-        CTA_RPC_CHANNEL,
+      const result = await callCtaRpc(
+        rpc,
         CTA_RPC_GENERATE,
         {
           prompt: detail.prompt,
@@ -149,6 +232,12 @@ export function apply(ctx, _config) {
       studio.setStatus('客户端已取消；宿主取消未挂')
     }
   }
+
+  // Register before sidebar/settings try — a throw there must not skip CTA RPC.
+  document.addEventListener('dsh-ws-generate', onGenerate)
+  document.addEventListener('dsh-ws-cancel', onCancel)
+  disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
+  disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
 
   try {
     mountSettingsCard(ctx)
@@ -312,12 +401,9 @@ export function apply(ctx, _config) {
       }
     }
 
-    document.addEventListener('dsh-ws-generate', onGenerate)
-    document.addEventListener('dsh-ws-cancel', onCancel)
     document.addEventListener('dsh-ws-video-generate', onVideoGenerate)
     document.addEventListener('dsh-ws-video-cancel', onVideoCancel)
     document.addEventListener('dsh-ws-reverse-prompt', onReversePrompt)
-    disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
 
 
   /**
@@ -432,7 +518,6 @@ export function apply(ctx, _config) {
   }
   document.addEventListener('dsh-ws-plan', onPlan)
   disposers.push(() => document.removeEventListener('dsh-ws-plan', onPlan))
-    disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
     disposers.push(() => document.removeEventListener('dsh-ws-video-generate', onVideoGenerate))
     disposers.push(() => document.removeEventListener('dsh-ws-video-cancel', onVideoCancel))
     disposers.push(() => document.removeEventListener('dsh-ws-reverse-prompt', onReversePrompt))

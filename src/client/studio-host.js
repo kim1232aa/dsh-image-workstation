@@ -2124,6 +2124,7 @@ export function createStudioHost(opts = {}) {
       host.dispatchEvent(
         new CustomEvent('dsh-ws-generate', {
           bubbles: true,
+          composed: true,
           detail: {
             prompt: state.prompt,
             negativePrompt: state.negativePrompt,
