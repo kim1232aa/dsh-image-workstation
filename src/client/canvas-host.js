@@ -924,12 +924,50 @@ export function mountCanvasPage(host, opts) {
   )
 
   page.querySelector('[data-ws-canvas-fit]')?.addEventListener('click', () => {
+    // Nova-style fit-all: bbox of all nodes (incl. result images) → translate + scale into viewport
     if (!state.nodes.length) {
       state.viewport = { x: 40, y: 40, zoom: 1 }
     } else {
-      const minX = Math.min(...state.nodes.map((n) => n.x || 0))
-      const minY = Math.min(...state.nodes.map((n) => n.y || 0))
-      state.viewport = { x: 40 - minX, y: 40 - minY, zoom: 1 }
+      const PAD = 80
+      const FALLBACK_W = 200
+      const FALLBACK_H = 160
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const n of state.nodes) {
+        const el =
+          nodesEl instanceof HTMLElement
+            ? nodesEl.querySelector(`[data-ws-canvas-node="${n.id}"]`)
+            : null
+        const w =
+          el instanceof HTMLElement && el.offsetWidth
+            ? el.offsetWidth
+            : Number(n.width) > 0
+              ? Number(n.width)
+              : FALLBACK_W
+        const h =
+          el instanceof HTMLElement && el.offsetHeight
+            ? el.offsetHeight
+            : Number(n.height) > 0
+              ? Number(n.height)
+              : FALLBACK_H
+        const x = n.x || 0
+        const y = n.y || 0
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x + w)
+        maxY = Math.max(maxY, y + h)
+      }
+      const vpW = viewport instanceof HTMLElement && viewport.clientWidth ? viewport.clientWidth : 1280
+      const vpH = viewport instanceof HTMLElement && viewport.clientHeight ? viewport.clientHeight : 720
+      const contentW = Math.max(1, maxX - minX + PAD * 2)
+      const contentH = Math.max(1, maxY - minY + PAD * 2)
+      // Cap at 1 like Nova (shrink to fit, never zoom past 1 on fit-all)
+      const zoom = Math.min(vpW / contentW, vpH / contentH, 1)
+      const x = (vpW - (maxX + minX) * zoom) / 2
+      const y = (vpH - (maxY + minY) * zoom) / 2
+      state.viewport = { x, y, zoom }
     }
     applyTransform()
     setStatus(CANVAS_CHROME.fitAll)
