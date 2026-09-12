@@ -1,7 +1,8 @@
 # Host row by package name. Browser half loads via package.json dsh.client
-# (served at /plugins/<id>/client.js) — same split as VisioWork; this is a rebuild.
-# insert id is `imagegen` so Settings→插件列表 search hits entryId (host matches()
-# only looks at moduleName + entryId). name stays dsh-image-workstation (settings ns).
+# (served at /plugins/<packageName>/client.js) — same split as VisioWork; this is a rebuild.
+# insert id is `imagegen` so Settings→插件列表 search hits entryId; package name
+# `dsh-生图工作台` drives list shortName (strips dsh-) and 「生图」 search (moduleName).
+# SETTINGS_NAMESPACE stays dsh-image-workstation (settings card key).
 - insert:
     - id: imagegen
-      name: dsh-image-workstation
+      name: dsh-生图工作台

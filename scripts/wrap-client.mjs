@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 
 const body = readFileSync('/tmp/ws-client.cjs', 'utf8')
 const wrapped = `window.__ModuleLoader__.load({
-\tid: "dsh-image-workstation",
+\tid: "dsh-生图工作台",
 \tfactory: (require) => {
 \t\tvar module = { exports: {} };
 \t\tvar exports = module.exports;
