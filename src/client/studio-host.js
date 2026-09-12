@@ -1006,6 +1006,15 @@ export function createStudioHost(opts = {}) {
       lines.push(`自检 ${plan.score.total ?? ''}（仅展示，不锁出图）`)
       if (Array.isArray(plan.score.notes)) lines.push(...plan.score.notes.map((n) => `· ${n}`))
     }
+    if (plan.scriptPaths && typeof plan.scriptPaths === 'object') {
+      const sp = Object.entries(plan.scriptPaths)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}: ${v}`)
+      if (sp.length) {
+        lines.push('脚本路径')
+        lines.push(...sp.map((s) => `· ${s}`))
+      }
+    }
     lines.push('disabledByScore: false')
     return lines.filter(Boolean).join('\n')
   }
@@ -2244,8 +2253,23 @@ export function createStudioHost(opts = {}) {
             }),
           )
         } else if (action === 'accept') {
-          // Fill prompt from plan; score never disables. Then generate (就这样出图).
+          // 就这样出图：方案 → 填 prompt（可手改）→ 直接出图；分数永不锁 CTA
+          const ta = host.querySelector('[data-ws-plan-text]')
+          if (ta instanceof HTMLTextAreaElement && ta.value.trim()) {
+            // keep structured plan if object; else use textarea as plan text
+            if (typeof state.skillPlan !== 'object' || state.skillPlan == null) {
+              state.skillPlan = ta.value
+            } else if (!state.skillPlan.fillPrompt) {
+              state.skillPlan = { ...state.skillPlan, fillPrompt: ta.value }
+            }
+          }
           applySkillPlanToFields(state.skillPlan)
+          syncFields()
+          if (!String(state.prompt || '').trim()) {
+            setStatus('方案未填入提示词 — 可手写提示词后点「开始生成」')
+            return
+          }
+          setStatus('已填入方案，出图中…')
           dispatchGenerate({ fromPlan: true })
         }
       })

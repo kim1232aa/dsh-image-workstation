@@ -60,9 +60,9 @@ export function createSkillRpcHandler(bag) {
           value: {
             ...plan,
             disabledByScore: false,
-            fillPrompt: (plan.prompts || []).map((p) => p.prompt).filter(Boolean).join('\n\n'),
-            fillAspect: plan.prompts?.[0]?.aspect || null,
-            fillNegative: plan.negativePrompt || '',
+            fillPrompt: plan.fillPrompt || (plan.prompts || []).map((p) => p.prompt).filter(Boolean).join('\n\n'),
+            fillAspect: plan.fillAspect || plan.prompts?.[0]?.aspect || null,
+            fillNegative: plan.fillNegative != null ? plan.fillNegative : plan.negativePrompt || '',
           },
         }
       }
