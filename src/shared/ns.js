@@ -3,8 +3,9 @@ export const SETTINGS_NAMESPACE = 'dsh-image-workstation'
 
 /**
  * Cordis patch insert id (stable fiber entry).
- * Host 插件列表: title = moduleShortName(package name) → 生图工作台;
- * search matches() only moduleName + entryId — so 「生图」hits package `dsh-生图工作台`,
- * and `imagegen` still hits this entryId. Host shortName alone is not a product-name wall.
+ * Package name is ASCII `dsh-image-workstation` (required for /plugins/??…/client.js).
+ * Host 插件列表: title = moduleShortName(package) → image-workstation;
+ * search matches() moduleName + entryId — 「生图」via keywords/description;
+ * `imagegen` hits this entryId. Host shortName alone is not a product-name wall.
  */
 export const PLUGIN_ENTRY_ID = 'imagegen'
