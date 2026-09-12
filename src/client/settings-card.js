@@ -3,6 +3,7 @@
  * Key / ns: dsh-image-workstation (stable). Cordis entry id: imagegen.
  * Light host-matching surface — not the studio dark theme.
  * Secret never echoed; draft password + Configured / Not configured.
+ * Compact layout: Subagent host card + Save stay in one viewport frame.
  */
 import { SETTINGS_NAMESPACE, PLUGIN_ENTRY_ID } from '../shared/ns.js'
 
@@ -37,7 +38,7 @@ export function WorkstationSettingsCard(props) {
     if (snap?.status === 'ready' && snap.value) {
       const v = snap.value
       setBaseUrl(String(v.mediaBaseUrl || ''))
-      setProvider(v.mediaProvider === 'anthropic-compat' ? 'anthropic-compat' : 'openai-images')
+      setProvider(['anthropic-compat','gptimg','openai-images'].includes(v.mediaProvider) ? v.mediaProvider : 'anthropic-compat')
       setAllowAgent(v.allowAgentImageGeneration !== false)
       const secrets = snap.secrets || {}
       const secretMeta = secrets.mediaApiKey
@@ -128,24 +129,26 @@ export function WorkstationSettingsCard(props) {
   const border = '0.5px solid var(--dsw-alias-border-l4, #d8dbe2)'
   const borderStrong = '0.5px solid var(--dsw-alias-border-l3, #c9cdd6)'
   const inputBg = 'var(--dsw-alias-bg-layer-1, #fff)'
+  const layer2 = 'var(--dsw-alias-bg-layer-2, #f3f4f6)'
   const layer3 = 'var(--dsw-alias-bg-layer-3, #fff)'
 
-  const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, fontSize: 13 }
+  const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8, fontSize: 12 }
   const inputStyle = {
-    padding: '8px 10px',
-    borderRadius: 8,
+    padding: '6px 8px',
+    borderRadius: 6,
     border,
     background: inputBg,
     color: fg,
     font: 'inherit',
+    fontSize: 12,
   }
   const btnBase = {
-    padding: '0 14px',
-    height: 36,
-    borderRadius: 18,
+    padding: '0 12px',
+    height: 32,
+    borderRadius: 16,
     font: 'inherit',
-    fontSize: 14,
-    lineHeight: '22px',
+    fontSize: 13,
+    lineHeight: '20px',
   }
   const primaryStyle = {
     ...btnBase,
@@ -159,10 +162,10 @@ export function WorkstationSettingsCard(props) {
     ? {
         ...btnBase,
         border: '1px dashed var(--dsw-alias-border-l3, #c9cdd6)',
-        background: 'transparent',
+        background: layer2,
         color: fgMuted,
         cursor: 'not-allowed',
-        opacity: 0.3,
+        opacity: 0.28,
         pointerEvents: 'none',
       }
     : {
@@ -181,12 +184,12 @@ export function WorkstationSettingsCard(props) {
       'data-dsh-ws-settings-card': '',
       style: {
         border,
-        borderRadius: 12,
+        borderRadius: 10,
         background: 'transparent',
         color: fg,
-        marginBottom: 12,
+        marginBottom: 8,
         overflow: 'hidden',
-        font: '13px/1.45 system-ui,sans-serif',
+        font: '12px/1.4 system-ui,sans-serif',
       },
     },
     h(
@@ -194,10 +197,11 @@ export function WorkstationSettingsCard(props) {
       {
         type: 'button',
         onClick: () => setOpen((v) => !v),
+        title: `${NS} · ${ENTRY}`,
         style: {
           width: '100%',
           textAlign: 'left',
-          padding: '12px 14px',
+          padding: '8px 10px',
           border: 0,
           background: 'transparent',
           color: 'inherit',
@@ -205,29 +209,28 @@ export function WorkstationSettingsCard(props) {
           font: 'inherit',
         },
       },
-      h('div', { style: { fontWeight: 650, fontSize: 14 } }, 'Image workstation'),
       h(
         'div',
         {
           style: {
-            fontSize: 12,
-            color: fgMuted,
-            marginTop: 3,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 6,
+            flexWrap: 'wrap',
           },
         },
-        '生图工作台',
-      ),
-      h(
-        'div',
-        {
-          style: {
-            fontSize: 11,
-            color: fgMuted,
-            marginTop: 3,
-            fontFamily: 'var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+        h('span', { style: { fontWeight: 650, fontSize: 13 } }, 'Image workstation · 生图工作台'),
+        h(
+          'span',
+          {
+            style: {
+              fontSize: 10,
+              color: fgMuted,
+              fontFamily: 'var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+            },
           },
-        },
-        `${NS} · ${ENTRY}`,
+          `${NS} · ${ENTRY}`,
+        ),
       ),
     ),
     open
@@ -237,14 +240,14 @@ export function WorkstationSettingsCard(props) {
             style: {
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: 'min(60vh, 480px)',
+              maxHeight: 'min(42vh, 320px)',
             },
           },
           h(
             'div',
             {
               style: {
-                padding: '0 14px',
+                padding: '0 10px',
                 overflow: 'auto',
                 flex: '1 1 auto',
               },
@@ -270,7 +273,7 @@ export function WorkstationSettingsCard(props) {
                 h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'API key'),
                 h(
                   'span',
-                  { style: { color: fgMuted, fontSize: 12 } },
+                  { style: { color: fgMuted, fontSize: 11 } },
                   keyConfigured ? 'Configured' : 'Not configured',
                 ),
               ),
@@ -285,43 +288,66 @@ export function WorkstationSettingsCard(props) {
               }),
             ),
             h(
-              'label',
-              { style: fieldStyle },
-              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Provider'),
-              h(
-                'select',
-                {
-                  style: inputStyle,
-                  value: provider,
-                  onChange: (e) => setProvider(e.target.value),
-                  disabled: busy,
+              'div',
+              {
+                style: {
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  gap: 10,
+                  marginBottom: 8,
+                  flexWrap: 'wrap',
                 },
-                h('option', { value: 'openai-images' }, 'openai-images'),
-                h('option', { value: 'anthropic-compat' }, 'anthropic-compat'),
+              },
+              h(
+                'label',
+                { style: { ...fieldStyle, marginBottom: 0, flex: '1 1 160px', minWidth: 140 } },
+                h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Provider'),
+                h(
+                  'select',
+                  {
+                    style: inputStyle,
+                    value: provider,
+                    onChange: (e) => setProvider(e.target.value),
+                    disabled: busy,
+                  },
+                  h('option', { value: 'anthropic-compat' }, 'Primary — grok-imagine (alibb)'),
+                  h('option', { value: 'gptimg' }, 'GPTIMG — gpt-image-2 (birdsun)'),
+                  h('option', { value: 'openai-images' }, 'openai-images (custom URL)'),
+                ),
+              ),
+              h(
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginBottom: 6,
+                    fontSize: 12,
+                    whiteSpace: 'nowrap',
+                    flex: '0 0 auto',
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  checked: allowAgent,
+                  onChange: (e) => setAllowAgent(e.target.checked),
+                  disabled: busy,
+                }),
+                h('span', { style: { color: fg } }, 'Allow agent'),
               ),
             ),
-            h(
-              'label',
-              { style: { ...fieldStyle, flexDirection: 'row', alignItems: 'center', gap: 8 } },
-              h('input', {
-                type: 'checkbox',
-                checked: allowAgent,
-                onChange: (e) => setAllowAgent(e.target.checked),
-                disabled: busy,
-              }),
-              h('span', { style: { color: fg } }, 'Allow agent image gen'),
-            ),
-            status ? h('p', { style: { margin: '0 0 10px', fontSize: 12, color: fgMuted } }, status) : null,
+            status ? h('p', { style: { margin: '0 0 6px', fontSize: 11, color: fgMuted } }, status) : null,
             models.length
               ? h(
                   'ul',
                   {
                     style: {
-                      margin: '0 0 10px',
-                      paddingLeft: 18,
-                      fontSize: 12,
+                      margin: '0 0 6px',
+                      paddingLeft: 16,
+                      fontSize: 11,
                       color: fgSecondary,
-                      maxHeight: 120,
+                      maxHeight: 72,
                       overflow: 'auto',
                     },
                   },
@@ -336,7 +362,7 @@ export function WorkstationSettingsCard(props) {
                 position: 'sticky',
                 bottom: 0,
                 background: layer3,
-                padding: '10px 14px 14px',
+                padding: '8px 10px',
                 borderTop: border,
                 flexShrink: 0,
               },
@@ -347,7 +373,7 @@ export function WorkstationSettingsCard(props) {
                 style: {
                   display: 'flex',
                   flexWrap: 'wrap',
-                  gap: 8,
+                  gap: 6,
                 },
               },
               h('button', { type: 'button', style: primaryStyle, disabled: busy, onClick: onSave }, 'Save'),
@@ -371,12 +397,12 @@ export function WorkstationSettingsCard(props) {
                   'p',
                   {
                     style: {
-                      margin: '8px 0 0',
-                      fontSize: 11,
+                      margin: '6px 0 0',
+                      fontSize: 10,
                       color: fgMuted,
                     },
                   },
-                  'Detect stays off until base URL and key are set.',
+                  'Detect off until URL + key set.',
                 )
               : null,
           ),
