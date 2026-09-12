@@ -13,10 +13,12 @@ fnm use 22   # or any Node ^22.19
 export PATH="$HOME/.local/bin:$PATH"
 export DSH_HOME=/workspace/dsh/home
 dsh plugin --profile web add /workspace/dsh-image-workstation
-dsh --profile web --dump-config   # should show dsh-image-workstation layer
+dsh --profile web --dump-config   # should show id: imagegen, name: dsh-image-workstation
 dsh --profile web --no-open --port 3080
 # open the printed http://127.0.0.1:3080/?token=… URL (auth cookie)
 ```
+
+Settings → 插件 → 插件列表 search matches **moduleName + entryId** only. Search `imagegen` hits the insert id; list title stays the English short name (`image-workstation`) because inventory hardcodes `moduleShortName(package)`.
 
 Browser half via `dsh.client` + `exports["./client"]` ModuleLoader bundle. Sidebar mounts 「新会话 | 生图」; 「生图」opens the 三栏 studio stub (host-proxy generate stays unwired — no paid upstream).
 
@@ -27,7 +29,7 @@ Browser half via `dsh.client` + `exports["./client"]` ModuleLoader bundle. Sideb
 | `src/index.js` | host `apply` |
 | `src/client.js` | client tab stub |
 | `src/config.js` | Config schema |
-| `cordis.patch.yml` | bundle insert |
+| `cordis.patch.yml` | bundle insert (`id: imagegen`, `name: dsh-image-workstation`) |
 | `docs/00–03` | project briefs |
 
 ## Red lines (03)

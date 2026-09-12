@@ -34,7 +34,7 @@ export const Config = Schema.object({
   mediaApiKey: Schema.string()
     .role('secret')
     .default('')
-    .description('生图 API 密钥（仅宿主；设置页只显示已配置/未配置）。'),
+    .description('生图 API 密钥（仅宿主；设置页只显示 Configured / Not configured）。'),
   mediaProvider: Schema.union([
     Schema.const('openai-images'),
     Schema.const('anthropic-compat'),

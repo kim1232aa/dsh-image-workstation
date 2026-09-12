@@ -3,7 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "dsh 生图工作台 — Cordis plugin (rebuild, not a VisioWork/Nova fork)",
+  "description": "生图工作台 — imagegen Cordis plugin for dsh (rebuild, not a VisioWork/Nova fork)",
+  "keywords": [
+    "imagegen",
+    "生图工作台",
+    "生图",
+    "dsh"
+  ],
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
