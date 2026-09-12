@@ -626,7 +626,7 @@ export function apply(ctx, _config) {
         sidebarEntry.setSelected('none')
         return
       }
-      // Prefer: left 生图 active for whole plugin; top tab shows which page
+      // Left 「生图」 stays module-open; paintSelected quiets it when top ≠ 普通生图
       sidebarEntry.setSelected('studio')
     }
     document.addEventListener('dsh-ws-top-tab', onTopTab)

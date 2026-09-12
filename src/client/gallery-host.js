@@ -274,27 +274,91 @@ export function formatCaptionTime(ts) {
   }
 }
 
-/** One-line caption: prefer `model · truncated prompt`; never bare mm:ss duration. */
+function isBareFileLabel(s) {
+  const t = String(s || '').trim()
+  if (!t) return true
+  if (/^(素材|画廊|历史|generated|gallery|history)$/i.test(t)) return true
+  if (/^(media\/|file:\/\/|\/)/i.test(t)) return true
+  if (/\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i.test(t)) return true
+  return false
+}
+
+/** History / gallery / disk rows hide prompt+model under several keys. */
+export function pickPrompt(it) {
+  if (!it || typeof it !== 'object') return ''
+  const snap = it.snapshot && typeof it.snapshot === 'object' ? it.snapshot : {}
+  const val = it.value && typeof it.value === 'object' ? it.value : {}
+  const raw =
+    it.prompt ??
+    it.text ??
+    it.input ??
+    snap.prompt ??
+    snap.text ??
+    snap.input ??
+    val.prompt ??
+    val.text ??
+    val.input ??
+    ''
+  const s = String(raw || '').replace(/\s+/g, ' ').trim()
+  return isBareFileLabel(s) ? '' : s
+}
+
+export function pickModel(it) {
+  if (!it || typeof it !== 'object') return ''
+  const snap = it.snapshot && typeof it.snapshot === 'object' ? it.snapshot : {}
+  const val = it.value && typeof it.value === 'object' ? it.value : {}
+  return String(
+    it.model ?? it.modelId ?? snap.modelId ?? snap.model ?? val.modelId ?? val.model ?? '',
+  ).trim()
+}
+
+/** grok-imagine-image → grok-im; keep short vendor-hint ids. */
+export function shortenModel(id) {
+  const raw = String(id || '').replace(/^.*\//, '').trim()
+  if (!raw) return ''
+  if (/imagine-image/i.test(raw)) {
+    const vendor = raw.split('-')[0] || 'grok'
+    return `${vendor}-im`
+  }
+  if (/imagine-video/i.test(raw)) {
+    const vendor = raw.split('-')[0] || 'grok'
+    return `${vendor}-vid`
+  }
+  const chars = [...raw]
+  return chars.length > 10 ? `${chars.slice(0, 8).join('')}…` : raw
+}
+
+/** Truncate ~12–18 Chinese chars (code points) with … */
+export function truncatePrompt(s, max = 16) {
+  const t = String(s || '').replace(/\s+/g, ' ').trim()
+  if (!t) return ''
+  const chars = [...t]
+  if (chars.length <= max) return t
+  return `${chars.slice(0, max).join('')}…`
+}
+
+function inferSeatModel(it) {
+  const known = pickModel(it)
+  if (known) return known
+  const seat = String(it?.seat || it?.relativePath || it?.localPath || '')
+  if (/media\/(generated|history|gallery)/i.test(seat)) return 'grok-imagine-image'
+  return ''
+}
+
+/** One-line caption: `modelShort · promptTrunc` when either exists; 素材 · 相对时间 only if both missing. */
 export function cardCaption(it) {
   if (!it || typeof it !== 'object') return '素材'
-  const modelRaw = it.model ? String(it.model).trim() : ''
-  // Keep model id readable (grok-imagine-image), strip org prefix only
-  const model = modelRaw ? modelRaw.replace(/^.*\//, '').slice(0, 28) : ''
-  const prompt = String(it.prompt || it.name || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  // Avoid dumping raw filesystem paths / filenames into the caption
-  const safePrompt =
-    prompt && !/^(media\/|file:\/\/|\/)/i.test(prompt) && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(prompt)
-      ? prompt
-      : ''
-  const snippet = safePrompt ? `${safePrompt.slice(0, 28)}${safePrompt.length > 28 ? '…' : ''}` : ''
-  const time = formatCaptionTime(it.createdAt)
-  const modeHint =
-    it.kind === 'video' ? '视频' : it.mode ? String(it.mode) : '文生图'
+  const model = shortenModel(pickModel(it) || inferSeatModel(it))
+  let prompt = pickPrompt(it)
+  if (!prompt) {
+    const name = String(it.name || '').replace(/\s+/g, ' ').trim()
+    if (name && !isBareFileLabel(name)) prompt = name
+  }
+  const snippet = truncatePrompt(prompt, 16)
   if (model && snippet) return `${model} · ${snippet}`
-  if (model) return `${model} · ${modeHint}`
+  if (model) return model
   if (snippet) return snippet
+  const time = formatCaptionTime(it.createdAt)
   if (time) return `素材 · ${time}`
   return '素材'
 }
@@ -457,23 +521,34 @@ export function readLocalHistoryItems() {
         const value = entry?.value && typeof entry.value === 'object' ? entry.value : {}
         const results = Array.isArray(value.results) ? value.results : []
         const snap = entry?.snapshot && typeof entry.snapshot === 'object' ? entry.snapshot : {}
+        const entryPrompt = pickPrompt(entry) || pickPrompt(snap) || pickPrompt(value)
+        const entryModel = pickModel(entry) || pickModel(snap) || pickModel(value)
         results.forEach((r, i) => {
           const url = r?.url ? String(r.url) : ''
           const localPath = r?.localPath ? String(r.localPath) : ''
           if (!url && !localPath) return
-          const relativePath = r?.relativePath ? String(r.relativePath) : ''
+          const base = localPath ? String(localPath).split(/[/\\]/).pop() : ''
+          const relativePath = r?.relativePath
+            ? String(r.relativePath)
+            : base
+              ? `media/generated/${base}`
+              : ''
+          const prompt = pickPrompt(r) || entryPrompt || undefined
+          const model = pickModel(r) || entryModel || undefined
           out.push({
             id: `${id || 'hist'}-${i}`,
             url: url || '',
             localPath: localPath || undefined,
             relativePath: relativePath || undefined,
             kind: r?.kind === 'video' ? 'video' : 'image',
-            mode: snap.mode ? String(snap.mode) : undefined,
-            model: snap.modelId ? String(snap.modelId) : undefined,
+            mode: snap.mode ? String(snap.mode) : value.mode ? String(value.mode) : undefined,
+            model: model || undefined,
+            modelId: model || undefined,
             ratio: snap.ratio ? String(snap.ratio) : undefined,
-            prompt: snap.prompt ? String(snap.prompt) : undefined,
-            createdAt: Number(entry.savedAt) || Date.now(),
-            name: snap.prompt ? String(snap.prompt).slice(0, 40) : '历史',
+            prompt: prompt || undefined,
+            text: prompt || undefined,
+            createdAt: Number(entry.savedAt || value.savedAt) || Date.now(),
+            name: prompt ? String(prompt).slice(0, 40) : '历史',
             seat: 'history',
           })
         })
@@ -515,9 +590,11 @@ export async function fetchStorageMedia(opts) {
           relativePath: it.relativePath || it.images?.[0]?.relativePath,
           kind: it.kind === 'video' ? 'video' : 'image',
           name: it.name ? String(it.name) : it.prompt ? String(it.prompt).slice(0, 40) : '画廊',
-          prompt: it.prompt ? String(it.prompt) : undefined,
+          prompt: pickPrompt(it) || undefined,
+          text: pickPrompt(it) || undefined,
           mode: it.mode ? String(it.mode) : undefined,
-          model: it.model ? String(it.model) : undefined,
+          model: pickModel(it) || undefined,
+          modelId: pickModel(it) || undefined,
           ratio: it.ratio ? String(it.ratio) : undefined,
           tagIds: sanitizeTags(it.tagIds || it.tags),
           tags: sanitizeTags(it.tags || it.tagIds),
@@ -550,9 +627,12 @@ export async function fetchStorageMedia(opts) {
           url: it.url ? String(it.url) : '',
           localPath: it.localPath ? String(it.localPath) : undefined,
           kind: it.kind === 'video' ? 'video' : 'image',
-          name: it.name ? String(it.name) : it.relativePath ? String(it.relativePath) : '素材',
+          name: it.name && !isBareFileLabel(it.name) ? String(it.name) : pickPrompt(it) ? pickPrompt(it).slice(0, 40) : it.relativePath ? String(it.relativePath) : '素材',
+          prompt: pickPrompt(it) || undefined,
+          text: pickPrompt(it) || undefined,
           mode: it.mode ? String(it.mode) : undefined,
-          model: it.model ? String(it.model) : undefined,
+          model: pickModel(it) || inferSeatModel(it) || undefined,
+          modelId: pickModel(it) || inferSeatModel(it) || undefined,
           ratio: it.ratio ? String(it.ratio) : undefined,
           tagIds: sanitizeTags(it.tagIds || it.tags),
           createdAt: Number(it.createdAt) || Date.now(),
@@ -566,6 +646,97 @@ export async function fetchStorageMedia(opts) {
   return { paths, diskItems }
 }
 
+
+function parseSidecarPayload(raw) {
+  if (!raw) return null
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!parsed || typeof parsed !== 'object') return null
+    const snap = parsed.snapshot && typeof parsed.snapshot === 'object' ? parsed.snapshot : {}
+    const prompt = pickPrompt({ ...parsed, snapshot: snap })
+    const model = pickModel({ ...parsed, snapshot: snap })
+    return {
+      ...(prompt ? { prompt, text: prompt } : {}),
+      ...(model ? { model, modelId: model } : {}),
+      ...(parsed.mode || snap.mode ? { mode: String(parsed.mode || snap.mode) } : {}),
+      ...(parsed.ratio || snap.ratio ? { ratio: String(parsed.ratio || snap.ratio) } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
+function decodeDataUrlJson(dataUrl) {
+  const s = String(dataUrl || '')
+  const m = /^data:[^,]*,(.*)$/s.exec(s)
+  if (!m) return null
+  try {
+    const header = s.slice(0, s.indexOf(','))
+    const body = m[1]
+    const text = /base64/i.test(header) ? atob(body) : decodeURIComponent(body)
+    return parseSidecarPayload(text)
+  } catch {
+    return null
+  }
+}
+
+function basenameOf(it) {
+  const raw = String(it?.relativePath || it?.localPath || it?.id || '')
+  return raw.split(/[/\\]/).pop() || ''
+}
+
+/** Fill prompt/model from history index, sibling rows, or sidecar `.meta.json`. */
+export async function recoverDiskMeta(items, opts = {}) {
+  const list = Array.isArray(items) ? items : []
+  const history = readLocalHistoryItems()
+  const byBase = new Map()
+  const remember = (it) => {
+    const b = basenameOf(it)
+    if (!b) return
+    const prev = byBase.get(b)
+    if (!prev || (pickPrompt(it) && !pickPrompt(prev))) byBase.set(b, it)
+    else if (!prev) byBase.set(b, it)
+  }
+  for (const it of history) remember(it)
+  for (const it of list) remember(it)
+
+  const rpc = typeof opts.getRpc === 'function' ? opts.getRpc() : opts.rpc
+  const out = []
+  for (const it of list) {
+    if (!it || typeof it !== 'object') continue
+    let prompt = pickPrompt(it)
+    let model = pickModel(it)
+    if (!prompt || !model) {
+      const hit = byBase.get(basenameOf(it))
+      if (hit) {
+        prompt = prompt || pickPrompt(hit)
+        model = model || pickModel(hit)
+      }
+    }
+    if ((!prompt || !model) && rpc && typeof rpc.call === 'function') {
+      const rel = it.relativePath ? `${String(it.relativePath)}.meta.json` : ''
+      if (rel.startsWith('media/')) {
+        try {
+          const res = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_READ, { relativePath: rel })
+          const meta = res?.ok ? decodeDataUrlJson(res.value?.dataUrl) : null
+          if (meta) {
+            prompt = prompt || meta.prompt
+            model = model || meta.model
+            if (meta.mode && !it.mode) it.mode = meta.mode
+          }
+        } catch (_) {}
+      }
+    }
+    model = model || inferSeatModel(it)
+    out.push({
+      ...it,
+      ...(prompt ? { prompt, text: prompt } : {}),
+      ...(model ? { model, modelId: model } : {}),
+    })
+  }
+  return out
+}
+
 export function collectLocalMediaItems(diskItems = []) {
   const gallery = readLocalGalleryItems()
   const history = readLocalHistoryItems()
@@ -575,11 +746,11 @@ export function collectLocalMediaItems(diskItems = []) {
     // Prefer entry with prompt/model/name that is not a bare filename
     const score = (x) => {
       let s = 0
-      if (x?.prompt) s += 4
-      if (x?.model) s += 3
+      if (pickPrompt(x)) s += 6
+      if (pickModel(x)) s += 4
       if (x?.mode) s += 1
       const n = String(x?.name || '')
-      if (n && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(n) && !/^media\//i.test(n)) s += 2
+      if (n && !isBareFileLabel(n)) s += 2
       if (x?.displayUrl || usableDisplaySrc(x?.url)) s += 1
       if (x?.seat === 'gallery') s += 1
       return s
@@ -589,13 +760,19 @@ export function collectLocalMediaItems(diskItems = []) {
   const pickDisplay = (a, b) => {
     const displayUrl = a?.displayUrl || b?.displayUrl
     const url = usableDisplaySrc(a?.url) ? a.url : usableDisplaySrc(b?.url) ? b.url : a?.url || b?.url
+    const prompt = pickPrompt(a) || pickPrompt(b) || undefined
+    const model = pickModel(a) || pickModel(b) || inferSeatModel(a) || inferSeatModel(b) || undefined
+    const nameA = a?.name && !isBareFileLabel(a.name) ? a.name : ''
+    const nameB = b?.name && !isBareFileLabel(b.name) ? b.name : ''
     return {
       displayUrl: displayUrl || undefined,
       url: url || '',
-      prompt: a?.prompt || b?.prompt,
-      model: a?.model || b?.model,
+      prompt,
+      text: prompt,
+      model,
+      modelId: model,
       mode: a?.mode || b?.mode,
-      name: a?.name && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(String(a.name)) ? a.name : b?.name && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(String(b.name)) ? b.name : a?.name || b?.name,
+      name: nameA || nameB || a?.name || b?.name,
     }
   }
   for (const it of merged) {
@@ -603,8 +780,12 @@ export function collectLocalMediaItems(diskItems = []) {
     if (!key) continue
     // Also collide on basename for generated UUID files across seats
     const basenames = []
-    if (it.relativePath) basenames.push(String(it.relativePath))
+    if (it.relativePath) {
+      basenames.push(String(it.relativePath))
+      basenames.push(String(it.relativePath).split(/[/\\]/).pop())
+    }
     if (it.localPath) basenames.push(String(it.localPath).split(/[/\\]/).pop())
+    if (it.id) basenames.push(String(it.id).split(/[/\\]/).pop())
     const keys = [key, ...basenames.filter(Boolean)]
     let placed = false
     for (const k of keys) {
@@ -1049,12 +1230,15 @@ export function mountGalleryPage(host, opts) {
     const media = isVideo
       ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
       : `<img src="${escapeHtml(src)}" alt="" decoding="async" />`
-    const modelRaw = it.model ? String(it.model).replace(/^.*\//, '').slice(0, 18) : ''
+    const modelFull = pickModel(it) || inferSeatModel(it)
+    const modelRaw = shortenModel(modelFull)
     const caption = cardCaption(it)
-    const snip =
-      caption.includes(' · ') && modelRaw ? caption.slice(caption.indexOf(' · ') + 3) : caption
+    const promptSnip = truncatePrompt(pickPrompt(it) || (!isBareFileLabel(it.name) ? it.name : ''), 16)
+    const snip = promptSnip || (caption.includes(' · ') ? caption.slice(caption.indexOf(' · ') + 3) : '')
     const metaInner = modelRaw
-      ? `<span data-ws-gallery-card-model title="${escapeHtml(String(it.model || ''))}">${escapeHtml(modelRaw)}</span><span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(snip)}</span>`
+      ? snip
+        ? `<span data-ws-gallery-card-model title="${escapeHtml(String(modelFull || ''))}">${escapeHtml(modelRaw)}</span><span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(snip)}</span>`
+        : `<span data-ws-gallery-card-model title="${escapeHtml(String(modelFull || ''))}">${escapeHtml(modelRaw)}</span>`
       : `<span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(caption)}</span>`
     return `<article data-ws-gallery-card data-id="${escapeHtml(it.id)}" role="listitem" ${selected ? 'data-selected' : ''}>
           <div data-ws-gallery-card-media>
@@ -1213,7 +1397,7 @@ export function mountGalleryPage(host, opts) {
     const { paths, diskItems } = await fetchStorageMedia({ getRpc })
     state.paths = paths
     state.tags = readLocalTags()
-    state.items = collectLocalMediaItems(diskItems)
+    state.items = await recoverDiskMeta(collectLocalMediaItems(diskItems), { getRpc })
     // Hydrate path-only rows BEFORE paint — grid never shows empty shells
     await hydrateDisplayUrls(state.items)
     paintModelFilter()
@@ -1486,6 +1670,8 @@ export function mountGalleryPage(host, opts) {
       try {
         document.documentElement.setAttribute('data-dsh-ws-studio-open', '')
         document.body?.setAttribute('data-dsh-ws-studio-open', '')
+        document.documentElement.setAttribute('data-dsh-ws-top-page', name)
+        document.body?.setAttribute('data-dsh-ws-top-page', name)
         // Nudge sidebar MutationObserver / dual-tab to keep 生图 quiet + clear host row
         document.dispatchEvent(
           new CustomEvent('dsh-ws-top-tab', {

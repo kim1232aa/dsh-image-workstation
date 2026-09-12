@@ -1,5 +1,4 @@
-import { readdirSync, statSync, appendFileSync } from 'node:fs'
-import path from 'node:path'
+import { appendFileSync } from 'node:fs'
 
 const CTA_HIT_LOG = '/tmp/dsh-cta-hits.log'
 /** Scrubbed file hit log for UI↔host CTA对照 — never tokens. */
@@ -38,6 +37,7 @@ import {
   ensureMediaSeats,
   persistGenerateToSeats,
   readMediaAsDataUrl,
+  listMediaSeat,
 } from './media-storage.js'
 
 export const CTA_RPC_CHANNEL = '/dsh-ws'
@@ -180,53 +180,6 @@ function sizeFromRatio(ratio, clarity) {
  * @param {{ generate: (req: any) => Promise<any>, mediaConfigured?: boolean }} mediaProxy
  * @param {{ getDataDir?: () => string, dataDir?: string }} [opts]
  */
-
-const MEDIA_IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp4', '.webm', '.mov'])
-
-/**
- * List image/video files under dataDir/relativeSeat (non-recursive).
- * @param {string} dataDir
- * @param {string} relativeSeat
- */
-function listMediaSeat(dataDir, relativeSeat) {
-  const root = String(dataDir || '').trim()
-  const seat = String(relativeSeat || '').trim().replace(/^\/+/, '')
-  if (!root || !seat) return []
-  const abs = path.join(root, seat)
-  let names = []
-  try {
-    names = readdirSync(abs)
-  } catch {
-    return []
-  }
-  const out = []
-  for (const name of names) {
-    const ext = path.extname(name).toLowerCase()
-    if (!MEDIA_IMAGE_EXT.has(ext)) continue
-    const full = path.join(abs, name)
-    let st
-    try {
-      st = statSync(full)
-    } catch {
-      continue
-    }
-    if (!st.isFile()) continue
-    const kind = ['.mp4', '.webm', '.mov'].includes(ext) ? 'video' : 'image'
-    out.push({
-      id: `${seat}/${name}`,
-      name,
-      relativePath: `${seat}/${name}`,
-      seat,
-      kind,
-      createdAt: Math.floor((st.mtimeMs || Date.now())),
-      // No file:// URLs — client cannot display them; localPath for host later
-      localPath: full,
-      url: '',
-    })
-  }
-  out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-  return out
-}
 
 export function createCtaRpcHandler(mediaProxy, opts = {}) {
   return async (endpoint, payload, signal) => {
@@ -793,9 +746,25 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
             kind: r.kind || 'image',
             url: r.url,
             ...(r.localPath ? { localPath: r.localPath } : {}),
+            ...(r.relativePath ? { relativePath: r.relativePath } : {}),
             ...(r.mime ? { mime: r.mime } : {}),
           }))
         : []
+      try {
+        const dataDir = String(
+          (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) || '',
+        )
+        persistGenerateToSeats(dataDir, results, {
+          prompt: String(detail.prompt || ''),
+          model: String(detail.modelId || detail.model || ''),
+          modelId: String(detail.modelId || detail.model || ''),
+          mode: String(detail.mode || ''),
+          ratio: String(detail.ratio || ''),
+          jobId: out.jobId,
+        })
+      } catch {
+        /* sidecar persist is best-effort */
+      }
       const url0 = results[0]?.url ? String(results[0].url).slice(0, 120) : ''
       logCtaHit(
         `cta-rpc ok endpoint=generate jobId=${out.jobId || ''} phase=${out.phase || 'done'} n=${results.length} url0=${url0}`,

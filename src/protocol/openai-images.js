@@ -50,6 +50,23 @@ function buildBody(req) {
  * @param {string} token
  * @param {AbortSignal} [signal]
  */
+
+/** Sidecar next to generated file so 画廊 can recover model · prompt after history rotates. */
+function writeGenerateSidecar(file, req) {
+  if (!file) return
+  try {
+    const payload = {
+      prompt: String(req?.prompt || '').slice(0, 4000),
+      model: String(req?.model || '').trim(),
+      mode: String(req?.mode || '').trim(),
+      createdAt: Date.now(),
+    }
+    fs.writeFileSync(`${file}.meta.json`, JSON.stringify(payload))
+  } catch {
+    /* ignore */
+  }
+}
+
 async function downloadTo(outDir, url, token, signal) {
   try {
     const res = await fetch(url, { signal })
@@ -143,6 +160,7 @@ export async function openaiImagesGenerate(cred, req, opts) {
     if (item?.b64_json) {
       const file = path.join(outDir, `${randomUUID()}.png`)
       fs.writeFileSync(file, Buffer.from(item.b64_json, 'base64'))
+      writeGenerateSidecar(file, req)
       results.push({
         kind: 'image',
         url: `data:image/png;base64,${item.b64_json}`,
@@ -155,6 +173,7 @@ export async function openaiImagesGenerate(cred, req, opts) {
     if (item?.url) {
       const remote = String(item.url)
       const localPath = await downloadTo(outDir, remote, cred.token, opts.signal)
+      if (localPath) writeGenerateSidecar(localPath, req)
       results.push({
         kind: 'image',
         url: remote,
@@ -325,6 +344,7 @@ export async function openaiImagesEdit(cred, req, opts) {
     if (item?.b64_json) {
       const file = path.join(outDir, `${randomUUID()}.png`)
       fs.writeFileSync(file, Buffer.from(item.b64_json, 'base64'))
+      writeGenerateSidecar(file, req)
       results.push({
         kind: 'image',
         url: `data:image/png;base64,${item.b64_json}`,
@@ -337,6 +357,7 @@ export async function openaiImagesEdit(cred, req, opts) {
     if (item?.url) {
       const remote = String(item.url)
       const localPath = await downloadTo(outDir, remote, cred.token, opts.signal)
+      if (localPath) writeGenerateSidecar(localPath, req)
       results.push({
         kind: 'image',
         url: remote,

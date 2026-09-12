@@ -868,6 +868,8 @@ export function createStudioHost(opts = {}) {
     try {
       document.documentElement.setAttribute('data-dsh-ws-studio-open', '')
       document.body?.setAttribute('data-dsh-ws-studio-open', '')
+      document.documentElement.setAttribute('data-dsh-ws-top-page', name)
+      document.body?.setAttribute('data-dsh-ws-top-page', name)
     } catch (_) {}
     // Soft stack: left 「生图」 + top page tab. Differentiate browser tab title (avoid duplicate 夜景).
     try {
@@ -940,12 +942,17 @@ export function createStudioHost(opts = {}) {
     const url = r.url != null ? String(r.url) : ''
     const localPath = r.localPath != null ? String(r.localPath) : ''
     const kind = r.kind != null ? String(r.kind) : undefined
+    let relativePath = r.relativePath != null ? String(r.relativePath) : ''
+    if (!relativePath && localPath && localPath.includes('/media/')) {
+      relativePath = `media/${localPath.split('/media/').pop()}`
+    }
     if (url.startsWith('data:') && url.length > 120000) {
-      return localPath ? { localPath, kind } : null
+      return localPath ? { localPath, kind, ...(relativePath ? { relativePath } : {}) } : null
     }
     const out = {}
     if (url) out.url = url
     if (localPath) out.localPath = localPath
+    if (relativePath) out.relativePath = relativePath
     if (kind) out.kind = kind
     return out.url || out.localPath ? out : null
   }

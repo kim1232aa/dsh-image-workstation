@@ -75,6 +75,34 @@ export function storagePathsOf(dataDir) {
  * @param {string} dataDir
  * @param {string} relativeSeat
  */
+/** Read optional sidecar `${file}.meta.json` (prompt/model/mode/…). */
+function readSidecarMeta(filePath) {
+  try {
+    const raw = readFileSync(`${filePath}.meta.json`, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const snap = parsed.snapshot && typeof parsed.snapshot === 'object' ? parsed.snapshot : {}
+    const prompt = String(parsed.prompt || snap.prompt || snap.text || snap.input || '').trim()
+    const model = String(
+      parsed.model || parsed.modelId || snap.modelId || snap.model || '',
+    ).trim()
+    const mode = String(parsed.mode || snap.mode || '').trim()
+    const ratio = String(parsed.ratio || snap.ratio || '').trim()
+    const createdAt = Number(parsed.createdAt) || undefined
+    if (!prompt && !model && !mode && !ratio && !createdAt) return null
+    return {
+      ...(prompt ? { prompt } : {}),
+      ...(model ? { model } : {}),
+      ...(mode ? { mode } : {}),
+      ...(ratio ? { ratio } : {}),
+      ...(createdAt ? { createdAt } : {}),
+      ...(parsed.hash ? { hash: String(parsed.hash) } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
 export function listMediaSeat(dataDir, relativeSeat) {
   const root = String(dataDir || '').trim()
   const seat = String(relativeSeat || '').trim().replace(/^\/+/, '')
@@ -99,15 +127,21 @@ export function listMediaSeat(dataDir, relativeSeat) {
     }
     if (!st.isFile()) continue
     const kind = ['.mp4', '.webm', '.mov'].includes(ext) ? 'video' : 'image'
+    const meta = readSidecarMeta(full)
     out.push({
       id: `${seat}/${name}`,
       name,
       relativePath: `${seat}/${name}`,
       seat,
       kind,
-      createdAt: Math.floor(st.mtimeMs || Date.now()),
+      createdAt: Math.floor(meta?.createdAt || st.mtimeMs || Date.now()),
       localPath: full,
       url: '',
+      ...(meta?.prompt ? { prompt: meta.prompt } : {}),
+      ...(meta?.model ? { model: meta.model } : {}),
+      ...(meta?.mode ? { mode: meta.mode } : {}),
+      ...(meta?.ratio ? { ratio: meta.ratio } : {}),
+      ...(meta?.hash ? { hash: meta.hash } : {}),
     })
   }
   out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -358,7 +392,12 @@ export function addGalleryItem(dataDir, payload = {}) {
     writeFileSync(
       `${dest}.meta.json`,
       JSON.stringify({
-        prompt: String(payload.prompt || '').slice(0, 4000),
+        prompt: String(payload.prompt || payload.snapshot?.prompt || '').slice(0, 4000),
+        model: String(
+          payload.model || payload.snapshot?.modelId || payload.snapshot?.model || '',
+        ).trim(),
+        mode: String(payload.mode || payload.snapshot?.mode || '').trim(),
+        ratio: String(payload.ratio || payload.snapshot?.ratio || '').trim(),
         createdAt: Date.now(),
         hash: material.hash,
         snapshot: payload.snapshot && typeof payload.snapshot === 'object' ? payload.snapshot : undefined,
@@ -440,6 +479,28 @@ export function persistGenerateToSeats(dataDir, results, meta = {}) {
       }
     }
 
+    const metaPayload = {
+      prompt: String(meta.prompt || '').slice(0, 4000),
+      model: String(meta.model || meta.modelId || '').trim(),
+      mode: String(meta.mode || ''),
+      ratio: String(meta.ratio || ''),
+      jobId: job,
+      createdAt: Date.now(),
+      index,
+    }
+
+    // Sidecar next to generated copy so gallery can recover after history rotates
+    if (srcPath && existsSync(srcPath)) {
+      try {
+        const resolved = path.resolve(srcPath)
+        if (resolved.startsWith(path.resolve(generatedDir) + path.sep)) {
+          writeFileSync(`${resolved}.meta.json`, JSON.stringify(metaPayload))
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     const hName = `${job}-${index}.${ext}`
     const hDest = path.join(historyDir, hName)
     try {
@@ -447,16 +508,7 @@ export function persistGenerateToSeats(dataDir, results, meta = {}) {
       else writeFileSync(hDest, buf)
       history.push(hDest)
       try {
-        writeFileSync(
-          `${hDest}.meta.json`,
-          JSON.stringify({
-            prompt: String(meta.prompt || '').slice(0, 4000),
-            mode: String(meta.mode || ''),
-            jobId: job,
-            createdAt: Date.now(),
-            index,
-          }),
-        )
+        writeFileSync(`${hDest}.meta.json`, JSON.stringify(metaPayload))
       } catch {
         /* ignore */
       }
