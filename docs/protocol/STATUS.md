@@ -2,6 +2,10 @@
 
 Honest snapshot. `docs/00–03` and `docs/protocol/00–05` stay **requirements sources** — do not rewrite them as 「已完成」.
 
+## Runtime policy note (2026-09-12)
+
+docs/00: Nova = feature-scope; do not lift its whole backend. **Current policy:** Nova is primary reference; port backend **logic as needed** (not whole server). Honest STATUS only — do not rewrite docs/00–03.
+
 ## CTA path (live)
 
 Studio 「开始生成」→ `dsh-ws-generate` → host `/dsh-ws` RPC → `mediaProxy.generate` / `edit` → `studio.paintGenerateResult`.

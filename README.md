@@ -6,6 +6,10 @@ DeepSeek Harness **生图工作台**插件。按项目 brief 00–03 **重做**�
 
 `docs/00–03` stay **requirements sources**. Do not rewrite them as 「已完成」.
 
+## Runtime policy note (2026-09-12)
+
+docs/00 still says Nova is **feature-scope** reference and 「别把那套后端整服搬过来」. Current project policy (user via dr eggbot): **Nova is the primary reference**; **backend logic may be ported as needed** (helpers/routes/adapters), but **not** the whole Nova Next.js/SQLite/WebSocket server as a drop-in. VisioWork remains shape/UI reference. This note does **not** rewrite docs/00–03 — those stay requirements sources.
+
 ## Pins
 
 见 `VERSIONS.txt`（当前宿主 `@deepseek-ai/dsh@0.1.5-rc.1` + `@deepseek-ai/cordis@4.0.2`）。
