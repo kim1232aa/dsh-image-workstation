@@ -177,6 +177,8 @@ export function apply(ctx, config) {
             hasWebServer: Boolean(webCtx.webServer),
             hasConnection: Boolean(webCtx.connection),
             mediaConfigured: mediaFacade.mediaConfigured,
+            agentImage: runtime.resolved.allowAgentImageGeneration,
+            agentToolAttach: 'pending',
           },
           null,
           2,

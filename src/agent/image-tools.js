@@ -10,6 +10,7 @@
  * This lands a real register path. Full Agent mode (inline chat UX, slash
  * edit, vision, web search) is NOT claimed Pass here.
  */
+import { writeFileSync } from 'node:fs'
 import {
   ensureAgentImageConfigured,
   resolveAgentImageModel,
@@ -155,6 +156,16 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
   return typeof dispose === 'function' ? dispose : () => {}
 }
 
+
+/** Append one JSON line for smoke observability (no secrets). */
+function hitAgentToolLog(payload) {
+  try {
+    writeFileSync('/tmp/dsh-agent-tools.log', `${JSON.stringify(payload)}\n`, { flag: 'a' })
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Soft-attach on a fiber that has tools. Logs and skips if tools missing.
  * @param {any} ctx
@@ -166,6 +177,7 @@ export function attachAgentImageTools(ctx, mediaProxy, resolveConfig) {
     ctx?.logger?.warn?.(
       '[dsh-image-workstation] ctx.inject unavailable — Agent generate_image not registered',
     )
+    hitAgentToolLog({ status: 'inject_unavailable' })
     return
   }
   ctx.inject(['tools'], (tctx) => {
@@ -173,14 +185,22 @@ export function attachAgentImageTools(ctx, mediaProxy, resolveConfig) {
       .then(() => registerAgentImageTools(tctx, mediaProxy, resolveConfig))
       .then((dispose) => {
         tctx.effect?.(() => dispose, 'dsh-image-workstation: agent generate_image')
-        tctx.logger?.info?.(
-          '[dsh-image-workstation] Agent tool registered: generate_image → mediaProxy.generate',
-        )
+        const regMsg =
+          '[dsh-image-workstation] Agent tool registered: generate_image → mediaProxy.generate'
+        tctx.logger?.info?.(regMsg)
+        console.info(regMsg)
+        hitAgentToolLog({
+          at: new Date().toISOString(),
+          status: 'registered',
+          tool: 'generate_image',
+        })
       })
       .catch((e) => {
+        const message = scrubAgentError(e?.message || e)
         tctx.logger?.error?.(
-          `[dsh-image-workstation] Agent tool register failed: ${scrubAgentError(e?.message || e)}`,
+          `[dsh-image-workstation] Agent tool register failed: ${message}`,
         )
+        hitAgentToolLog({ status: 'register_failed', message })
       })
   })
 }
