@@ -27,6 +27,47 @@ export {
   scrubAgentError,
 } from './model-policy.js'
 
+
+/**
+ * Chat-facing tool result parts (dsh ContentBlock text).
+ * Prefer markdown image lines for remote URLs — ImageBlock needs attachment
+ * refs which mediaProxy result URLs do not provide.
+ * Structured JSON remains the execute() return value for machine use.
+ *
+ * @param {unknown} _args
+ * @param {{ job_id?: string, status?: string, message?: string, error?: string, images?: { url?: string }[] }} value
+ * @returns {{ type: 'text', text: string }[]}
+ */
+export function renderGenerateImageOutput(_args, value) {
+  const jobId = String(value?.job_id || '').trim()
+  const status = String(value?.status || '').trim() || 'unknown'
+  const message = String(value?.message || '').trim()
+  const error = String(value?.error || '').trim()
+  const images = Array.isArray(value?.images) ? value.images : []
+  const urls = images
+    .map((img) => String(img?.url || '').trim())
+    .filter(Boolean)
+
+  const lines = []
+  lines.push(
+    jobId
+      ? `generate_image: status=${status} job_id=${jobId}`
+      : `generate_image: status=${status}`,
+  )
+  if (message) lines.push(message)
+  if (error) lines.push(`error: ${error}`)
+  if (urls.length === 0) {
+    lines.push('(no image URLs)')
+  } else {
+    urls.forEach((url, i) => {
+      const alt = urls.length === 1 ? 'generated' : `generated-${i + 1}`
+      // Verbatim URL — no domain rewrite (docs 01/03 red line).
+      lines.push(`![${alt}](${url})`)
+    })
+  }
+  return [{ type: 'text', text: lines.join('\n') }]
+}
+
 /** Host generate can be slow; cooperative with exec.signal. */
 const AGENT_GENERATE_TIMEOUT_MS = 300_000
 
@@ -56,7 +97,8 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
       description:
         'Generate an image via the dsh-image-workstation host mediaProxy (same path as the studio CTA). ' +
         'When multiple image models are configured, you MUST ask the user which model to use and pass it as model — do not pick silently. ' +
-        'If channels are not configured, tell the user to open Settings → Plugins → dsh-image-workstation (or host media.env).',
+        'If channels are not configured, tell the user to open Settings → Plugins → dsh-image-workstation (or host media.env). ' +
+        'On success, return job_id and the image URL(s) verbatim in your reply (include the markdown image lines from the tool result).',
       parameters: {
         prompt: {
           type: 'string',
@@ -105,7 +147,7 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
             },
           },
         },
-        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+        render: renderGenerateImageOutput,
       },
       timeoutMs: AGENT_GENERATE_TIMEOUT_MS,
       async execute(args, exec) {
@@ -118,6 +160,14 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
         }
         const model = resolveAgentImageModel(config, args.model)
         const req = mapAgentGenerateRequest(args, model, exec?.signal)
+        hitAgentToolLog({
+          at: new Date().toISOString(),
+          status: 'invoke',
+          tool: 'generate_image',
+          promptLen: String(req.prompt || '').length,
+          model: req.model || null,
+          n: req.n,
+        })
         try {
           const out = await mediaProxy.generate({
             prompt: req.prompt,
@@ -135,7 +185,7 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
                 kind: r.kind || 'image',
               }))
             : []
-          return {
+          const result = {
             job_id: String(out?.jobId || ''),
             status: String(out?.phase || 'done'),
             message:
@@ -144,9 +194,27 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
                 : 'Generation returned no images.',
             images,
           }
+          hitAgentToolLog({
+            at: new Date().toISOString(),
+            status: 'done',
+            tool: 'generate_image',
+            job_id: result.job_id,
+            phase: result.status,
+            urlCount: images.length,
+            // verbatim hosts only — full URLs may be long; keep first for evidence
+            urls: images.map((i) => i.url).filter(Boolean),
+          })
+          return result
         } catch (e) {
           const err = new Error(scrubAgentError(e?.message || e))
           err.code = e?.code || 'GENERATE_FAILED'
+          hitAgentToolLog({
+            at: new Date().toISOString(),
+            status: 'error',
+            tool: 'generate_image',
+            code: err.code,
+            message: err.message,
+          })
           throw err
         }
       },
