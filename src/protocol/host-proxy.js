@@ -4,6 +4,16 @@
  * Matrix status: openai.images generate/edit live when media.env set; video.async live when video env set; other adapters stub.
  */
 import { randomUUID } from 'node:crypto'
+import { appendFileSync } from 'node:fs'
+
+const CTA_HIT_LOG = '/tmp/dsh-cta-hits.log'
+function logGenHit(line) {
+  try {
+    appendFileSync(CTA_HIT_LOG, `${new Date().toISOString()} ${line}\n`)
+  } catch {
+    /* ignore */
+  }
+}
 import { listPhase1Adapters } from './adapters.js'
 import { CREDENTIAL_LANES } from './types.js'
 import { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
@@ -110,6 +120,8 @@ export function createHostProxy(resolved, mediaEnv = null) {
         abort: ac,
       }
       jobs.set(jobId, job)
+      const _t0 = Date.now()
+      logGenHit(`gen-timing start jobId=${jobId} model=${String(req.model || mediaEnv?.defaultModel || '')} promptLen=${String(req.prompt || '').trim().length}`)
 
       const onOuterAbort = () => {
         try {
@@ -146,6 +158,8 @@ export function createHostProxy(resolved, mediaEnv = null) {
         job.phase = 'done'
         job.results = results
         job.abort = undefined
+        const url0 = Array.isArray(results) && results[0]?.url ? String(results[0].url).slice(0, 120) : ''
+        logGenHit(`gen-timing ok jobId=${jobId} ms=${Date.now() - _t0} n=${Array.isArray(results) ? results.length : 0} url0=${url0}`)
         return { jobId, phase: job.phase, results }
       } catch (e) {
         if (job.phase === 'cancelled' || e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
@@ -161,6 +175,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
         const err = new Error(job.error)
         err.code = e?.code || 'GENERATE_FAILED'
         err.jobId = jobId
+        logGenHit(`gen-timing fail jobId=${jobId} ms=${Date.now() - _t0} code=${err.code} message=${String(job.error).slice(0, 160)}`)
         throw err
       } finally {
         if (req.signal) req.signal.removeEventListener('abort', onOuterAbort)

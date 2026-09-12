@@ -1,5 +1,15 @@
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, statSync, appendFileSync } from 'node:fs'
 import path from 'node:path'
+
+const CTA_HIT_LOG = '/tmp/dsh-cta-hits.log'
+/** Scrubbed file hit log for UI↔host CTA对照 — never tokens. */
+function logCtaHit(line) {
+  try {
+    appendFileSync(CTA_HIT_LOG, `${new Date().toISOString()} ${line}\n`)
+  } catch {
+    /* ignore */
+  }
+}
 /**
  * CTA → host Connection RPC → mediaProxy.generate
  * Channel is plugin-owned (not /api Typert). Token never crosses this boundary.
@@ -217,6 +227,11 @@ function listMediaSeat(dataDir, relativeSeat) {
 
 export function createCtaRpcHandler(mediaProxy, opts = {}) {
   return async (endpoint, payload, signal) => {
+    const detail0 = payload && typeof payload === 'object' ? payload : {}
+    const promptLen = String(detail0.prompt || '').trim().length
+    logCtaHit(
+      `cta-rpc hit endpoint=${endpoint} promptLen=${promptLen} mode=${String(detail0.mode || '')} model=${String(detail0.modelId || detail0.model || '')} n=${detail0.count ?? detail0.n ?? ''}`,
+    )
     if (endpoint === CTA_RPC_STORAGE_PATHS || endpoint === CTA_RPC_STORAGE_LIST) {
       const dataDir = String(
         (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) || '',
@@ -701,6 +716,10 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
             ...(r.mime ? { mime: r.mime } : {}),
           }))
         : []
+      const url0 = results[0]?.url ? String(results[0].url).slice(0, 120) : ''
+      logCtaHit(
+        `cta-rpc ok endpoint=generate jobId=${out.jobId || ''} phase=${out.phase || 'done'} n=${results.length} url0=${url0}`,
+      )
       return {
         ok: true,
         value: {
@@ -720,6 +739,7 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
           ? timeoutAc.signal.reason?.message || e?.message || e
           : e?.message || e,
       )
+      logCtaHit(`cta-rpc fail endpoint=generate code=${code} message=${String(message).slice(0, 160)}`)
       return {
         ok: false,
         error: {
