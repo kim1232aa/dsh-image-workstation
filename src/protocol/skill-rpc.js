@@ -47,18 +47,30 @@ export function createSkillRpcHandler(bag) {
         return { ok: true, value: { ...value, disabledByScore: false } }
       }
       if (endpoint === SKILL_RPC_PLAN) {
-        const rawId = String(payload?.skillId || payload?.label || '').trim()
+        const brief = String(payload?.brief || payload?.prompt || '').trim()
+        let rawId = String(payload?.skillId || payload?.label || '').trim()
+        // Smart recover: empty skillId + theme → suggest (never leave SKILL_REQUIRED if matchable)
+        if (!rawId && brief) {
+          const hit = suggestSkills(brief).top
+          if (hit?.label) rawId = hit.label
+        }
         const skillId = LABEL_TO_SKILL_ID[rawId] || rawId
         if (!skillId) {
           return {
             ok: false,
-            error: { code: 'SKILL_REQUIRED', message: '请先选择创作 Skill', details: {} },
+            error: {
+              code: 'SKILL_REQUIRED',
+              message: brief
+                ? '未匹配到创作 Skill — 可不选直接出图，或换个提示词再想方案'
+                : '请先写提示词或选择创作 Skill',
+              details: {},
+            },
           }
         }
         const plan = await planSkill({
           skillDir: bag.skillDir,
           skillId,
-          brief: String(payload?.brief || payload?.prompt || ''),
+          brief,
           overrideAspect: payload?.overrideAspect ? String(payload.overrideAspect) : undefined,
           wantTriViews: Boolean(payload?.wantTriViews),
           briefJsonPath: payload?.briefJsonPath ? String(payload.briefJsonPath) : undefined,

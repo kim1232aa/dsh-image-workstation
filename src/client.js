@@ -846,8 +846,16 @@ export function apply(ctx, _config) {
       })
       if (result?.ok) {
         studio.paintSkillPlanResult?.(result.value)
+        const lab = result.value?.label || result.value?.skillId
+        if (lab) studio.applyMatchedSkill?.(lab)
       } else {
-        const msg = scrubErrorMessage(result?.error?.message || '想方案失败')
+        const code = result?.error?.code || ''
+        const raw = result?.error?.message || '想方案失败'
+        // Never leave the old「请先选择创作 Skill」as a hard gate tone
+        const msg =
+          code === 'SKILL_REQUIRED'
+            ? scrubErrorMessage(raw.replace(/^请先选择创作 Skill$/, '请先写提示词或选择创作 Skill（也可不选直接出图）'))
+            : scrubErrorMessage(raw)
         studio.setStatus?.(msg)
       }
     } catch (e) {
