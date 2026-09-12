@@ -22,6 +22,11 @@ import {
 } from '../ui/labels.js'
 import { defaultStudioState } from '../ui/studio-stub.js'
 import { mountVideoPage, VIDEO_PAGE, IMAGE_PAGE } from './video-host.js'
+import {
+  DEMO_LOCAL_RESULT_URLS,
+  DEMO_LOCAL_STATUS,
+  DEMO_LOCAL_JOB_ID,
+} from './demo-local-results.js'
 
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
@@ -465,7 +470,11 @@ const HOST_STYLES = `
   color: var(--dsw-alias-label-secondary);
 }
 [data-dsh-ws-studio-host] [data-ws-mode-current] {
+  color: inherit;
+}
+[data-dsh-ws-studio-host] [data-ws-mode-caret] {
   color: var(--dsw-alias-label-dimmed);
+  font-size: 9px;
 }
 [data-dsh-ws-studio-host] [data-ws-mode-menu] {
   position:absolute; top:100%; left:0; z-index:50; margin-top:2px;
@@ -634,7 +643,7 @@ function mountStudioHostEl(hostEl) {
 }
 
 /**
- * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, setProgress: (value: any) => void, setStatus: (text: string) => void, setConnected: (on: boolean) => void, getHostEl: () => HTMLElement | undefined }}
+ * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, paintDemoLocalResults: () => void, setProgress: (value: any) => void, setStatus: (text: string) => void, setConnected: (on: boolean) => void, getHostEl: () => HTMLElement | undefined }}
  */
 export function createStudioHost() {
   let host
@@ -677,7 +686,7 @@ export function createStudioHost() {
     const name = tab || IMAGE_PAGE
     state.topTab = name
     const cur = host?.querySelector('[data-ws-mode-current]')
-    if (cur) cur.textContent = ` · ${name}`
+    if (cur) cur.textContent = name
     host?.querySelectorAll('[data-ws-mode-menu] [data-ws-top]').forEach((b) => {
       const on = b.getAttribute('data-ws-top') === name
       if (b instanceof HTMLElement) {
@@ -951,6 +960,35 @@ export function createStudioHost() {
   const setStatus = (text) => {
     const status = host?.querySelector('[data-ws-status]')
     if (status) status.textContent = text
+  }
+
+  /**
+   * Screenshot / Critiquito: paint 1–2 prior local gens into right [data-ws-results].
+   * Honest local files (data URLs from fixtures) — NOT a fake CTA / generate success.
+   * Trigger: ?wsDemoResults=1 on open, console __dshWsPaintDemoResults(), or api.paintDemoLocalResults().
+   */
+  const paintDemoLocalResults = () => {
+    ensure()
+    const urls = DEMO_LOCAL_RESULT_URLS.filter(Boolean)
+    if (!urls.length) {
+      setStatus('无本地出图预览资源')
+      return
+    }
+    applyGenerateResult({
+      jobId: DEMO_LOCAL_JOB_ID,
+      phase: 'done',
+      results: urls.map((url) => ({ kind: 'image', url })),
+    })
+    setStatus(DEMO_LOCAL_STATUS)
+  }
+
+  const maybePaintDemoFromQuery = () => {
+    try {
+      if (typeof location === 'undefined') return
+      if (/(?:\?|&)wsDemoResults=1(?:&|$)/.test(String(location.search || ''))) {
+        paintDemoLocalResults()
+      }
+    } catch (_) {}
   }
 
   const syncStageWeight = () => {
@@ -1366,8 +1404,8 @@ export function createStudioHost() {
     frame.innerHTML = `
       <header data-ws-top-bar>
         <div data-ws-mode-switch>
-          <button type="button" data-ws-mode-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="切换模块">
-            切换模块<span data-ws-mode-current> · ${TOP_TABS[0]}</span>
+          <button type="button" data-ws-mode-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="切换工作台模块">
+            <span data-ws-mode-current>${TOP_TABS[0]}</span><span data-ws-mode-caret aria-hidden="true"> ▾</span>
           </button>
           <div data-ws-mode-menu role="listbox" aria-label="工作台模块" hidden>
             ${TOP_TABS.map(
@@ -1919,6 +1957,7 @@ export function createStudioHost() {
     paintRefSlot()
     paintSkillPlan()
     paintConnStatus(true)
+    maybePaintDemoFromQuery()
     return host
   }
 
@@ -1929,6 +1968,7 @@ export function createStudioHost() {
       mountStudioHostEl(el)
       el.style.display = 'flex'
       open = true
+      maybePaintDemoFromQuery()
     },
     close() {
       if (host) host.style.display = 'none'
@@ -1980,6 +2020,13 @@ export function createStudioHost() {
       ensure()
       applyGenerateResult(value)
     },
+    /**
+     * Dev/screenshot: paint prior local gens into right results (not CTA success).
+     * Also: ?wsDemoResults=1 or window.__dshWsPaintDemoResults()
+     */
+    paintDemoLocalResults() {
+      paintDemoLocalResults()
+    },
     dispose() {
       stopProgressClock()
       videoApi?.dispose?.()
@@ -1991,6 +2038,11 @@ export function createStudioHost() {
       activeHistoryId = null
     },
   }
+  try {
+    if (typeof window !== 'undefined') {
+      window.__dshWsPaintDemoResults = () => api.paintDemoLocalResults()
+    }
+  } catch (_) {}
   return api
 }
 
