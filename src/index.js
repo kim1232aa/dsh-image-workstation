@@ -7,6 +7,7 @@ import { createHostProxy } from './protocol/host-proxy.js'
 import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
 import { attachSkillRpc, SKILL_RPC_CHANNEL } from './protocol/skill-rpc.js'
 import { attachAgentImageTools } from './agent/image-tools.js'
+import { attachAgentSkillTools } from './agent/skill-tools.js'
 import {
   discoverSkills,
   SKILL_ENTRY_LABELS,
@@ -193,6 +194,7 @@ export function apply(ctx, config) {
     allowAgentImageGeneration: runtime.resolved.allowAgentImageGeneration,
     agentImageModels: runtime.resolved.agentImageModels,
   }))
+  attachAgentSkillTools(ctx, () => ({ skillDir: runtime.resolved.skillDir }))
 
   ctx.logger?.info?.(
     `[dsh-image-workstation] host apply dataDir=${runtime.resolved.dataDir} skillDir=${runtime.resolved.skillDir || '(unset)'} media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate|probe|storage.paths|gallery.add settings=${SETTINGS_NAMESPACE} agentImage=${runtime.resolved.allowAgentImageGeneration} skills=${listSkills().length}`,

@@ -11,3 +11,5 @@
 | 确认→出图 | 就这样出图：填 prompt/负面/比例后可直接 CTA |
 | score → CTA | **never** (`disabledByScore: false`) |
 | mediaProxy | **untouched** |
+| suggest | `/dsh-ws-skill` suggest + Agent `suggest_skill`/`list_skills`；永不锁出图 |
+| auto-match | 不自动强绑；主题仅建议（如「生命感人像」→人像） |

@@ -9,12 +9,14 @@ import {
   planSkill,
   LABEL_TO_SKILL_ID,
   SKILL_ENTRY_LABELS,
+  suggestSkills,
 } from '../skills/index.js'
 import { toSkillProposal } from '../skills/proposal.js'
 
 export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
 export const SKILL_RPC_LIST = 'list'
 export const SKILL_RPC_PLAN = 'plan'
+export const SKILL_RPC_SUGGEST = 'suggest'
 
 /**
  * @param {{ skillDir: string }} bag
@@ -38,6 +40,11 @@ export function createSkillRpcHandler(bag) {
             disabledByScore: false,
           },
         }
+      }
+      if (endpoint === SKILL_RPC_SUGGEST) {
+        const theme = String(payload?.theme || payload?.prompt || payload?.brief || '').trim()
+        const value = suggestSkills(theme)
+        return { ok: true, value: { ...value, disabledByScore: false } }
       }
       if (endpoint === SKILL_RPC_PLAN) {
         const rawId = String(payload?.skillId || payload?.label || '').trim()
@@ -184,5 +191,5 @@ export function attachSkillRpc(ctx, bag) {
       /* ignore */
     }
   })
-  ctx.logger?.info?.(`[dsh-image-workstation] skill RPC ${SKILL_RPC_CHANNEL}/list|plan (no mediaProxy)`)
+  ctx.logger?.info?.(`[dsh-image-workstation] skill RPC ${SKILL_RPC_CHANNEL}/list|plan|suggest (no mediaProxy)`)
 }

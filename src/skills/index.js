@@ -29,3 +29,4 @@ export {
   loadPendingProposal,
   clearPendingProposal,
 } from './proposal.js'
+export { suggestSkills } from './suggest.js'
