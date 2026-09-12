@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>无限画布 · preview（canvas-host DOM 镜像）</title>
+<style>
+  :root {
+    --dsw-alias-bg-base: #fff;
+    --dsw-alias-bg-layer-1: #fff;
+    --dsw-alias-bg-module-platform: #f5f6f7;
+    --dsw-specific-sidebar-fill: #f5f6f7;
+    --dsw-specific-input-major: #fff;
+    --dsw-alias-label-primary: #0f1115;
+    --dsw-alias-label-secondary: #61666b;
+    --dsw-alias-label-tertiary: #81858c;
+    --dsw-alias-label-dimmed: #a2a6ad;
+    --dsw-alias-border-l1: rgba(0,0,0,.06);
+    --dsw-alias-border-l2: rgba(0,0,0,.1);
+    --dsw-alias-border-l3: rgba(0,0,0,.14);
+    --dsw-alias-border-l4: rgba(0,0,0,.18);
+    --dsw-alias-button-primary-fill: #0f1115;
+    --dsw-alias-button-primary-hover: #2a2e36;
+    --dsw-alias-label-primary-foreground: #fff;
+    --dsw-alias-interactive-bg-active: rgba(0,0,0,.06);
+    --dsw-alias-interactive-bg-hover: rgba(0,0,0,.04);
+    --dsw-alias-state-business-primary: #4176e6;
+    --dsw-alias-state-error-primary: #c43c3c;
+    --dsw-elevation-panel: 0 1px 4px rgba(0,0,0,.06);
+    --dsh-content-font-size: 13px;
+  }
+  body { margin:0; font: var(--dsh-content-font-size)/1.4 system-ui,sans-serif; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
+  [data-dsh-ws-studio-host] { display:flex; flex-direction:column; height:100vh; background: var(--dsw-alias-bg-base); }
+  [data-ws-page="image"], [data-ws-page="video"] { display:none !important; }
+  [data-ws-page="canvas"] { display:flex; flex:1; min-height:0; width:100%; flex-direction:column; }
+  [data-ws-canvas-project-bar] {
+    display:flex; align-items:center; gap:8px; flex-shrink:0;
+    padding:6px 12px; border-bottom:1px solid var(--dsw-alias-border-l2);
+  }
+  [data-ws-canvas-project-name] {
+    font-size:13px; font-weight:600; border:0; background:transparent; padding:2px 4px; min-width:6rem;
+  }
+  [data-ws-canvas-viewport-wrap] { position:relative; flex:1; min-height:0; overflow:hidden; background: var(--dsw-alias-bg-module-platform); }
+  [data-ws-canvas-viewport] { position:absolute; inset:0; overflow:hidden; }
+  [data-ws-canvas-world] { position:absolute; left:0; top:0; transform-origin:0 0; transform: translate(40px,40px) scale(1); }
+  [data-ws-canvas-edges] { position:absolute; left:0; top:0; width:4000px; height:4000px; pointer-events:none; }
+  [data-ws-canvas-node] {
+    position:absolute; min-width:160px; max-width:240px;
+    background: var(--dsw-alias-bg-base); border:1px solid var(--dsw-alias-border-l2);
+    border-radius:10px; box-shadow: var(--dsw-elevation-panel);
+  }
+  [data-ws-canvas-node][data-selected] {
+    border-color: var(--dsw-alias-state-business-primary);
+    box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
+  }
+  [data-ws-canvas-node-head] {
+    display:flex; align-items:center; gap:6px; padding:6px 8px;
+    border-bottom:1px solid var(--dsw-alias-border-l1);
+    font-size:11px; font-weight:600; color: var(--dsw-alias-label-secondary); cursor:grab;
+  }
+  [data-ws-canvas-node-body] { padding:8px; font-size:12px; display:flex; flex-direction:column; gap:6px; }
+  [data-ws-canvas-node-body] textarea {
+    width:100%; min-height:56px; padding:6px 8px; border:1px solid var(--dsw-alias-border-l2);
+    border-radius:8px; background: var(--dsw-specific-input-major); font:inherit; font-size:12px;
+  }
+  [data-ws-canvas-img-stub] {
+    aspect-ratio:1; border-radius:8px; border:1px dashed var(--dsw-alias-border-l3);
+    background: var(--dsw-alias-bg-module-platform); display:flex; align-items:center; justify-content:center;
+    color: var(--dsw-alias-label-tertiary); font-size:11px; text-align:center; padding:8px;
+  }
+  [data-ws-canvas-port] {
+    position:absolute; width:10px; height:10px; border-radius:999px; top:50%; margin-top:-5px;
+    background: var(--dsw-alias-bg-base); border:2px solid var(--dsw-alias-state-business-primary);
+  }
+  [data-ws-canvas-port="in"] { left:-6px; }
+  [data-ws-canvas-port="out"] { right:-6px; }
+  [data-ws-canvas-minimap] {
+    position:absolute; left:10px; bottom:10px; width:120px; height:80px; border-radius:8px;
+    border:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base); opacity:.92;
+  }
+  [data-ws-mm-dot] { position:absolute; width:8px; height:6px; border-radius:2px; background: var(--dsw-alias-label-tertiary); }
+  [data-ws-canvas-fit] { position:absolute; right:10px; bottom:10px; }
+  [data-ws-canvas-add-bar] {
+    position:absolute; left:50%; top:10px; transform:translateX(-50%);
+    display:flex; gap:6px; padding:4px; border-radius:10px;
+    background: var(--dsw-alias-bg-base); border:1px solid var(--dsw-alias-border-l2);
+  }
+  [data-ws-canvas-generator] {
+    display:flex; flex-shrink:0; flex-direction:column; gap:6px;
+    padding:8px 12px 10px; border-top:1px solid var(--dsw-alias-border-l2);
+  }
+  [data-ws-canvas-send] {
+    width:100%; min-height:40px; border:0; border-radius:9px;
+    background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground);
+    font-weight:700; cursor:pointer;
+  }
+  [data-ws-canvas-chips] { display:flex; flex-wrap:wrap; gap:4px; }
+  [data-ws-canvas-chips] button {
+    padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+    background:transparent; color: var(--dsw-alias-label-secondary); font:inherit; font-size:11.5px; cursor:pointer;
+  }
+  [data-ws-canvas-chips] button[aria-current="true"] {
+    background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary);
+    border-color: var(--dsw-alias-border-l4);
+  }
+  header[data-ws-top-bar] { display:flex; gap:8px; padding:0 10px; min-height:22px; height:22px; align-items:center; }
+  [data-ws-top-seg] { display:inline-flex; gap:2px; }
+  [data-ws-top-seg] button {
+    padding:2px 5px 3px; border:0; border-bottom:1px solid transparent; background:transparent;
+    color: var(--dsw-alias-label-tertiary); font:inherit; font-size:11px; cursor:pointer;
+  }
+  [data-ws-top-seg] button[aria-current="true"] {
+    color: var(--dsw-alias-label-secondary); font-weight:500; border-bottom-color: var(--dsw-alias-label-secondary);
+  }
+  .pill {
+    padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+    background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
+    font:inherit; font-size:11px; cursor:pointer;
+  }
+  .note { color: var(--dsw-alias-label-tertiary); font-size:11px; margin:0; }
+  button { font:inherit; cursor:pointer; }
+  textarea, input:not([type="file"]), select {
+    background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary);
+    border:1px solid var(--dsw-alias-border-l2); border-radius:8px; font:inherit;
+  }
+</style>
+</head>
+<body>
+<!-- Mirror of key DOM from src/client/canvas-host.js — top tab 无限画布 selected -->
+<div data-dsh-ws-studio-host data-ws-top-page="无限画布" role="main" aria-label="生图">
+  <header data-ws-top-bar>
+    <div data-ws-top-seg role="tablist" aria-label="工作台模式">
+      <button type="button" data-ws-top="普通生图" aria-current="false">普通生图</button>
+      <button type="button" data-ws-top="视频生成" aria-current="false">视频生成</button>
+      <button type="button" data-ws-top="无限画布" aria-current="true" data-active>无限画布</button>
+      <button type="button" data-ws-top="画廊" aria-current="false">画廊</button>
+      <button type="button" data-ws-top="电商模式" aria-current="false">电商模式</button>
+    </div>
+    <span style="flex:1"></span>
+    <span style="font-size:10.5px;color:var(--dsw-alias-label-tertiary);">已连接</span>
+  </header>
+
+  <div data-ws-page="canvas" role="region" aria-label="无限画布">
+    <div data-ws-canvas-project-bar>
+      <input type="text" data-ws-canvas-project-name value="未命名项目" aria-label="项目名" />
+      <button type="button" class="pill" data-ws-canvas-new>新建</button>
+      <button type="button" class="pill" data-ws-canvas-rename>重命名</button>
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary);">
+        <span>项目</span>
+        <select data-ws-canvas-project-list aria-label="项目列表切换"><option selected>未命名项目</option></select>
+      </label>
+      <span style="flex:1"></span>
+      <span style="font-size:11px;color:var(--dsw-alias-label-tertiary);">文本→配置＝提示词；图片→配置＝参考图（第一张＝图生图底图）</span>
+    </div>
+
+    <div data-ws-canvas-viewport-wrap>
+      <div data-ws-canvas-add-bar role="toolbar" aria-label="添加节点">
+        <button type="button" class="pill" data-ws-canvas-add="text">+ 文本节点</button>
+        <button type="button" class="pill" data-ws-canvas-add="image">+ 图片节点</button>
+        <button type="button" class="pill" data-ws-canvas-add="genConfig">+ 生成配置节点</button>
+        <button type="button" class="pill" data-ws-canvas-add="video">+ 视频节点</button>
+      </div>
+
+      <div data-ws-canvas-viewport tabindex="0" aria-label="无限画布视口">
+        <div data-ws-canvas-world>
+          <svg data-ws-canvas-edges xmlns="http://www.w3.org/2000/svg" width="4000" height="4000">
+            <path d="M 240 148 C 300 148, 300 148, 360 148" fill="none" stroke="var(--dsw-alias-border-l4)" stroke-width="2" />
+          </svg>
+          <div data-ws-canvas-nodes>
+            <div data-ws-canvas-node="n-text-seed" data-type="text" style="left:80px;top:120px;">
+              <div data-ws-canvas-node-head><span>文本节点</span></div>
+              <div data-ws-canvas-node-body>
+                <textarea placeholder="文本 → 连配置＝提示词" rows="3"></textarea>
+              </div>
+              <span data-ws-canvas-port="in"></span>
+              <span data-ws-canvas-port="out"></span>
+            </div>
+            <div data-ws-canvas-node="n-cfg-seed" data-type="genConfig" data-selected style="left:360px;top:100px;">
+              <div data-ws-canvas-node-head><span>生成配置节点</span></div>
+              <div data-ws-canvas-node-body>
+                <div style="font-size:11px;color:var(--dsw-alias-label-tertiary);">选中后底部浮出生成器</div>
+                <div style="font-size:11px;color:var(--dsw-alias-label-secondary);">比例 自动 · 张数 1</div>
+              </div>
+              <span data-ws-canvas-port="in"></span>
+              <span data-ws-canvas-port="out"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div data-ws-canvas-minimap aria-hidden="true" title="小地图">
+        <div data-ws-mm-dot style="left:14px;top:18px;"></div>
+        <div data-ws-mm-dot style="left:36px;top:16px;"></div>
+      </div>
+      <button type="button" class="pill" data-ws-canvas-fit>适应全部内容</button>
+    </div>
+
+    <div data-ws-canvas-generator data-open aria-label="底部生成器">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <strong style="font-size:12px;color:var(--dsw-alias-label-secondary);">生成配置节点</strong>
+        <span style="font-size:11px;color:var(--dsw-alias-label-tertiary);">双击空白或点「添加」建节点（壳）</span>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);margin-bottom:4px;">提示词</div>
+        <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词后点发送（壳）" style="width:100%;min-height:52px;padding:6px 8px;"></textarea>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);">模型</span>
+          <input placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;width:10rem;" />
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);">比例</span>
+          <div data-ws-canvas-chips>
+            <button type="button" aria-current="true">自动</button>
+            <button type="button">1:1</button>
+            <button type="button">16:9</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);">清晰度</span>
+          <div data-ws-canvas-chips>
+            <button type="button" aria-current="true">自动</button>
+            <button type="button">1K</button>
+            <button type="button">2K</button>
+            <button type="button">4K</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);">张数</span>
+          <div data-ws-canvas-chips>
+            <button type="button" aria-current="true">1</button>
+            <button type="button">2</button>
+            <button type="button">3</button>
+            <button type="button">4</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">
+        <button type="button" class="pill" data-ws-canvas-tool="标注">标注</button>
+        <button type="button" class="pill" data-ws-canvas-tool="移除背景">移除背景</button>
+        <button type="button" class="pill" data-ws-canvas-tool="指定模型">指定模型</button>
+      </div>
+      <button type="button" data-ws-canvas-send>发送</button>
+      <p data-ws-canvas-status class="note">壳：拖节点 · 端口连线 stub · 发送 → 「画布生成通道未接」（无假成功）</p>
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelector('[data-ws-canvas-send]')?.addEventListener('click', () => {
+    const status = document.querySelector('[data-ws-canvas-status]')
+    if (status) status.textContent = '画布生成通道未接'
+  })
+  document.querySelectorAll('[data-ws-canvas-tool]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const status = document.querySelector('[data-ws-canvas-status]')
+      const label = btn.getAttribute('data-ws-canvas-tool') || ''
+      if (status) status.textContent = '「' + label + '」未接线'
+    })
+  })
+  // Preview-only: drag stub for node heads
+  document.querySelectorAll('[data-ws-canvas-node]').forEach((node) => {
+    const head = node.querySelector('[data-ws-canvas-node-head]')
+    head?.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault()
+      const startX = ev.clientX
+      const startY = ev.clientY
+      const left = parseFloat(node.style.left) || 0
+      const top = parseFloat(node.style.top) || 0
+      const onMove = (e) => {
+        node.style.left = left + (e.clientX - startX) + 'px'
+        node.style.top = top + (e.clientY - startY) + 'px'
+      }
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove)
+        document.removeEventListener('pointerup', onUp)
+      }
+      document.addEventListener('pointermove', onMove)
+      document.addEventListener('pointerup', onUp)
+    })
+  })
+</script>
+</body>
+</html>

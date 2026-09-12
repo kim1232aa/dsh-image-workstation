@@ -1,0 +1,866 @@
+/**
+ * 无限画布 page shell — independent of 普通生图 dock.
+ * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
+ * Labels exact from ../ui/labels.js. CTA / 发送 = honest stubs (no fake success).
+ */
+import {
+  CANVAS_NODES,
+  CANVAS_NODE_TOOLS,
+  CANVAS_CHROME,
+  PARAM_LABELS,
+  RATIOS,
+  CLARITY,
+  COUNTS,
+  PROMPT_FIELDS,
+} from '../ui/labels.js'
+
+export const CANVAS_PAGE = '无限画布'
+export const IMAGE_PAGE = '普通生图'
+export const VIDEO_PAGE = '视频生成'
+
+const DEFAULT_PROJECT_NAME = '未命名项目'
+const EDGE_HINT = '文本→配置＝提示词；图片→配置＝参考图（第一张＝图生图底图）'
+const ADD_NODE_HINT = '双击空白或点「添加」建节点（壳）'
+const STUB_SEND = '画布生成通道未接'
+const STUB_ACTION = (name) => `「${name}」未接线`
+
+/** @param {string} s */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** @returns {string} */
+function uid(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+/**
+ * Shared token map — same semantic --dsw-* keys as studio-host / video-host.
+ * @typedef {Record<string, string>} TokenMap
+ */
+
+export function canvasHostStyles() {
+  return `
+[data-dsh-ws-studio-host] [data-ws-page="canvas"] {
+  display:none; flex:1; min-height:0; width:100%; flex-direction:column;
+}
+[data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="canvas"] {
+  display:flex;
+}
+[data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="image"] {
+  display:none !important;
+}
+[data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="video"],
+[data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="gallery"],
+[data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="ecom"] {
+  display:none !important;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-project-bar] {
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+  padding:6px 12px; border-bottom:1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-project-name] {
+  font-size:13px; font-weight:600; color: var(--dsw-alias-label-primary);
+  border:0; background:transparent; padding:2px 4px; border-radius:6px;
+  min-width:6rem; max-width:16rem;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-project-name]:focus {
+  outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:1px;
+  background: var(--dsw-specific-input-major);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-viewport-wrap] {
+  position:relative; flex:1; min-height:0; overflow:hidden;
+  background: var(--dsw-alias-bg-module-platform);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-viewport] {
+  position:absolute; inset:0; overflow:hidden; cursor:default;
+  touch-action:none;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-viewport][data-panning] {
+  cursor:grabbing;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-world] {
+  position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-edges] {
+  position:absolute; left:0; top:0; width:4000px; height:4000px;
+  pointer-events:none; overflow:visible;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node] {
+  position:absolute; min-width:160px; max-width:240px;
+  background: var(--dsw-alias-bg-base);
+  border:1px solid var(--dsw-alias-border-l2);
+  border-radius:10px; box-shadow: var(--dsw-elevation-panel, 0 1px 4px rgba(0,0,0,.06));
+  display:flex; flex-direction:column; gap:0; user-select:none;
+  color: var(--dsw-alias-label-primary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node][data-selected] {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node-head] {
+  display:flex; align-items:center; gap:6px; padding:6px 8px;
+  border-bottom:1px solid var(--dsw-alias-border-l1);
+  font-size:11px; font-weight:600; color: var(--dsw-alias-label-secondary);
+  cursor:grab;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node][data-dragging] [data-ws-canvas-node-head] {
+  cursor:grabbing;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node-body] {
+  padding:8px; font-size:12px; color: var(--dsw-alias-label-primary);
+  display:flex; flex-direction:column; gap:6px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node-body] textarea {
+  width:100%; min-height:56px; resize:vertical; padding:6px 8px;
+  border:1px solid var(--dsw-alias-border-l2); border-radius:8px;
+  background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary);
+  font:inherit; font-size:12px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-img-stub] {
+  aspect-ratio:1; border-radius:8px; border:1px dashed var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-bg-module-platform);
+  display:flex; align-items:center; justify-content:center;
+  color: var(--dsw-alias-label-tertiary); font-size:11px; text-align:center; padding:8px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node-tools] {
+  display:flex; flex-wrap:wrap; gap:4px; padding:0 8px 8px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-port] {
+  position:absolute; width:10px; height:10px; border-radius:999px;
+  background: var(--dsw-alias-bg-base);
+  border:2px solid var(--dsw-alias-state-business-primary);
+  top:50%; margin-top:-5px; cursor:crosshair; z-index:2;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-port="in"] { left:-6px; }
+[data-dsh-ws-studio-host] [data-ws-canvas-port="out"] { right:-6px; }
+[data-dsh-ws-studio-host] [data-ws-canvas-minimap] {
+  position:absolute; left:10px; bottom:10px; z-index:3;
+  width:120px; height:80px; border-radius:8px;
+  border:1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base); opacity:.92;
+  pointer-events:none; overflow:hidden;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-minimap] [data-ws-mm-dot] {
+  position:absolute; width:8px; height:6px; border-radius:2px;
+  background: var(--dsw-alias-label-tertiary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-fit] {
+  position:absolute; right:10px; bottom:10px; z-index:3;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-add-bar] {
+  position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:3;
+  display:flex; gap:6px; padding:4px; border-radius:10px;
+  background: var(--dsw-alias-bg-base);
+  border:1px solid var(--dsw-alias-border-l2);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-generator] {
+  display:none; flex-shrink:0; flex-direction:column; gap:6px;
+  padding:8px 12px 10px;
+  border-top:1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-generator][data-open] {
+  display:flex;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:hover {
+  background: var(--dsw-alias-button-primary-hover);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:active { filter:brightness(.96); }
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:focus-visible {
+  outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:2px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-status] {
+  margin:0; font-size:11px; color: var(--dsw-alias-label-tertiary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-chips] {
+  display:flex; flex-wrap:wrap; gap:4px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-chips] button {
+  padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  background:transparent; color: var(--dsw-alias-label-secondary);
+  font:inherit; font-size:11.5px; cursor:pointer;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-chips] button[aria-current="true"] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l4);
+}
+`
+}
+
+/**
+ * Default canvas UI state (shell only).
+ * Empty state: 文本 + 生成配置 nodes (开箱能用).
+ */
+export function defaultCanvasState() {
+  const textId = 'n-text-seed'
+  const cfgId = 'n-cfg-seed'
+  return {
+    projectId: 'proj-default',
+    projects: [{ id: 'proj-default', name: DEFAULT_PROJECT_NAME }],
+    viewport: { x: 40, y: 40, zoom: 1 },
+    nodes: [
+      {
+        type: 'text',
+        id: textId,
+        x: 80,
+        y: 120,
+        text: '',
+      },
+      {
+        type: 'genConfig',
+        id: cfgId,
+        x: 360,
+        y: 100,
+        prompt: '',
+        modelId: '',
+        ratio: RATIOS[0],
+        count: COUNTS[0],
+        clarity: CLARITY[0],
+      },
+    ],
+    edges: [{ id: 'e-seed', from: textId, to: cfgId }],
+    selection: [cfgId],
+    generatorOpen: true,
+    connectFrom: null,
+  }
+}
+
+/**
+ * @param {TokenMap} T
+ * @param {object} css
+ * @param {ReturnType<typeof defaultCanvasState>} state
+ */
+export function buildCanvasPageHtml(T, css, state) {
+  const project = state.projects.find((p) => p.id === state.projectId) || state.projects[0]
+  const projectOptions = state.projects
+    .map(
+      (p) =>
+        `<option value="${escapeHtml(p.id)}" ${p.id === state.projectId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`,
+    )
+    .join('')
+
+  const chip = (param, values, selected) =>
+    values
+      .map((v) => {
+        const val = String(v)
+        const on = val === String(selected)
+        return `<button type="button" data-ws-canvas-param="${param}" data-value="${escapeHtml(val)}" aria-current="${on ? 'true' : 'false'}">${escapeHtml(val)}</button>`
+      })
+      .join('')
+
+  const nodeTools = Object.values(CANVAS_NODE_TOOLS)
+    .map((label) => `<button type="button" data-ws-canvas-tool="${escapeHtml(label)}" style="${css.pill({ size: '11px', fill: T.module })}">${escapeHtml(label)}</button>`)
+    .join('')
+
+  return `
+<div data-ws-page="canvas" role="region" aria-label="${CANVAS_PAGE}">
+  <div data-ws-canvas-project-bar>
+    <input type="text" data-ws-canvas-project-name value="${escapeHtml(project?.name || DEFAULT_PROJECT_NAME)}" aria-label="项目名" />
+    <button type="button" data-ws-canvas-new style="${css.pill({ size: '11px', fill: T.module })}">${CANVAS_CHROME.newProject}</button>
+    <button type="button" data-ws-canvas-rename style="${css.pill({ size: '11px', fill: T.module })}">${CANVAS_CHROME.rename}</button>
+    <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${T.fg2};">
+      <span>项目</span>
+      <select data-ws-canvas-project-list aria-label="项目列表切换" style="${css.select}">${projectOptions}</select>
+    </label>
+    <span style="flex:1"></span>
+    <span style="font-size:11px;color:${T.fg3};">${EDGE_HINT}</span>
+  </div>
+
+  <div data-ws-canvas-viewport-wrap>
+    <div data-ws-canvas-add-bar role="toolbar" aria-label="添加节点">
+      <button type="button" data-ws-canvas-add="text" style="${css.pill({ size: '11px', fill: T.module })}">+ ${CANVAS_NODES.text}</button>
+      <button type="button" data-ws-canvas-add="image" style="${css.pill({ size: '11px', fill: T.module })}">+ ${CANVAS_NODES.image}</button>
+      <button type="button" data-ws-canvas-add="genConfig" style="${css.pill({ size: '11px', fill: T.module })}">+ ${CANVAS_NODES.genConfig}</button>
+      <button type="button" data-ws-canvas-add="video" style="${css.pill({ size: '11px', fill: T.module })}">+ ${CANVAS_NODES.video}</button>
+    </div>
+
+    <div data-ws-canvas-viewport tabindex="0" aria-label="无限画布视口">
+      <div data-ws-canvas-world>
+        <svg data-ws-canvas-edges xmlns="http://www.w3.org/2000/svg"></svg>
+        <div data-ws-canvas-nodes></div>
+      </div>
+    </div>
+
+    <div data-ws-canvas-minimap aria-hidden="true" title="小地图">
+      <div data-ws-mm-dots></div>
+    </div>
+    <button type="button" data-ws-canvas-fit style="${css.pill({ size: '11px', fill: T.bg })}">${CANVAS_CHROME.fitAll}</button>
+  </div>
+
+  <div data-ws-canvas-generator ${state.generatorOpen ? 'data-open' : ''} aria-label="底部生成器">
+    <div style="display:flex;align-items:baseline;gap:8px;">
+      <strong style="font-size:12px;color:${T.fg2};">${CANVAS_NODES.genConfig}</strong>
+      <span style="font-size:11px;color:${T.fg3};">${ADD_NODE_HINT}</span>
+    </div>
+    <div>
+      <div style="${css.paramLabel};margin-bottom:4px;">${PROMPT_FIELDS.prompt}</div>
+      <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词后点发送（壳）" style="width:100%;min-height:52px;padding:6px 8px;border:1px solid ${T.border2};border-radius:8px;background:${T.input};color:${T.fg};font:inherit;font-size:12px;"></textarea>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="${css.paramLabel}">${PARAM_LABELS.model}</span>
+        <input data-ws-canvas-param-model placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;width:10rem;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;" />
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="${css.paramLabel}">${PARAM_LABELS.ratio}</span>
+        <div data-ws-canvas-chips data-param="ratio">${chip('ratio', RATIOS, state.nodes.find((n) => n.type === 'genConfig')?.ratio || RATIOS[0])}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="${css.paramLabel}">${PARAM_LABELS.clarity}</span>
+        <div data-ws-canvas-chips data-param="clarity">${chip('clarity', CLARITY, CLARITY[0])}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="${css.paramLabel}">${PARAM_LABELS.count}</span>
+        <div data-ws-canvas-chips data-param="count">${chip('count', COUNTS, COUNTS[0])}</div>
+      </div>
+    </div>
+    <div data-ws-canvas-node-tools-slot style="display:flex;flex-wrap:wrap;gap:4px;">
+      ${nodeTools}
+    </div>
+    <button type="button" data-ws-canvas-send style="${css.cta}">${CANVAS_CHROME.send}</button>
+    <p data-ws-canvas-status class="note">壳：拖节点 · 端口连线 stub · ${CANVAS_CHROME.send} → 「${STUB_SEND}」（无假成功）</p>
+  </div>
+</div>
+`
+}
+
+/**
+ * Mount canvas page into host (sibling of image/video pages).
+ * @param {HTMLElement} host
+ * @param {{ T: TokenMap, css: object }} opts
+ * @returns {{ state: ReturnType<typeof defaultCanvasState>, setPage: (tab: string) => void, dispose: () => void }}
+ */
+export function mountCanvasPage(host, opts) {
+  const { T, css } = opts
+  const state = defaultCanvasState()
+
+  let styleEl = host.querySelector('style[data-ws-canvas-styles]')
+  if (!styleEl) {
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-ws-canvas-styles', '')
+    styleEl.textContent = canvasHostStyles()
+    host.appendChild(styleEl)
+  }
+
+  host.querySelector('[data-ws-page="canvas"]')?.remove()
+
+  const wrap = document.createElement('div')
+  wrap.innerHTML = buildCanvasPageHtml(T, css, state).trim()
+  const page = wrap.firstElementChild
+  if (!(page instanceof HTMLElement)) {
+    return { state, setPage: () => {}, dispose: () => {} }
+  }
+
+  const imageCols = host.querySelector('[data-ws-cols]')
+  const videoPage = host.querySelector('[data-ws-page="video"]')
+  if (videoPage?.parentElement) {
+    videoPage.parentElement.insertBefore(page, videoPage.nextSibling)
+  } else if (imageCols?.parentElement) {
+    imageCols.parentElement.appendChild(page)
+  } else {
+    host.appendChild(page)
+  }
+
+  const viewport = page.querySelector('[data-ws-canvas-viewport]')
+  const world = page.querySelector('[data-ws-canvas-world]')
+  const nodesEl = page.querySelector('[data-ws-canvas-nodes]')
+  const edgesSvg = page.querySelector('[data-ws-canvas-edges]')
+  const minimapDots = page.querySelector('[data-ws-mm-dots]')
+  const generator = page.querySelector('[data-ws-canvas-generator]')
+  const statusEl = page.querySelector('[data-ws-canvas-status]')
+
+  const setStatus = (text) => {
+    if (statusEl) statusEl.textContent = text
+  }
+
+  const applyTransform = () => {
+    if (!(world instanceof HTMLElement)) return
+    const { x, y, zoom } = state.viewport
+    world.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`
+  }
+
+  const nodeLabel = (type) => {
+    if (type === 'text') return CANVAS_NODES.text
+    if (type === 'image') return CANVAS_NODES.image
+    if (type === 'video') return CANVAS_NODES.video
+    return CANVAS_NODES.genConfig
+  }
+
+  const paintEdges = () => {
+    if (!(edgesSvg instanceof SVGElement) || !(nodesEl instanceof HTMLElement)) return
+    const lines = []
+    for (const edge of state.edges) {
+      const fromEl = nodesEl.querySelector(`[data-ws-canvas-node="${edge.from}"]`)
+      const toEl = nodesEl.querySelector(`[data-ws-canvas-node="${edge.to}"]`)
+      if (!(fromEl instanceof HTMLElement) || !(toEl instanceof HTMLElement)) continue
+      const fx = fromEl.offsetLeft + fromEl.offsetWidth
+      const fy = fromEl.offsetTop + fromEl.offsetHeight / 2
+      const tx = toEl.offsetLeft
+      const ty = toEl.offsetTop + toEl.offsetHeight / 2
+      const mx = (fx + tx) / 2
+      lines.push(
+        `<path d="M ${fx} ${fy} C ${mx} ${fy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="var(--dsw-alias-border-l4)" stroke-width="2" />`,
+      )
+    }
+    if (state.connectFrom) {
+      const fromEl = nodesEl.querySelector(`[data-ws-canvas-node="${state.connectFrom}"]`)
+      if (fromEl instanceof HTMLElement) {
+        const fx = fromEl.offsetLeft + fromEl.offsetWidth
+        const fy = fromEl.offsetTop + fromEl.offsetHeight / 2
+        lines.push(
+          `<circle cx="${fx}" cy="${fy}" r="4" fill="var(--dsw-alias-state-business-primary)" />`,
+        )
+      }
+    }
+    edgesSvg.innerHTML = lines.join('')
+  }
+
+  const paintMinimap = () => {
+    if (!(minimapDots instanceof HTMLElement)) return
+    minimapDots.innerHTML = state.nodes
+      .map((n) => {
+        const left = Math.max(4, Math.min(108, 8 + (n.x || 0) * 0.08))
+        const top = Math.max(4, Math.min(68, 8 + (n.y || 0) * 0.08))
+        return `<div data-ws-mm-dot style="left:${left}px;top:${top}px;"></div>`
+      })
+      .join('')
+  }
+
+  const syncGenerator = () => {
+    const selected = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    state.generatorOpen = !!selected
+    if (generator instanceof HTMLElement) {
+      if (state.generatorOpen) generator.setAttribute('data-open', '')
+      else generator.removeAttribute('data-open')
+    }
+    if (selected) {
+      const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
+      if (ta instanceof HTMLTextAreaElement && ta.value !== (selected.prompt || '')) {
+        ta.value = selected.prompt || ''
+      }
+      const model = page.querySelector('[data-ws-canvas-param-model]')
+      if (model instanceof HTMLInputElement) model.value = selected.modelId || ''
+      page.querySelectorAll('[data-ws-canvas-param][data-value]').forEach((btn) => {
+        const param = btn.getAttribute('data-ws-canvas-param')
+        const val = btn.getAttribute('data-value')
+        let cur = ''
+        if (param === 'ratio') cur = String(selected.ratio ?? RATIOS[0])
+        else if (param === 'clarity') cur = String(selected.clarity ?? CLARITY[0])
+        else if (param === 'count') cur = String(selected.count ?? COUNTS[0])
+        btn.setAttribute('aria-current', val === cur ? 'true' : 'false')
+      })
+    }
+  }
+
+  const paintNodes = () => {
+    if (!(nodesEl instanceof HTMLElement)) return
+    nodesEl.innerHTML = state.nodes
+      .map((n) => {
+        const selected = state.selection.includes(n.id)
+        let body = ''
+        if (n.type === 'text') {
+          body = `<textarea data-ws-node-text="${escapeHtml(n.id)}" placeholder="文本 → 连配置＝提示词" rows="3">${escapeHtml(n.text || '')}</textarea>`
+        } else if (n.type === 'image') {
+          body = `<div data-ws-canvas-img-stub>图 stub<br/>拖入 / 粘贴未接线</div>
+            <div data-ws-canvas-node-tools>
+              ${Object.values(CANVAS_NODE_TOOLS)
+                .map(
+                  (label) =>
+                    `<button type="button" data-ws-canvas-tool="${escapeHtml(label)}" data-node="${escapeHtml(n.id)}" style="${css.pill({ size: '10px', fill: T.module })}">${escapeHtml(label)}</button>`,
+                )
+                .join('')}
+            </div>`
+        } else if (n.type === 'video') {
+          body = `<div data-ws-canvas-img-stub>${CANVAS_NODES.video}<br/>可播放 / 抽帧 stub</div>`
+        } else {
+          body = `<div style="font-size:11px;color:${T.fg3};">选中后底部浮出生成器</div>
+            <div style="font-size:11px;color:${T.fg2};">${PARAM_LABELS.ratio} ${escapeHtml(String(n.ratio || RATIOS[0]))} · ${PARAM_LABELS.count} ${escapeHtml(String(n.count || 1))}</div>`
+        }
+        return `<div data-ws-canvas-node="${escapeHtml(n.id)}" data-type="${escapeHtml(n.type)}" ${selected ? 'data-selected' : ''} style="left:${n.x || 0}px;top:${n.y || 0}px;">
+          <div data-ws-canvas-node-head>
+            <span>${escapeHtml(nodeLabel(n.type))}</span>
+            <span style="flex:1"></span>
+            <button type="button" data-ws-canvas-node-remove="${escapeHtml(n.id)}" title="移除" style="border:0;background:transparent;color:${T.fg3};cursor:pointer;font-size:12px;line-height:1;padding:0 2px;">×</button>
+          </div>
+          <div data-ws-canvas-node-body>${body}</div>
+          <span data-ws-canvas-port="in" data-node="${escapeHtml(n.id)}" title="连入"></span>
+          <span data-ws-canvas-port="out" data-node="${escapeHtml(n.id)}" title="连出"></span>
+        </div>`
+      })
+      .join('')
+
+    // Wire per-node text / drag after paint
+    nodesEl.querySelectorAll('[data-ws-node-text]').forEach((ta) => {
+      ta.addEventListener('input', (e) => {
+        const id = ta.getAttribute('data-ws-node-text')
+        const node = state.nodes.find((x) => x.id === id)
+        if (node && node.type === 'text') {
+          node.text = /** @type {HTMLTextAreaElement} */ (e.target).value
+        }
+      })
+      ta.addEventListener('mousedown', (e) => e.stopPropagation())
+      ta.addEventListener('pointerdown', (e) => e.stopPropagation())
+    })
+
+    nodesEl.querySelectorAll('[data-ws-canvas-node]').forEach((el) => {
+      const id = el.getAttribute('data-ws-canvas-node')
+      const head = el.querySelector('[data-ws-canvas-node-head]')
+      head?.addEventListener('pointerdown', (ev) => {
+        if (!(ev instanceof PointerEvent)) return
+        if (ev.target instanceof Element && ev.target.closest('[data-ws-canvas-node-remove]')) return
+        ev.preventDefault()
+        ev.stopPropagation()
+        const node = state.nodes.find((x) => x.id === id)
+        if (!node) return
+        state.selection = [id]
+        paintNodes()
+        syncGenerator()
+        const startX = ev.clientX
+        const startY = ev.clientY
+        const origX = node.x || 0
+        const origY = node.y || 0
+        const zoom = state.viewport.zoom || 1
+        el.setAttribute('data-dragging', '')
+        const onMove = (e) => {
+          node.x = origX + (e.clientX - startX) / zoom
+          node.y = origY + (e.clientY - startY) / zoom
+          if (el instanceof HTMLElement) {
+            el.style.left = `${node.x}px`
+            el.style.top = `${node.y}px`
+          }
+          paintEdges()
+          paintMinimap()
+        }
+        const onUp = () => {
+          el.removeAttribute('data-dragging')
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+        }
+        document.addEventListener('pointermove', onMove)
+        document.addEventListener('pointerup', onUp)
+      })
+
+      el.addEventListener('click', (e) => {
+        if (e.target instanceof Element && e.target.closest('[data-ws-canvas-port]')) return
+        if (e.target instanceof Element && e.target.closest('[data-ws-canvas-node-remove]')) return
+        state.selection = [id]
+        paintNodes()
+        syncGenerator()
+      })
+    })
+
+    nodesEl.querySelectorAll('[data-ws-canvas-node-remove]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const id = btn.getAttribute('data-ws-canvas-node-remove')
+        state.nodes = state.nodes.filter((n) => n.id !== id)
+        state.edges = state.edges.filter((ed) => ed.from !== id && ed.to !== id)
+        state.selection = state.selection.filter((s) => s !== id)
+        paintNodes()
+        paintEdges()
+        paintMinimap()
+        syncGenerator()
+        setStatus('已移除节点（本地壳）')
+      })
+    })
+
+    nodesEl.querySelectorAll('[data-ws-canvas-port]').forEach((port) => {
+      port.addEventListener('pointerdown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const nodeId = port.getAttribute('data-node')
+        const side = port.getAttribute('data-ws-canvas-port')
+        if (!nodeId) return
+        if (side === 'out') {
+          state.connectFrom = nodeId
+          setStatus('连线 stub：再点目标入端口完成（壳）')
+          paintEdges()
+        } else if (side === 'in' && state.connectFrom && state.connectFrom !== nodeId) {
+          const exists = state.edges.some((ed) => ed.from === state.connectFrom && ed.to === nodeId)
+          if (!exists) {
+            state.edges.push({ id: uid('e'), from: state.connectFrom, to: nodeId })
+          }
+          state.connectFrom = null
+          setStatus('已添加连线（本地壳，无协议）')
+          paintEdges()
+        }
+      })
+    })
+
+    paintEdges()
+    paintMinimap()
+    syncGenerator()
+  }
+
+  const addNode = (type) => {
+    const baseX = 120 + state.nodes.length * 24
+    const baseY = 140 + state.nodes.length * 16
+    /** @type {any} */
+    let node
+    if (type === 'text') {
+      node = { type: 'text', id: uid('n-text'), x: baseX, y: baseY, text: '' }
+    } else if (type === 'image') {
+      node = { type: 'image', id: uid('n-img'), x: baseX, y: baseY, src: '' }
+    } else if (type === 'video') {
+      node = { type: 'video', id: uid('n-vid'), x: baseX, y: baseY, srcUrl: '' }
+    } else {
+      node = {
+        type: 'genConfig',
+        id: uid('n-cfg'),
+        x: baseX,
+        y: baseY,
+        prompt: '',
+        modelId: '',
+        ratio: RATIOS[0],
+        count: COUNTS[0],
+        clarity: CLARITY[0],
+      }
+    }
+    state.nodes.push(node)
+    state.selection = [node.id]
+    paintNodes()
+    setStatus(`已添加${nodeLabel(type)}（本地壳）`)
+  }
+
+  // Project bar
+  page.querySelector('[data-ws-canvas-project-name]')?.addEventListener('change', (e) => {
+    const t = /** @type {HTMLInputElement} */ (e.target)
+    const p = state.projects.find((x) => x.id === state.projectId)
+    if (p) p.name = t.value || DEFAULT_PROJECT_NAME
+    const sel = page.querySelector('[data-ws-canvas-project-list]')
+    if (sel instanceof HTMLSelectElement) {
+      const opt = sel.querySelector(`option[value="${state.projectId}"]`)
+      if (opt) opt.textContent = p?.name || DEFAULT_PROJECT_NAME
+    }
+  })
+
+  page.querySelector('[data-ws-canvas-new]')?.addEventListener('click', () => {
+    const id = uid('proj')
+    const name = `项目 ${state.projects.length + 1}`
+    state.projects.push({ id, name })
+    state.projectId = id
+    const sel = page.querySelector('[data-ws-canvas-project-list]')
+    if (sel instanceof HTMLSelectElement) {
+      const opt = document.createElement('option')
+      opt.value = id
+      opt.textContent = name
+      opt.selected = true
+      sel.appendChild(opt)
+    }
+    const nameInput = page.querySelector('[data-ws-canvas-project-name]')
+    if (nameInput instanceof HTMLInputElement) nameInput.value = name
+    setStatus(`已${CANVAS_CHROME.newProject}（本地壳，未持久化）`)
+  })
+
+  page.querySelector('[data-ws-canvas-rename]')?.addEventListener('click', () => {
+    const nameInput = page.querySelector('[data-ws-canvas-project-name]')
+    if (nameInput instanceof HTMLInputElement) {
+      nameInput.focus()
+      nameInput.select()
+    }
+    setStatus(`${CANVAS_CHROME.rename}：编辑项目名后回车（本地壳）`)
+  })
+
+  page.querySelector('[data-ws-canvas-project-list]')?.addEventListener('change', (e) => {
+    const t = /** @type {HTMLSelectElement} */ (e.target)
+    state.projectId = t.value
+    const p = state.projects.find((x) => x.id === state.projectId)
+    const nameInput = page.querySelector('[data-ws-canvas-project-name]')
+    if (nameInput instanceof HTMLInputElement) nameInput.value = p?.name || DEFAULT_PROJECT_NAME
+    setStatus('已切换项目（本地壳，画布内容未分项目持久化）')
+  })
+
+  // Add nodes
+  page.querySelectorAll('[data-ws-canvas-add]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      addNode(btn.getAttribute('data-ws-canvas-add') || 'text')
+    })
+  })
+
+  // Double-click blank → text node
+  viewport?.addEventListener('dblclick', (e) => {
+    if (!(e instanceof MouseEvent) || !(viewport instanceof HTMLElement)) return
+    if (e.target !== viewport && e.target !== world) return
+    const rect = viewport.getBoundingClientRect()
+    const zoom = state.viewport.zoom || 1
+    const x = (e.clientX - rect.left - state.viewport.x) / zoom
+    const y = (e.clientY - rect.top - state.viewport.y) / zoom
+    const node = { type: 'text', id: uid('n-text'), x, y, text: '' }
+    state.nodes.push(node)
+    state.selection = [node.id]
+    paintNodes()
+    setStatus(`双击空白：已建${CANVAS_NODES.text}`)
+  })
+
+  // Pan: space / ctrl + drag; wheel zoom
+  let spaceDown = false
+  let panning = false
+  const onKeyDown = (e) => {
+    if (e.code === 'Space' && !e.repeat) {
+      spaceDown = true
+      if (viewport instanceof HTMLElement) viewport.setAttribute('data-panning', '')
+    }
+  }
+  const onKeyUp = (e) => {
+    if (e.code === 'Space') {
+      spaceDown = false
+      if (!panning && viewport instanceof HTMLElement) viewport.removeAttribute('data-panning')
+    }
+  }
+  document.addEventListener('keydown', onKeyDown)
+  document.addEventListener('keyup', onKeyUp)
+
+  viewport?.addEventListener('pointerdown', (ev) => {
+    if (!(ev instanceof PointerEvent) || !(viewport instanceof HTMLElement)) return
+    const onBlank = ev.target === viewport || ev.target === world || ev.target === edgesSvg
+    if (!onBlank) return
+    if (!(spaceDown || ev.ctrlKey || ev.metaKey || ev.button === 1)) {
+      // clear selection on blank click
+      if (ev.button === 0) {
+        state.selection = []
+        state.connectFrom = null
+        paintNodes()
+      }
+      return
+    }
+    ev.preventDefault()
+    panning = true
+    viewport.setAttribute('data-panning', '')
+    const startX = ev.clientX
+    const startY = ev.clientY
+    const origX = state.viewport.x
+    const origY = state.viewport.y
+    const onMove = (e) => {
+      state.viewport.x = origX + (e.clientX - startX)
+      state.viewport.y = origY + (e.clientY - startY)
+      applyTransform()
+    }
+    const onUp = () => {
+      panning = false
+      if (!spaceDown) viewport.removeAttribute('data-panning')
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  })
+
+  viewport?.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? 0.92 : 1.08
+      state.viewport.zoom = Math.max(0.35, Math.min(2.5, state.viewport.zoom * delta))
+      applyTransform()
+    },
+    { passive: false },
+  )
+
+  page.querySelector('[data-ws-canvas-fit]')?.addEventListener('click', () => {
+    if (!state.nodes.length) {
+      state.viewport = { x: 40, y: 40, zoom: 1 }
+    } else {
+      const minX = Math.min(...state.nodes.map((n) => n.x || 0))
+      const minY = Math.min(...state.nodes.map((n) => n.y || 0))
+      state.viewport = { x: 40 - minX, y: 40 - minY, zoom: 1 }
+    }
+    applyTransform()
+    setStatus(CANVAS_CHROME.fitAll)
+  })
+
+  // Generator params / prompt
+  page.querySelector('[data-ws-canvas-gen-prompt]')?.addEventListener('input', (e) => {
+    const t = /** @type {HTMLTextAreaElement} */ (e.target)
+    const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    if (cfg) cfg.prompt = t.value
+  })
+  page.querySelector('[data-ws-canvas-param-model]')?.addEventListener('input', (e) => {
+    const t = /** @type {HTMLInputElement} */ (e.target)
+    const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    if (cfg) cfg.modelId = t.value
+  })
+  page.querySelectorAll('[data-ws-canvas-chips]').forEach((group) => {
+    group.addEventListener('click', (e) => {
+      const btn =
+        e.target instanceof Element ? e.target.closest('[data-ws-canvas-param][data-value]') : null
+      if (!btn) return
+      const param = btn.getAttribute('data-ws-canvas-param')
+      const value = btn.getAttribute('data-value')
+      const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+      if (!cfg || !param || value == null) return
+      if (param === 'ratio') cfg.ratio = value
+      else if (param === 'clarity') cfg.clarity = value
+      else if (param === 'count') cfg.count = Number(value) || 1
+      syncGenerator()
+      paintNodes()
+    })
+  })
+
+  // Node tools + 加入画布 style actions — honest stubs
+  page.addEventListener('click', (e) => {
+    const tool =
+      e.target instanceof Element ? e.target.closest('[data-ws-canvas-tool]') : null
+    if (!tool) return
+    const label = tool.getAttribute('data-ws-canvas-tool') || ''
+    setStatus(STUB_ACTION(label))
+    host.dispatchEvent(
+      new CustomEvent('dsh-ws-canvas-tool', {
+        bubbles: true,
+        detail: { tool: label },
+      }),
+    )
+  })
+
+  // 发送 — never fake success
+  const sendBtn = page.querySelector('[data-ws-canvas-send]')
+  if (sendBtn instanceof HTMLButtonElement) {
+    sendBtn.disabled = false
+    sendBtn.removeAttribute('disabled')
+  }
+  sendBtn?.addEventListener('click', () => {
+    const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
+    setStatus(STUB_SEND)
+    host.dispatchEvent(
+      new CustomEvent('dsh-ws-canvas-generate', {
+        bubbles: true,
+        detail: {
+          projectId: state.projectId,
+          nodeId: cfg?.id || null,
+          prompt: cfg?.prompt || '',
+          modelId: cfg?.modelId || '',
+          ratio: cfg?.ratio || RATIOS[0],
+          count: cfg?.count || 1,
+          clarity: cfg?.clarity || CLARITY[0],
+          edges: state.edges.slice(),
+        },
+      }),
+    )
+  })
+
+  applyTransform()
+  paintNodes()
+
+  const setPage = (tab) => {
+    const name = String(tab || IMAGE_PAGE)
+    host.setAttribute('data-ws-top-page', name)
+  }
+
+  return {
+    state,
+    setPage,
+    setStatus,
+    dispose() {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keyup', onKeyUp)
+      page.remove()
+      styleEl?.remove()
+    },
+  }
+}
