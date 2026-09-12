@@ -104,16 +104,40 @@ export function videoHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-video-cta]:focus-visible {
   outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:2px;
 }
-[data-dsh-ws-studio-host] [data-ws-video-stage] {
-  flex:0 0 auto; min-height:0; display:flex; flex-direction:column; gap:4px;
-  margin:0; padding:5px 12px; overflow:hidden;
-  background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l2);
+/* Idle: stage absorbs leftover (quiet muted fill). Dock+CTA pack as one bottom
+   block — never margin-top:auto on CTA (that IS the white void between params
+   and 「开始生成」). Override studio-host [data-ws-cta-footer] margin-top:auto. */
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage] {
+  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:4px;
+  margin:0; padding:8px 12px; overflow:hidden;
+  background: var(--dsw-alias-bg-module-platform);
+  border-bottom:1px solid var(--dsw-alias-border-l2);
 }
-[data-dsh-ws-studio-host] [data-ws-video-stage][data-busy] {
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-busy] {
   flex:1.2 1 0; min-height:96px; padding:8px 12px; gap:6px;
+  background: var(--dsw-alias-bg-base);
 }
-[data-dsh-ws-studio-host] [data-ws-video-stage][data-has-results] {
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-has-results] {
   flex:2.6 1 0; min-height:160px; padding:8px 12px; gap:8px;
+  background: var(--dsw-alias-bg-base);
+}
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-dock],
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-dock] {
+  flex:0 0 auto; display:flex; flex-direction:column; gap:4px;
+  padding:8px 12px 0; background: var(--dsw-alias-bg-base);
+  border-top:0; max-height:none; overflow:auto; min-height:0;
+}
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"]:has([data-ws-video-stage][data-has-results]) [data-ws-dock],
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"]:has([data-ws-video-stage][data-busy]) [data-ws-dock] {
+  flex:0 0 auto; max-height:40%;
+  border-top:1px solid var(--dsw-alias-border-l2);
+}
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-cta-footer],
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-cta-footer] {
+  flex:none; margin-top:0; position:sticky; bottom:0; z-index:2;
+  padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
+  display:flex; flex-direction:column; gap:4px;
+  border-top:1px solid var(--dsw-alias-border-l2);
 }
 `
 }
