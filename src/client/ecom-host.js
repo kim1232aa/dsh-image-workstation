@@ -1,7 +1,7 @@
 /**
- * 电商套图 page shell — upload → params → CTA stub 「通道未接」(docs/ui/07).
+ * 电商套图 page shell — upload → params → CTA (docs/ui/07).
  * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
- * Labels exact from ../ui/labels.js. No fake success / no paid generate.
+ * Labels exact from ../ui/labels.js. Honest stub: ECOM_STUB_NOT_WIRED (no fake success).
  * Wired via TOP_TABS 「电商模式」 like video-host.
  */
 import {
@@ -11,12 +11,14 @@ import {
   ECOM_FLOW,
   ECOM_RESULT_ACTIONS,
 } from '../ui/labels.js'
+import { ECOM_STUB_NOT_WIRED } from '../protocol/gif-ecom.js'
 
 export const ECOM_PAGE = '电商模式'
 export const IMAGE_PAGE = '普通生图'
 
-const CHANNEL_STUB = '通道未接'
-export const ECOM_CHANNEL_STUB = CHANNEL_STUB
+/** @deprecated Prefer ECOM_STUB_NOT_WIRED — kept as alias for callers. */
+const CHANNEL_STUB = ECOM_STUB_NOT_WIRED
+export const ECOM_CHANNEL_STUB = ECOM_STUB_NOT_WIRED
 const UPLOAD_HINT = '上传 / 拖拽 / 粘贴'
 const EMPTY_HINT = '先上传商品主图（主体 / 包装 / 细节，最多 4 张），可选再加一张风格参考图。'
 const LOCALES = Object.freeze(['中文', 'English', '日本語', '한국어', '自定义'])
@@ -549,8 +551,9 @@ export function mountEcomPage(host, opts) {
     showPlan()
   })
 
+  /** Surface exact protocol/host code in status + fail panel (Nova-style). */
   const showStubFailure = (message) => {
-    const msg = message || CHANNEL_STUB
+    const msg = String(message || ECOM_STUB_NOT_WIRED)
     const fail = page.querySelector('[data-ws-ecom-fail]')
     const reason = page.querySelector('[data-ws-ecom-fail-reason]')
     const planEl = page.querySelector('[data-ws-ecom-plan]')
@@ -571,8 +574,8 @@ export function mountEcomPage(host, opts) {
     cta.removeAttribute('disabled')
   }
   cta?.addEventListener('click', () => {
-    // Honest stub — never invent progress/success
-    showStubFailure(CHANNEL_STUB)
+    // No upstream yet → honest protocol code (client.js RPC will re-paint same/exact code).
+    showStubFailure(ECOM_STUB_NOT_WIRED)
     host.dispatchEvent(
       new CustomEvent('dsh-ws-ecom-generate', {
         bubbles: true,

@@ -1,6 +1,6 @@
 /**
- * GIF 生成 shell — multi-frame params + CTA stub (docs/ui/08).
- * Entry: 生图工具条 /「更多」. No paid generate; local encode unwired.
+ * GIF 生成 shell — multi-frame params + CTA (docs/ui/08).
+ * Entry: 生图工具条 /「更多」. Honest stub: surface GIF_STUB_NOT_WIRED (no fake success).
  */
 import {
   GIF_TITLE,
@@ -10,6 +10,7 @@ import {
   GIF_CTA,
   PROMPT_FIELDS,
 } from '../ui/labels.js'
+import { GIF_STUB_NOT_WIRED } from '../protocol/gif-ecom.js'
 
 export const GIF_PAGE = GIF_TITLE
 
@@ -253,14 +254,21 @@ export function mountGifHost(host, opts) {
     })
   })
 
+  /** Surface exact protocol/host code (Nova-style task error line). */
+  const showStubFailure = (message) => {
+    const msg = String(message || GIF_STUB_NOT_WIRED)
+    setStatus(msg)
+    setHostStatus(msg)
+  }
+
   const cta = overlay.querySelector('[data-ws-gif-cta]')
   if (cta instanceof HTMLButtonElement) {
     cta.disabled = false
     cta.removeAttribute('disabled')
   }
   cta?.addEventListener('click', () => {
-    setStatus('GIF 通道未接（本地编码 stub）')
-    setHostStatus('GIF 通道未接')
+    // No upstream yet → honest protocol code (client.js RPC will re-paint same/exact code).
+    showStubFailure(GIF_STUB_NOT_WIRED)
     host.dispatchEvent(
       new CustomEvent('dsh-ws-gif-generate', {
         bubbles: true,
@@ -270,7 +278,6 @@ export function mountGifHost(host, opts) {
           fps: state.fps,
           loops: state.loops,
           size: state.size,
-          stub: true,
         },
       }),
     )
@@ -307,6 +314,8 @@ export function mountGifHost(host, opts) {
     open,
     close,
     isOpen: () => overlay.hasAttribute('data-open'),
+    showStubFailure,
+    setStatus,
     dispose: () => {
       overlay.remove()
       styleEl?.remove()
