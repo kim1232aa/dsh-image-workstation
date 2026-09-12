@@ -59,7 +59,8 @@ const DETAIL_OPTS = Object.freeze(['自动', '标准', '高清'])
 const HIST_THUMB = 88
 
 const STAGE_LABEL = '生成结果'
-const STAGE_EMPTY_HINT = '生成后显示在这里'
+const STAGE_EMPTY_TITLE = '生成后显示在这里'
+const STAGE_EMPTY_HINT = '出图结果会出现在本栏'
 const HISTORY_EMPTY_HINT = '暂无记录'
 
 const DEFAULT_MODEL = 'gpt-image-2'
@@ -122,7 +123,7 @@ const css = {
   pill: (opts = {}) =>
     `padding:${opts.pad || '2px 10px'};border:1px solid ${T.border2};border-radius:999px;background:${opts.fill || 'transparent'};color:${opts.color || T.fg2};cursor:pointer;font:inherit;font-size:${opts.size || '11.5px'};`,
   topTab: (on) =>
-    `padding:1px 6px;border:0;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg3};cursor:pointer;border-radius:4px;font:inherit;font-size:10.5px;font-weight:${on ? 500 : 400};line-height:1.2;`,
+    `padding:2px 5px 3px;border:0;border-bottom:1px solid ${on ? T.fg2 : 'transparent'};background:transparent;color:${on ? T.fg2 : T.fg3};cursor:pointer;border-radius:0;font:inherit;font-size:11px;font-weight:${on ? 500 : 400};line-height:1.25;`,
 }
 
 const HOST_STYLES = `
@@ -217,9 +218,9 @@ const HOST_STYLES = `
   flex:0 1 10rem; min-width:5rem; width:10rem;
 }
 [data-dsh-ws-studio-host] [data-ws-conn-status] {
-  padding:0 8px; height:22px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
-  background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
-  font:inherit; font-size:11px; display:inline-flex; align-items:center; flex:none;
+  padding:0; height:auto; border:0; border-radius:0;
+  background:transparent; color: var(--dsw-alias-label-tertiary);
+  font:inherit; font-size:10.5px; display:inline-flex; align-items:center; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage] {
   /* Right column = result landing (fills column). Center has no stage. */
@@ -233,9 +234,9 @@ const HOST_STYLES = `
   font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty] {
-  flex:1; min-height:120px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:6px; padding:28px 16px; text-align:center;
+  flex:0 0 auto; min-height:0;
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start;
+  gap:4px; padding:12px 14px; text-align:left;
   border:0; border-radius:10px;
   background: var(--dsw-alias-bg-module-platform);
 }
@@ -244,9 +245,13 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-empty] {
   display:none !important;
 }
-[data-dsh-ws-studio-host] [data-ws-stage-empty-hint] {
-  font-size:12px; color: var(--dsw-alias-label-tertiary); font-weight:400;
+[data-dsh-ws-studio-host] [data-ws-stage-empty-title] {
+  font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary); line-height:1.35;
 }
+[data-dsh-ws-studio-host] [data-ws-stage-empty-hint] {
+  font-size:12px; color: var(--dsw-alias-label-secondary); font-weight:400; line-height:1.4;
+}
+[data-dsh-ws-studio-host] [data-ws-stage-empty-title][hidden],
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-stage-samples] {
   /* Idle path never paints sample tiles — keep out of flex flow */
@@ -442,22 +447,29 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
 [data-dsh-ws-studio-host] [data-ws-top-bar] {
-  display:flex; gap:4px; padding:2px 8px; align-items:center; flex-shrink:0;
-  background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l1, var(--dsw-alias-border-l2));
+  display:flex; gap:8px; padding:0 10px; align-items:center; flex-shrink:0;
+  min-height:22px; height:22px;
+  background:transparent; border-bottom:0;
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] {
-  display:inline-flex; align-items:center; gap:0; flex:none;
-  padding:1px; border-radius:6px;
-  background: var(--dsw-alias-bg-module-platform);
-  border:1px solid var(--dsw-alias-border-l1, var(--dsw-alias-border-l2));
+  display:inline-flex; align-items:center; gap:2px; flex:none;
+  padding:0; border-radius:0;
+  background:transparent; border:0;
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top] {
-  padding:1px 6px; border:0; border-radius:4px; font:inherit; font-size:10.5px; line-height:1.2; font-weight:400;
+  padding:2px 5px 3px; border:0; border-bottom:1px solid transparent;
+  border-radius:0; font:inherit; font-size:11px; line-height:1.25; font-weight:400;
   cursor:pointer; background:transparent; color: var(--dsw-alias-label-tertiary);
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][aria-current="true"],
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][data-active] {
-  background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); font-weight:500;
+  background:transparent; color: var(--dsw-alias-label-secondary); font-weight:500;
+  border-bottom-color: var(--dsw-alias-label-secondary);
+}
+[data-dsh-ws-studio-host] [data-ws-chat-toggle] {
+  padding:1px 4px; border:0; border-radius:0; background:transparent;
+  color: var(--dsw-alias-label-tertiary); cursor:pointer;
+  font:inherit; font-size:10.5px; line-height:1.25;
 }
 [data-dsh-ws-studio-host] textarea,
 [data-dsh-ws-studio-host] input:not([type="checkbox"]):not([type="file"]),
@@ -913,6 +925,11 @@ export function createStudioHost() {
     else stage.removeAttribute('data-busy')
     const empty = stage.querySelector('[data-ws-stage-empty]')
     if (empty instanceof HTMLElement) empty.hidden = !!(hasResults || busy || failed)
+    const title = stage.querySelector('[data-ws-stage-empty-title]')
+    if (title instanceof HTMLElement) {
+      title.hidden = !!(hasResults || busy || failed)
+      if (!title.hidden) title.textContent = STAGE_EMPTY_TITLE
+    }
     const hint = stage.querySelector('[data-ws-stage-empty-hint]')
     if (hint instanceof HTMLElement) {
       hint.hidden = !!(hasResults || busy || failed)
@@ -937,6 +954,11 @@ export function createStudioHost() {
       samples.hidden = true
     }
     if (empty instanceof HTMLElement) empty.hidden = false
+    const title = stage?.querySelector('[data-ws-stage-empty-title]')
+    if (title) {
+      title.hidden = false
+      title.textContent = STAGE_EMPTY_TITLE
+    }
     if (hint) {
       hint.hidden = false
       hint.textContent = STAGE_EMPTY_HINT
@@ -962,6 +984,11 @@ export function createStudioHost() {
     }
     if (resultsEl) resultsEl.hidden = false
     if (empty instanceof HTMLElement) empty.hidden = true
+    const title = stage?.querySelector('[data-ws-stage-empty-title]')
+    if (title) {
+      title.hidden = true
+      title.textContent = STAGE_EMPTY_TITLE
+    }
     if (hint) {
       hint.hidden = true
       hint.textContent = STAGE_EMPTY_HINT
@@ -1293,8 +1320,7 @@ export function createStudioHost() {
         </div>
         <span style="flex:1"></span>
         <span data-ws-conn-status title="${CHROME.connected}">${CHROME.connected}</span>
-        <button type="button" data-ws-chat-toggle style="${css.pill({ pad: '0 8px', size: '11.5px', fill: T.module })}">${CHROME.expandChat}</button>
-        <button type="button" data-ws-close style="padding:4px 8px;border:0;background:transparent;color:${T.fg3};cursor:pointer;font:inherit;font-size:12px;">关闭</button>
+        <button type="button" data-ws-chat-toggle>${CHROME.expandChat}</button>
       </header>
       <div data-ws-cols>
         <!-- LEFT: 历史记录 -->
@@ -1429,6 +1455,7 @@ export function createStudioHost() {
               <strong>${STAGE_LABEL}</strong>
             </div>
             <div data-ws-stage-empty>
+              <strong data-ws-stage-empty-title>${STAGE_EMPTY_TITLE}</strong>
               <span data-ws-stage-empty-hint>${STAGE_EMPTY_HINT}</span>
             </div>
             <div data-ws-progress>
@@ -1465,7 +1492,6 @@ export function createStudioHost() {
     `
     host.appendChild(frame)
 
-    host.querySelector('[data-ws-close]')?.addEventListener('click', () => api.close())
     host.querySelector('[data-ws-chat-toggle]')?.addEventListener('click', () => {
       state.chatCollapsed = !state.chatCollapsed
       paintChat()
