@@ -47,6 +47,48 @@ export const TEMPLATE_CASES = Object.freeze([
     category: '风格',
     prompt: '水墨意城市天际线，留白与浓淡对比，传统笔触与现代建筑融合',
   },
+  {
+    id: 'case-constructivist-poster',
+    title: '构成主义海报',
+    category: '海报',
+    prompt:
+      '生成一张主题宣传海报：俄国构成主义，平面矢量，锐利三角与粗对角线切割，限定高饱和主色、深黑与米白做旧纸感，丝网颗粒与磨损纹理，不对称张力构图',
+  },
+  {
+    id: 'case-knowledge-map',
+    title: '概念知识地图',
+    category: '信息图',
+    prompt:
+      '创建一张解释「主题」的教育信息图：扁平矢量，关键组成部分用箭头连接，简体中文标签清晰，适合教科书风格，留白干净',
+  },
+  {
+    id: 'case-candid-phone',
+    title: '随手抓拍感',
+    category: '摄影',
+    prompt:
+      '看起来不像 AI 生成的日常照片：轻微手抖、自然曝光、不完美构图，手机抓拍质感，真实噪点，无摆拍感',
+  },
+  {
+    id: 'case-ui-home-mock',
+    title: '应用首页 UI 稿',
+    category: 'UI',
+    prompt:
+      '高保真移动应用首页 UI 设计稿，清晰导航栏与卡片列表，一致间距与字号层级，浅色界面，无真实品牌徽标',
+  },
+  {
+    id: 'case-cyber-rect-poster',
+    title: '炫彩矩形海报',
+    category: '海报',
+    prompt:
+      '人物主题海报，故障艺术与赛博朋克美学，错位矩形窗口与几何切片叠加，数据损坏溢出感，高对比霓虹色，数字碎片构图',
+  },
+  {
+    id: 'case-arch-landmark',
+    title: '建筑地标极简',
+    category: '建筑',
+    prompt:
+      '奢华极简海报，中心为地标建筑线稿或淡彩渲染，背后巨大色块与留白，杂志级排版，克制配色，高级印刷感',
+  },
 ])
 
 /**

@@ -2449,14 +2449,30 @@ export function createStudioHost(opts = {}) {
     galleryApi = mountGalleryPage(host, { T, css, getRpc })
     ecomApi = mountEcomPage(host, { T, css })
     gifApi = mountGifHost(host, { T, css, setStatus })
-    uiDesignApi = mountUiDesignHost(host, { T, css, setStatus })
+    uiDesignApi = mountUiDesignHost(host, { T, css, setStatus, getRpc })
     templateApi = mountTemplateHost(host, {
       T,
       css,
       setStatus,
+      // Nova-style: write into 普通生图 prompt + switch tab; overlay closes in template-host
       onFillPrompt: (text) => {
-        state.prompt = text || ''
+        const next = String(text || '')
+        if (!next.trim()) return false
+        gifApi?.close?.()
+        uiDesignApi?.close?.()
+        setTopTab(IMAGE_PAGE)
+        state.prompt = next
         syncFields()
+        const promptEl = host?.querySelector('[data-ws-prompt]')
+        if (!(promptEl instanceof HTMLTextAreaElement)) return false
+        if (promptEl.value !== next) promptEl.value = next
+        try {
+          promptEl.focus({ preventScroll: true })
+        } catch (_) {
+          try {
+            promptEl.focus()
+          } catch (_) {}
+        }
         setStatus('已一键回填')
         return true
       },
