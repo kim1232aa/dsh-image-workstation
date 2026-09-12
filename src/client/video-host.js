@@ -137,7 +137,8 @@ export function videoHostStyles() {
   border-bottom:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage] {
-  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:4px; order:3;
+  /* Idle/unconfigured: pack short — no huge white void under form */
+  flex:0 0 auto; min-height:0; display:flex; flex-direction:column; gap:4px; order:3;
   margin:0; padding:8px 12px; overflow:hidden;
   background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
 }
@@ -146,6 +147,12 @@ export function videoHostStyles() {
   flex:1.4 1 0; min-height:120px; padding:8px 12px; gap:6px;
   background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
 }
+/* Mid leftover under CTA when stage is idle: muted slab, not page white */
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"]::after {
+  content:''; flex:1 1 auto; min-height:0;
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
+  pointer-events:none; order:4;
+}
 [data-dsh-ws-studio-host] [data-ws-video-cta][disabled],
 [data-dsh-ws-studio-host] [data-ws-video-cta]:disabled {
   opacity:.4; cursor:not-allowed; filter:grayscale(.4); pointer-events:none; box-shadow:none;
@@ -153,12 +160,12 @@ export function videoHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-video-cta]:hover:not([disabled]):not([data-ws-cta-outline]) {
   background: var(--dsw-alias-button-primary-hover);
 }
-/* Unconfigured: outline secondary 「去配置」 — not grey primary */
+/* Unconfigured: outline secondary 「去配置」 — beat inline css.cta */
 [data-dsh-ws-studio-host] [data-ws-video-cta][data-ws-cta-outline] {
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  border: 1px solid var(--dsw-alias-border-l2);
-  box-shadow: none;
+  background: transparent !important;
+  color: var(--dsw-alias-label-secondary) !important;
+  border: 1px solid var(--dsw-alias-border-l2) !important;
+  box-shadow: none !important;
   font-weight: 500;
   opacity: 1;
   filter: none;
@@ -166,8 +173,8 @@ export function videoHostStyles() {
   cursor: pointer;
 }
 [data-dsh-ws-studio-host] [data-ws-video-cta][data-ws-cta-outline]:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover) !important;
+  color: var(--dsw-alias-label-primary) !important;
 }
 /* Don't stack fail + empty hint */
 [data-dsh-ws-studio-host] [data-ws-video-stage]:has([data-ws-video-fail][data-visible]) [data-ws-video-stage-empty-hint] {
@@ -671,16 +678,15 @@ export function mountVideoPage(host, opts) {
     if (actions) actions.removeAttribute('data-visible')
     if (hint instanceof HTMLElement) hint.hidden = true
     if (fail instanceof HTMLElement) {
-      fail.setAttribute('data-visible', '')
-      const reason = fail.querySelector('[data-ws-fail-reason]')
-      if (reason) reason.textContent = `原因：${human}`
-      const retry = fail.querySelector('[data-ws-video-retry]')
-      if (retry instanceof HTMLButtonElement) {
-        if (notCfg) {
-          retry.textContent = GO_CONFIGURE
-          retry.dataset.wsVideoRetryMode = 'configure'
-          retry.hidden = false
-        } else {
+      if (notCfg) {
+        // Unconfigured ≠ generate failure — no red fail / no second 「去配置」
+        fail.removeAttribute('data-visible')
+      } else {
+        fail.setAttribute('data-visible', '')
+        const reason = fail.querySelector('[data-ws-fail-reason]')
+        if (reason) reason.textContent = `原因：${human}`
+        const retry = fail.querySelector('[data-ws-video-retry]')
+        if (retry instanceof HTMLButtonElement) {
           retry.textContent = '重试'
           retry.dataset.wsVideoRetryMode = 'retry'
           retry.hidden = false
@@ -692,6 +698,7 @@ export function mountVideoPage(host, opts) {
     if (notCfg) {
       videoConfigured = false
       syncVideoCta()
+      if (hint instanceof HTMLElement) hint.hidden = false
     }
   }
 
@@ -882,20 +889,15 @@ export function mountVideoPage(host, opts) {
     syncVideoCta()
     const fail = page.querySelector('[data-ws-video-fail]')
     const hint = page.querySelector('[data-ws-video-stage-empty-hint]')
+    const stage = page.querySelector('[data-ws-video-stage]')
     if (!videoConfigured) {
-      // Soft fail strip — hide empty hint so they don't stack
-      const reason = fail?.querySelector('[data-ws-fail-reason]')
-      if (fail instanceof HTMLElement && reason) {
-        fail.setAttribute('data-visible', '')
-        reason.textContent = `原因：${VIDEO_CFG_HINT}`
-        const retry = fail.querySelector('[data-ws-video-retry]')
-        if (retry instanceof HTMLButtonElement) {
-          retry.textContent = GO_CONFIGURE
-          retry.dataset.wsVideoRetryMode = 'configure'
-          retry.hidden = false
-        }
+      // Static unconfigured: ONE 「去配置」 near form only — never red fail duplicate
+      if (fail instanceof HTMLElement) fail.removeAttribute('data-visible')
+      if (hint instanceof HTMLElement) hint.hidden = false
+      if (stage instanceof HTMLElement) {
+        stage.removeAttribute('data-busy')
+        stage.removeAttribute('data-has-results')
       }
-      if (hint instanceof HTMLElement) hint.hidden = true
       setStatus(VIDEO_CFG_HINT)
     } else if (fail instanceof HTMLElement) {
       fail.removeAttribute('data-visible')

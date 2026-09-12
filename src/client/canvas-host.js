@@ -25,6 +25,8 @@ export const VIDEO_PAGE = '视频生成'
 const DEFAULT_PROJECT_NAME = '未命名项目'
 const EDGE_HINT = '文本→配置＝提示词'
 const ADD_NODE_HINT = '选配置后写提示词生成'
+const PROMPT_FROM_LINKED = '提示词来自已连文本节点'
+const PROMPT_WRITE_IN_TEXT = '在已连文本节点中写提示词'
 const MODE_TXT = MODE_TABS[0]
 const MODE_IMG = MODE_TABS[1]
 /** Studio default — empty 「选择模型」 must not block or POST blank modelId */
@@ -246,11 +248,8 @@ export function canvasHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-canvas-port="in"] { left:-6px; }
 [data-dsh-ws-studio-host] [data-ws-canvas-port="out"] { right:-6px; }
 [data-dsh-ws-studio-host] [data-ws-canvas-minimap] {
-  position:absolute; left:10px; bottom:10px; z-index:3;
-  width:120px; height:80px; border-radius:8px;
-  border:1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent)); opacity:.92;
-  pointer-events:none; overflow:hidden;
+  /* Hide stubby bottom-left white block — real minimap deferred */
+  display:none !important;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-minimap] [data-ws-mm-dot] {
   position:absolute; width:8px; height:6px; border-radius:2px;
@@ -290,6 +289,24 @@ export function canvasHostStyles() {
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-gen-prompt]::placeholder {
   color: var(--dsw-alias-label-tertiary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-gen-prompt][hidden],
+[data-dsh-ws-studio-host] [data-ws-canvas-prompt-linked][hidden] {
+  display:none !important;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-prompt-linked] {
+  display:flex; align-items:center; gap:8px; min-height:28px;
+  padding:2px 4px; font-size:12.5px; line-height:1.4;
+  color: var(--dsw-alias-label-secondary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-prompt-linked] button {
+  margin-left:auto; padding:2px 8px; border:0; border-radius:6px;
+  background: transparent; color: var(--dsw-alias-label-tertiary);
+  cursor:pointer; font:inherit; font-size:11px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-prompt-linked] button:hover {
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-composer-row] {
   display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;
@@ -446,6 +463,10 @@ export function buildCanvasPageHtml(T, css, state) {
   </div>
 
   <div data-ws-canvas-generator ${state.generatorOpen ? 'data-open' : ''} aria-label="底部生成器">
+    <div data-ws-canvas-prompt-linked hidden>
+      <span data-ws-canvas-prompt-linked-text>${PROMPT_FROM_LINKED}</span>
+      <button type="button" data-ws-canvas-prompt-expand>展开编辑</button>
+    </div>
     <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词，或连文本节点后生成" ></textarea>
     <div data-ws-canvas-composer-row>
       <input data-ws-canvas-param-model value="${escapeHtml(state.nodes.find((n) => n.type === 'genConfig')?.modelId || DEFAULT_CANVAS_MODEL)}" placeholder="${escapeHtml(DEFAULT_CANVAS_MODEL)}" aria-label="${PARAM_LABELS.model}" style="padding:0 10px;height:28px;border-radius:14px;width:7.5rem;border:1px solid ${T.border2};background:transparent;color:${T.fg};font:inherit;font-size:11.5px;" />
@@ -584,6 +605,7 @@ export function mountCanvasPage(host, opts) {
     return null
   }
 
+  let promptExpanded = false
   const syncGenerator = () => {
     const selected = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
     state.generatorOpen = !!selected
@@ -594,23 +616,46 @@ export function mountCanvasPage(host, opts) {
     if (selected) {
       activeConfigId = selected.id
       const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
+      const linkedRow = page.querySelector('[data-ws-canvas-prompt-linked]')
+      const linkedLabel = page.querySelector('[data-ws-canvas-prompt-linked-text]')
+      const linkedTextNodes = upstreamResourceNodes(state, selected.id).filter((n) => n.type === 'text')
+      const hasTextLink = linkedTextNodes.length > 0
+      const linkedFilled = linkedTextNodes
+        .map((n) => String(n.text || '').trim())
+        .filter(Boolean)
       // Keep composer text if user typed while selection flickered; then prefill from links
       if (ta instanceof HTMLTextAreaElement) {
         const composerVal = String(ta.value || '')
-        if (composerVal.trim() && !String(selected.prompt || '').trim()) {
+        if (composerVal.trim() && !String(selected.prompt || '').trim() && !hasTextLink) {
           selected.prompt = composerVal
         }
       }
-      // Prefill empty composer from linked text nodes (Nova/VisioWork empty-state UX)
-      if (!String(selected.prompt || '').trim()) {
-        const texts = upstreamResourceNodes(state, selected.id)
-          .filter((n) => n.type === 'text')
-          .map((n) => String(n.text || '').trim())
-          .filter(Boolean)
-        if (texts.length) selected.prompt = texts.join('\n\n')
+      // Linked text owns the prompt — sync into cfg for generate; don't dual-edit
+      if (hasTextLink && linkedFilled.length) {
+        selected.prompt = linkedFilled.join('\n\n')
+      } else if (!hasTextLink && !String(selected.prompt || '').trim()) {
+        /* free composer path */
       }
-      if (ta instanceof HTMLTextAreaElement && ta.value !== (selected.prompt || '')) {
-        ta.value = selected.prompt || ''
+      if (hasTextLink && !promptExpanded) {
+        // One write place: text node (or hint) — hide large empty composer textarea
+        if (linkedRow instanceof HTMLElement) {
+          linkedRow.hidden = false
+          if (linkedLabel) {
+            linkedLabel.textContent = linkedFilled.length ? PROMPT_FROM_LINKED : PROMPT_WRITE_IN_TEXT
+          }
+        }
+        if (ta instanceof HTMLTextAreaElement) {
+          ta.hidden = true
+          ta.value = selected.prompt || ''
+        }
+      } else {
+        if (linkedRow instanceof HTMLElement) linkedRow.hidden = true
+        if (ta instanceof HTMLTextAreaElement) {
+          ta.hidden = false
+          if (!promptExpanded || !String(ta.value || '').trim()) {
+            ta.value = selected.prompt || ''
+          }
+        }
       }
       const model = page.querySelector('[data-ws-canvas-param-model]')
       if (model instanceof HTMLInputElement) {
@@ -627,6 +672,7 @@ export function mountCanvasPage(host, opts) {
         btn.setAttribute('aria-current', val === cur ? 'true' : 'false')
       })
     }
+    try { syncCanvasCtaEnabled() } catch (_) {}
   }
 
   const paintNodes = () => {
@@ -684,18 +730,17 @@ export function mountCanvasPage(host, opts) {
         const node = state.nodes.find((x) => x.id === id)
         if (node && node.type === 'text') {
           node.text = /** @type {HTMLTextAreaElement} */ (e.target).value
-          // Linked text → empty genConfig prompt (Nova: composer can stay empty until send)
+          // Linked text owns prompt for connected genConfig
           for (const edge of state.edges) {
             if (edge.from !== id) continue
             const cfg = state.nodes.find((n) => n.id === edge.to && n.type === 'genConfig')
-            if (!cfg || String(cfg.prompt || '').trim()) continue
+            if (!cfg) continue
             cfg.prompt = node.text
-            if (activeConfigId === cfg.id || state.selection.includes(cfg.id)) {
-              const composer = page.querySelector('[data-ws-canvas-gen-prompt]')
-              if (composer instanceof HTMLTextAreaElement && !String(composer.value || '').trim()) {
-                composer.value = node.text
-              }
-            }
+          }
+          if (state.selection.some((sid) => state.nodes.find((n) => n.id === sid && n.type === 'genConfig'))) {
+            syncGenerator()
+          } else {
+            try { syncCanvasCtaEnabled() } catch (_) {}
           }
         }
       })
@@ -1337,8 +1382,45 @@ export function mountCanvasPage(host, opts) {
     }
   })
 
+  page.querySelector('[data-ws-canvas-prompt-expand]')?.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    promptExpanded = true
+    syncGenerator()
+    const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
+    if (ta instanceof HTMLTextAreaElement) {
+      ta.hidden = false
+      ta.focus()
+    }
+  })
+
+  const onCanvasIngest = (ev) => {
+    const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+    const src = typeof detail.src === 'string' ? detail.src : ''
+    if (!src) return
+    const node = {
+      type: 'image',
+      id: uid('n-img'),
+      x: 120 + state.nodes.length * 24,
+      y: 140 + state.nodes.length * 16,
+      src,
+      name: 'studio.png',
+      status: 'success',
+      prompt: typeof detail.prompt === 'string' ? detail.prompt : '',
+    }
+    state.nodes.push(node)
+    state.selection = [node.id]
+    paintNodes()
+    paintEdges()
+    paintMinimap()
+    setStatus(`已添加${CANVAS_NODES.image}`)
+  }
+  document.addEventListener('dsh-ws-canvas-ingest', onCanvasIngest)
+  host.addEventListener('dsh-ws-canvas-ingest', onCanvasIngest)
+
   applyTransform()
   paintNodes()
+  syncGenerator()
 
   const setPage = (tab) => {
     const name = String(tab || IMAGE_PAGE)
@@ -1355,6 +1437,8 @@ export function mountCanvasPage(host, opts) {
       document.removeEventListener('keyup', onKeyUp)
       document.removeEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
       host.removeEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
+      document.removeEventListener('dsh-ws-canvas-ingest', onCanvasIngest)
+      host.removeEventListener('dsh-ws-canvas-ingest', onCanvasIngest)
       page.remove()
       styleEl?.remove()
     },

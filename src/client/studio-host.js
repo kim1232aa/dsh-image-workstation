@@ -404,11 +404,12 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   border-top:1px solid var(--dsw-alias-border-l2);
   border-bottom:1px solid var(--dsw-alias-border-l2);
 }
-/* Mid leftover under CTA: muted token slab — never huge white void */
+/* Mid leftover under CTA: no flex filler panel — column bg only, form+CTA hug content */
+[data-dsh-ws-studio-host] [data-ws-page="image"] [data-ws-col="studio"] {
+  justify-content: flex-start;
+}
 [data-dsh-ws-studio-host] [data-ws-page="image"] [data-ws-col="studio"]::after {
-  content:''; flex:1 1 auto; min-height:0;
-  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
-  pointer-events:none;
+  content: none; display: none;
 }
 [data-dsh-ws-studio-host] [data-ws-advanced] { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-advanced] > summary {
@@ -484,22 +485,23 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 }
 [data-dsh-ws-studio-host] [data-ws-fail][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] {
-  /* Primary trio + 「更多」 — never margin-top:auto / column-bottom flex sea. */
+  /* Primary trio 下载/加入画布/当参考图 — never margin-top:auto / column-bottom flex sea. */
   display:none; flex-wrap:nowrap; gap:8px 10px; padding:8px 0 4px; flex:0 0 auto; margin-top:0;
   align-items:center; align-content:flex-start;
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions][data-visible] { display:flex; }
-[data-dsh-ws-studio-host] [data-ws-result-actions] > button,
-[data-dsh-ws-studio-host] [data-ws-result-more-toggle] {
+[data-dsh-ws-studio-host] [data-ws-result-actions] > button {
   padding:7px 14px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
-  background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
+  background: transparent; color: var(--dsw-alias-label-secondary);
   cursor:pointer; font:inherit; font-size:12.5px; line-height:1.25; min-height:32px;
+  font-weight:400; box-shadow:none;
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions] > button[data-ws-result-secondary] {
   background: transparent; border:1px solid var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-secondary);
   font-weight:400; box-shadow:none;
 }
+[data-dsh-ws-studio-host] [data-ws-result-actions] > button:hover,
 [data-dsh-ws-studio-host] [data-ws-result-actions] > button[data-ws-result-secondary]:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
@@ -510,9 +512,17 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 [data-dsh-ws-studio-host] [data-ws-result-more] {
   position:relative; display:inline-flex; align-items:center; flex:none;
 }
+/* Quiet ··· overflow — never a loud 「更多」 chip competing with CTA */
+[data-dsh-ws-studio-host] [data-ws-result-more-toggle] {
+  padding:4px 8px; border:0; border-radius:6px;
+  background: transparent; color: var(--dsw-alias-label-tertiary);
+  cursor:pointer; font:inherit; font-size:14px; line-height:1; min-height:28px;
+  letter-spacing:.08em; opacity:.75;
+}
 [data-dsh-ws-studio-host] [data-ws-result-more-toggle]:hover {
   background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-secondary);
+  opacity:1;
 }
 [data-dsh-ws-studio-host] [data-ws-result-more-menu] {
   position:absolute; bottom:100%; left:0; z-index:50; margin-bottom:4px;
@@ -1994,8 +2004,8 @@ export function createStudioHost(opts = {}) {
                   return `<button type="button" data-ws-result-action="${a}" data-ws-result-secondary>${a}</button>`
                 }).join('')}
               <div data-ws-result-more>
-                <button type="button" data-ws-result-more-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${TOOL_MORE}">${TOOL_MORE} ▾</button>
-                <div data-ws-result-more-menu role="menu" aria-label="${TOOL_MORE}" hidden>
+                <button type="button" data-ws-result-more-toggle aria-expanded="false" aria-haspopup="menu" aria-label="更多操作">···</button>
+                <div data-ws-result-more-menu role="menu" aria-label="更多操作" hidden>
                   ${RESULT_MORE_ACTIONS.map((a) => {
                     const unwired = UNWIRED_RESULT_ACTIONS.has(a)
                     return `<button type="button" role="menuitem" data-ws-result-action="${a}"${unwired ? ' data-ws-unwired title="未接线"' : ''}>${a}</button>`
@@ -2528,6 +2538,21 @@ export function createStudioHost(opts = {}) {
         } else {
           setStatus('无图可作参考')
         }
+        return
+      }
+      if (action === '加入画布') {
+        if (!src) {
+          setStatus('无图可加入画布')
+          return
+        }
+        setTopTab(CANVAS_PAGE)
+        host.dispatchEvent(
+          new CustomEvent('dsh-ws-canvas-ingest', {
+            bubbles: true,
+            detail: { src, prompt: state.prompt, kind: 'image' },
+          }),
+        )
+        setStatus('已加入画布')
         return
       }
       if (action === '重新生成') {

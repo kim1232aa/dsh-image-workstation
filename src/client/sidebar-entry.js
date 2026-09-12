@@ -22,13 +22,29 @@ const TAB_STYLES = `
 }
 [data-dsh-ws-session-tabs] [data-dsh-ws-tab] {
   display:inline-flex; align-items:center; gap:6px;
-  padding:6px 10px; border:0; border-radius:0;
+  padding:6px 10px; border:1px solid transparent; border-radius:8px;
   background:transparent; cursor:pointer;
   font:inherit; font-weight:400; color:inherit;
 }
-[data-dsh-ws-session-tabs] [data-dsh-ws-tab][data-dsh-ws-tab-current] {
+/* Studio open: quiet outline — not a second top-nav primary */
+[data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"][data-dsh-ws-tab-current] {
+  font-weight:500;
+  background: transparent;
+  border-color: var(--dsw-alias-border-l2, rgba(0,0,0,.12));
+  color: var(--dsw-alias-label-secondary, inherit);
+}
+[data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"][data-dsh-ws-tab-current] {
   font-weight:600; background: var(--dsw-alias-interactive-bg-hover, transparent);
-  border-radius: 8px;
+}
+/* When studio module open, never leave host New Session looking selected */
+[data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="sessionItem"][aria-current="true"],
+[data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="sessionItem"][data-active],
+[data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="SessionItem"][aria-current="true"],
+[data-pane="sidebar"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"],
+[class*="sidebarCol"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"] {
+  background: transparent !important;
+  font-weight: inherit !important;
+  box-shadow: none !important;
 }
 `
 
@@ -94,10 +110,35 @@ export function mountSidebarEntry(opts) {
     }
   }
 
+  const stampStudioOpen = (on) => {
+    const root = sidebarRoot()
+    const col = sidebarColumn()
+    for (const el of [root, col]) {
+      if (!(el instanceof HTMLElement)) continue
+      if (on) el.setAttribute('data-dsh-ws-studio-open', '')
+      else el.removeAttribute('data-dsh-ws-studio-open')
+    }
+    // Soft-clear host session list selection chrome while workstation is open
+    if (on && col instanceof HTMLElement) {
+      col.querySelectorAll('[aria-current="true"],[aria-selected="true"]').forEach((el) => {
+        if (el.closest(ENTRY_TABS)) return
+        if (el.closest('[data-dsh-ws-session-tabs]')) return
+        // Don't strip our own tabs; only host session rows / New Session leftovers
+        if (el.getAttribute('data-dsh-ws-tab')) return
+        try {
+          el.setAttribute('aria-current', 'false')
+          el.setAttribute('aria-selected', 'false')
+          el.removeAttribute('data-active')
+        } catch (_) {}
+      })
+    }
+  }
+
   const setSelected = (id) => {
     if (id === TAB_STUDIO) current = TAB_STUDIO
     else if (id === TAB_NEW) current = TAB_NEW
     else current = '' // none — avoid dual highlight with top page tabs / host New Session
+    stampStudioOpen(current === TAB_STUDIO)
     if (tabsEl) paintSelected(tabsEl)
   }
 
@@ -163,13 +204,17 @@ export function mountSidebarEntry(opts) {
     tabsEl?.remove()
     styleEl?.remove()
     styleEl = undefined
+    stampStudioOpen(false)
     if (hiddenButton) {
       hiddenButton.style.removeProperty('display')
       hiddenButton.removeAttribute('aria-hidden')
       hiddenButton.removeAttribute('tabindex')
     }
     const root = document.querySelector(ENTRY_ROOT)
-    if (root) delete root.dataset.dshWsSidebarRoot
+    if (root) {
+      delete root.dataset.dshWsSidebarRoot
+      root.removeAttribute('data-dsh-ws-studio-open')
+    }
   }
 
   return { dispose, setSelected }

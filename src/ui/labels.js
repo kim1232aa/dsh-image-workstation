@@ -96,23 +96,25 @@ export const RESULT_ACTIONS = Object.freeze([
   '取消',
   '重试',
   '下载',
+  '加入画布',
+  '当参考图',
   '重新生成',
   '复制提示词',
   '加画廊',
   '加对话',
-  '当参考图',
   '拿去做视频',
   '再编辑',
 ])
 
-/** Primary RESULT_ACTIONS row (under result grid) */
-export const RESULT_PRIMARY_ACTIONS = Object.freeze(['下载', '重新生成', '复制提示词'])
+/** Primary RESULT_ACTIONS row (under result grid) — no loud 「更多」 */
+export const RESULT_PRIMARY_ACTIONS = Object.freeze(['下载', '加入画布', '当参考图'])
 
-/** Overflow under 「更多」 — keep unwired honest in host */
+/** Quiet overflow (···) — 重新生成 secondary here; keep unwired honest in host */
 export const RESULT_MORE_ACTIONS = Object.freeze([
+  '重新生成',
+  '复制提示词',
   '加画廊',
   '加对话',
-  '当参考图',
   '拿去做视频',
   '再编辑',
 ])
