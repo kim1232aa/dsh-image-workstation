@@ -37,7 +37,7 @@ export function ensureAgentImageConfigured(config, mediaProxy) {
   }
   if (!mediaProxy?.mediaConfigured) {
     const err = new Error(
-      'Image channel not configured. Open Settings → Plugins → dsh-image-workstation to set media base URL/key, or fill host media.env. / 生图渠道未配置。请到 Settings → Plugins → dsh-image-workstation 配置渠道，或在宿主 media.env 填写地址与密钥后重试。',
+      'Image channel not configured. Open Settings → Plugins → dsh-image-workstation and set media base URL + API key (or fill host media.env / MEDIA_*). Studio CTA uses the same channel. / 生图渠道未配置。请打开 Settings → Plugins → dsh-image-workstation，填写媒体 Base URL 与 API Key；也可在宿主 media.env（MEDIA_*）配置后重试。工作台 CTA 与 Agent 共用同一渠道。',
     )
     err.code = 'IMAGE_API_NOT_CONFIGURED'
     throw err
@@ -143,6 +143,88 @@ function sizeFromRatioOrPixels(sizeOrRatio, clarity) {
     default:
       return `${long}x${long}`
   }
+}
+
+
+/**
+ * Normalize agent refImages from tool args / chat attachments.
+ * Accepts url | dataUrl | path (string or {url,dataUrl,path}).
+ * @param {unknown} raw
+ * @returns {{ url?: string, dataUrl?: string, path?: string }[]}
+ */
+export function normalizeAgentRefImages(raw) {
+  const list = Array.isArray(raw) ? raw : raw != null && raw !== '' ? [raw] : []
+  /** @type {{ url?: string, dataUrl?: string, path?: string }[]} */
+  const out = []
+  for (const item of list) {
+    if (item == null) continue
+    if (typeof item === 'string') {
+      const s = item.trim()
+      if (!s) continue
+      if (s.startsWith('data:')) out.push({ dataUrl: s })
+      else if (s.startsWith('file://') || s.startsWith('/') || /^[A-Za-z]:[\\/]/.test(s))
+        out.push({ path: s.startsWith('file://') ? s : s })
+      else out.push({ url: s })
+      continue
+    }
+    if (typeof item !== 'object') continue
+    const dataUrl = item.dataUrl != null ? String(item.dataUrl).trim() : ''
+    const pathVal = item.path != null ? String(item.path).trim() : item.local_path != null ? String(item.local_path).trim() : ''
+    const url = item.url != null ? String(item.url).trim() : ''
+    /** @type {{ url?: string, dataUrl?: string, path?: string }} */
+    const row = {}
+    if (dataUrl) row.dataUrl = dataUrl
+    if (pathVal) row.path = pathVal
+    if (url) row.url = url
+    if (row.dataUrl || row.path || row.url) out.push(row)
+  }
+  return out
+}
+
+/**
+ * Pick first usable image source string for mediaProxy.edit / wantsEdit.
+ * Prefer dataUrl → path → url (host materialize needs data/path; url may need download).
+ * @param {{ url?: string, dataUrl?: string, path?: string }[]} refs
+ * @returns {string | undefined}
+ */
+export function pickAgentRefImageSource(refs) {
+  const list = Array.isArray(refs) ? refs : []
+  for (const r of list) {
+    if (r?.dataUrl) return r.dataUrl
+  }
+  for (const r of list) {
+    if (r?.path) return r.path
+  }
+  for (const r of list) {
+    if (r?.url) return r.url
+  }
+  return undefined
+}
+
+/**
+ * Map agent edit_image args → mediaProxy.edit fields (same spirit as CTA 图生图).
+ * @param {{ prompt: string, model?: string, size?: string, quality?: string, count?: number, refImages?: unknown, image?: string }} args
+ * @param {string | undefined} model
+ * @param {string} image  resolved dataUrl / path / file:// (or http url to be resolved by caller)
+ * @param {AbortSignal | undefined} signal
+ */
+export function mapAgentEditRequest(args, model, image, signal) {
+  const prompt = String(args?.prompt ?? '').trim()
+  const n = Math.min(Math.max(Number(args?.count) || 1, 1), 4)
+  const sizeRaw = args?.size && args.size !== 'auto' ? String(args.size) : '1:1'
+  const qualityRaw =
+    args?.quality && args.quality !== 'auto' ? String(args.quality) : '1k'
+  const size = sizeFromRatioOrPixels(sizeRaw, qualityRaw)
+  /** @type {Record<string, unknown>} */
+  const req = {
+    prompt,
+    image: String(image || ''),
+    n,
+    size,
+  }
+  if (model) req.model = model
+  if (signal) req.signal = signal
+  return req
 }
 
 /**
