@@ -62,6 +62,7 @@ Ten docs/03 零、红线 passed @ `be91e70`. Not full 03. Only UI CTA generate c
 |---|---|
 | `video.async` generate | **live when configured**; else `VIDEO_NOT_CONFIGURED`; `forceStub` → `VIDEO_STUB_NOT_WIRED` |
 | `video.async` status/cancel | wired job map + AbortController |
+| `/dsh-ws` `videoGenerate` | wired; UI CTA → RPC; status exact `VIDEO_NOT_CONFIGURED` when unset |
 | Settings card fields | `videoBaseUrl` / `videoApiKey`(host) / `videoProvider` / `videoDefaultModel` on **Video** section; poll interval·timeout config-only |
 | `resolveVideoBag` | settings first, else media.env `VIDEO_*` → host-proxy `mediaEnv.video` (stub still not paid-live) |
 
@@ -76,6 +77,7 @@ Rules when live later: verbatim result URLs; same queue/history concepts as imag
 | `/dsh-ws` `reversePrompt` | wired; live iff vision configured |
 | `/dsh-ws` `enhancePrompt` | wired; Studio button fills textarea on ok; ratio via `mapGenerateRequest` |
 | Studio enhance UI layout | unchanged (behavior only) |
+| UI enhance/reverse | enhance + 反推 → RPC; missing VISION_* → exact `ENHANCE_NOT_CONFIGURED` / `VISION_NOT_CONFIGURED` |
 
 ## GIF / 电商 stubs (see `08-gif-ecommerce-draft.md`)
 

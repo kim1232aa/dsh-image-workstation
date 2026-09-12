@@ -8,6 +8,7 @@ import {
   scrubErrorMessage as scrubMessage,
   HOST_GENERATE_TIMEOUT_MS,
   HOST_EDIT_TIMEOUT_MS,
+  HOST_VIDEO_TIMEOUT_MS,
   anySignal,
 } from './rpc-errors.js'
 import {
@@ -21,6 +22,7 @@ export const CTA_RPC_GENERATE = 'generate'
 export const CTA_RPC_PROBE = 'probe'
 export const CTA_RPC_REVERSE_PROMPT = 'reversePrompt'
 export const CTA_RPC_ENHANCE_PROMPT = 'enhancePrompt'
+export const CTA_RPC_VIDEO_GENERATE = 'videoGenerate'
 export { CTA_RPC_GIF_GENERATE, CTA_RPC_ECOM_GENERATE }
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 export const CTA_RPC_STORAGE_LIST = 'storage.list'
@@ -61,6 +63,58 @@ export function mapGenerateRequest(detail, signal) {
       }))
       .filter((r) => r.url)
   }
+  return req
+}
+
+/**
+ * Map video CTA detail → mediaProxy.videoGenerate request.
+ * @param {Record<string, unknown>} detail
+ * @param {AbortSignal} [signal]
+ */
+export function mapVideoRequest(detail, signal) {
+  const prompt = String(detail?.prompt ?? '')
+  const mode = String(detail?.mode || '文生视频')
+  const durationRaw = detail?.durationSec != null ? detail.durationSec : detail?.duration
+  let durationSec
+  if (durationRaw != null && durationRaw !== '') {
+    const n = Number.parseInt(String(durationRaw).replace(/[^\d]/g, ''), 10)
+    if (Number.isFinite(n) && n > 0) durationSec = n
+  }
+  const ratio =
+    detail?.ratio && detail.ratio !== '自动' ? String(detail.ratio) : '16:9'
+  const clarityRaw =
+    detail?.clarity && detail.clarity !== '自动' ? String(detail.clarity) : '1K'
+  const resolution = String(clarityRaw).toLowerCase()
+  const model = detail?.modelId ? String(detail.modelId).trim() : undefined
+
+  const frameUrl = (f) => {
+    if (!f) return undefined
+    if (typeof f === 'string') return f
+    return f.url || f.dataUrl || f.path || undefined
+  }
+  const firstFrame = frameUrl(detail?.firstFrame)
+  const lastFrame = frameUrl(detail?.lastFrame)
+  /** @type {Record<string, unknown>} */
+  const req = {
+    prompt,
+    mode,
+    aspect_ratio: ratio,
+    resolution,
+  }
+  if (durationSec != null) req.durationSec = durationSec
+  if (model) req.model = model
+  if (firstFrame) req.firstFrame = String(firstFrame)
+  if (lastFrame) req.lastFrame = String(lastFrame)
+  if (Array.isArray(detail?.refImages)) {
+    req.refImages = detail.refImages
+      .map((r) => ({
+        id: r?.id != null ? String(r.id) : undefined,
+        url: r?.url != null ? String(r.url) : r?.dataUrl != null ? String(r.dataUrl) : undefined,
+        name: r?.name != null ? String(r.name) : undefined,
+      }))
+      .filter((r) => r.url)
+  }
+  if (signal) req.signal = signal
   return req
 }
 
@@ -275,6 +329,102 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
             code: e?.code || 'ENHANCE_FAILED',
             message: scrubMessage(e?.message || e),
             details: e?.visionCode ? { visionCode: e.visionCode } : {},
+          },
+        }
+      }
+    }
+
+    // Video.async — live when VIDEO_* ; else VIDEO_NOT_CONFIGURED
+    if (endpoint === CTA_RPC_VIDEO_GENERATE) {
+      try {
+        if (typeof mediaProxy?.videoGenerate !== 'function') {
+          return {
+            ok: false,
+            error: { code: 'HOST_PROXY_NOT_WIRED', message: 'videoGenerate not available', details: {} },
+          }
+        }
+        const detail = payload && typeof payload === 'object' ? payload : {}
+        if (!String(detail.prompt || '').trim()) {
+          return {
+            ok: false,
+            error: { code: 'PROMPT_REQUIRED', message: 'prompt required', details: {} },
+          }
+        }
+        const mode = String(detail.mode || '')
+        const isI2v = mode === '图生视频' || mode === 'i2v'
+        const first =
+          (detail.firstFrame && (detail.firstFrame.url || detail.firstFrame.dataUrl || detail.firstFrame)) ||
+          (Array.isArray(detail.refImages) && detail.refImages[0] && (detail.refImages[0].url || detail.refImages[0].dataUrl))
+        if (isI2v && !first) {
+          return {
+            ok: false,
+            error: {
+              code: 'REF_REQUIRED',
+              message: '图生视频需要首帧图',
+              details: {},
+            },
+          }
+        }
+        const timeoutMs = HOST_VIDEO_TIMEOUT_MS
+        const timeoutAc = new AbortController()
+        const timer = setTimeout(() => {
+          const te = new Error(
+            `host videoGenerate timed out after ${Math.round(timeoutMs / 1000)}s waiting for upstream`,
+          )
+          te.code = 'VIDEO_GENERATE_TIMEOUT'
+          timeoutAc.abort(te)
+        }, timeoutMs)
+        try {
+          const fused = anySignal(signal, timeoutAc.signal)
+          const req = mapVideoRequest(detail, fused)
+          const out = await mediaProxy.videoGenerate(req)
+          const results = Array.isArray(out?.results)
+            ? out.results.map((r) => ({
+                kind: r.kind || 'video',
+                url: r.url,
+                ...(r.localPath ? { localPath: r.localPath } : {}),
+                ...(r.mime ? { mime: r.mime } : {}),
+                ...(r.durationSec != null ? { durationSec: r.durationSec } : {}),
+              }))
+            : []
+          return {
+            ok: true,
+            value: {
+              jobId: out.jobId,
+              phase: out.phase || 'done',
+              results,
+            },
+          }
+        } catch (e) {
+          const timeoutHit =
+            timeoutAc.signal.aborted && timeoutAc.signal.reason?.code === 'VIDEO_GENERATE_TIMEOUT'
+          const reasonCode = e?.code || timeoutAc.signal.reason?.code || signal?.reason?.code
+          const code = timeoutHit
+            ? 'VIDEO_GENERATE_TIMEOUT'
+            : reasonCode || (e?.name === 'AbortError' ? 'CANCELLED' : 'VIDEO_GENERATE_FAILED')
+          const message = scrubMessage(
+            timeoutHit
+              ? timeoutAc.signal.reason?.message || e?.message || e
+              : e?.message || e,
+          )
+          return {
+            ok: false,
+            error: {
+              code,
+              message,
+              details: {},
+            },
+          }
+        } finally {
+          clearTimeout(timer)
+        }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'VIDEO_GENERATE_FAILED',
+            message: scrubMessage(e?.message || e),
+            details: {},
           },
         }
       }

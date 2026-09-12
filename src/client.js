@@ -9,6 +9,7 @@ import { createStudioHost } from './client/studio-host.js'
 import { mountSettingsCard } from './client/settings-card.js'
 import {
   CLIENT_GENERATE_TIMEOUT_MS,
+  CLIENT_VIDEO_TIMEOUT_MS,
   formatClientRpcFailure,
   formatHostGenerateError,
   scrubErrorMessage,
@@ -22,6 +23,9 @@ export const inject = ['slots', 'locale', 'connection', 'sessions', 'conversatio
 /** Plugin-owned Connection RPC channel (host registers via connection.rpc.handle). */
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
+export const CTA_RPC_VIDEO_GENERATE = 'videoGenerate'
+export const CTA_RPC_REVERSE_PROMPT = 'reversePrompt'
+export const CTA_RPC_ENHANCE_PROMPT = 'enhancePrompt'
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 /** Future write seat — not registered yet; client must stay honest 未接线 */
 export const CTA_RPC_GALLERY_ADD = 'gallery.add'
@@ -160,49 +164,159 @@ export function apply(ctx, _config) {
         onStudio: () => studio.open(),
       }),
     )
-    /** Video CTA → host videoGenerate stub → honest 「视频通道未接」 (never fake success) */
+    /** Video CTA → /dsh-ws videoGenerate — same pattern as image generate */
+    let videoInflight = false
+    /** @type {AbortController | null} */
+    let videoAbort = null
     const onVideoGenerate = async (ev) => {
       const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
-      const FAIL = '视频通道未接'
       const paintFail = (msg) => {
-        studio.paintVideoStubFailure?.(msg || FAIL)
-        studio.setStatus?.(msg || FAIL)
+        const status = String(msg || 'VIDEO_NOT_CONFIGURED')
+        studio.paintVideoStubFailure?.(status)
+        studio.setStatus?.(status)
+      }
+      /** Map host error → exact status codes when configured-missing / stub */
+      const statusFromError = (error) => {
+        const code = error?.code ? String(error.code) : ''
+        if (code === 'VIDEO_NOT_CONFIGURED') return 'VIDEO_NOT_CONFIGURED'
+        if (code === 'VIDEO_STUB_NOT_WIRED') return 'VIDEO_STUB_NOT_WIRED'
+        if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED') {
+          return 'VIDEO_NOT_CONFIGURED'
+        }
+        if (code) {
+          const msg = scrubErrorMessage(error?.message || code)
+          return msg.includes(code) ? msg : `${code}: ${msg}`
+        }
+        return scrubErrorMessage(error?.message || 'VIDEO_GENERATE_FAILED')
+      }
+      if (videoInflight) {
+        studio.setStatus?.('已有视频任务进行中…')
+        return
+      }
+      if (!String(detail.prompt || '').trim()) {
+        paintFail('请先输入提示词')
+        return
       }
       const rpc = ctx.connection?.rpc
       if (!rpc || typeof rpc.call !== 'function') {
-        paintFail(FAIL)
+        paintFail('VIDEO_NOT_CONFIGURED')
         return
       }
+      videoInflight = true
+      const ac = new AbortController()
+      videoAbort = ac
+      const started = Date.now()
+      studio.setVideoProgress?.({ status: 'running', phase: 'submitted', elapsedMs: 0 })
+      studio.setStatus?.('等待宿主进度…')
+      const timer = setTimeout(() => ac.abort(), CLIENT_VIDEO_TIMEOUT_MS)
       try {
-        const result = await rpc.call(CTA_RPC_CHANNEL, 'videoGenerate', {
-          prompt: detail.prompt,
-          mode: detail.mode,
-          duration: detail.duration,
-          clarity: detail.clarity,
-          ratio: detail.ratio,
-          modelId: detail.modelId,
-          firstFrame: detail.firstFrame,
-          lastFrame: detail.lastFrame,
-        })
-        if (result?.ok && Array.isArray(result?.value?.results) && result.value.results.length) {
-          // Live path not expected yet — if it ever returns real results, paint later
-          studio.setStatus?.('视频结果未接 UI')
-          return
+        const result = await rpc.call(
+          CTA_RPC_CHANNEL,
+          CTA_RPC_VIDEO_GENERATE,
+          {
+            prompt: detail.prompt,
+            mode: detail.mode,
+            duration: detail.duration,
+            clarity: detail.clarity,
+            ratio: detail.ratio,
+            modelId: detail.modelId,
+            firstFrame: detail.firstFrame,
+            lastFrame: detail.lastFrame,
+          },
+          ac.signal,
+        )
+        if (result?.ok) {
+          studio.paintVideoResult?.({
+            ...(result.value || {}),
+            phase: result.value?.phase || 'done',
+            elapsedMs: Date.now() - started,
+          })
+        } else {
+          paintFail(statusFromError(result?.error || {}))
         }
-        const code = result?.error?.code || ''
-        const msg =
-          code === 'VIDEO_STUB_NOT_WIRED' || code === 'UNKNOWN_ENDPOINT' || !result?.ok
-            ? FAIL
-            : scrubErrorMessage(result?.error?.message || FAIL)
-        paintFail(msg)
       } catch (e) {
-        const code = e?.code || ''
-        paintFail(code === 'VIDEO_STUB_NOT_WIRED' ? FAIL : FAIL)
+        if (ac.signal.aborted) {
+          studio.paintVideoResult?.({ phase: 'cancelled', elapsedMs: Date.now() - started })
+          studio.setStatus?.('已取消')
+        } else {
+          const code = e?.code ? String(e.code) : ''
+          paintFail(
+            code === 'VIDEO_NOT_CONFIGURED' || code === 'VIDEO_STUB_NOT_WIRED'
+              ? code
+              : statusFromError({ code, message: e?.message || e }),
+          )
+        }
+      } finally {
+        clearTimeout(timer)
+        videoInflight = false
+        videoAbort = null
       }
     }
+    const onVideoCancel = () => {
+      if (videoAbort) {
+        try {
+          videoAbort.abort()
+        } catch (_) {}
+        studio.setStatus?.('已取消')
+      }
+    }
+
+    /**
+     * 反推提示词 → /dsh-ws reversePrompt (VISION_*)
+     * Never fake success when VISION_* missing.
+     */
+    const onReversePrompt = async (ev) => {
+      const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+      const rpc = ctx.connection?.rpc
+      if (!rpc || typeof rpc.call !== 'function') {
+        studio.setStatus?.('VISION_NOT_CONFIGURED')
+        return
+      }
+      const imageUrl =
+        detail.imageUrl ||
+        detail.dataUrl ||
+        (Array.isArray(detail.refImages) &&
+          detail.refImages[0] &&
+          (detail.refImages[0].url || detail.refImages[0].dataUrl)) ||
+        ''
+      if (!imageUrl) {
+        studio.setStatus?.('请先上传参考图再反推')
+        return
+      }
+      studio.setStatus?.('反推中…')
+      try {
+        const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_REVERSE_PROMPT, {
+          imageUrl,
+          dataUrl: detail.dataUrl,
+          refImages: detail.refImages,
+          instruction: detail.instruction,
+        })
+        if (result?.ok && result.value?.prompt) {
+          studio.applyReversedPrompt?.(String(result.value.prompt))
+          studio.setStatus?.('反推完成')
+        } else {
+          const code = result?.error?.code ? String(result.error.code) : ''
+          if (code === 'VISION_NOT_CONFIGURED') {
+            studio.setStatus?.('VISION_NOT_CONFIGURED')
+          } else if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED') {
+            studio.setStatus?.('「反推提示词」未接线')
+          } else {
+            const msg = scrubErrorMessage(result?.error?.message || '反推失败')
+            studio.setStatus?.(code ? `${code}: ${msg}` : msg)
+          }
+        }
+      } catch (e) {
+        const code = e?.code ? String(e.code) : ''
+        if (code === 'VISION_NOT_CONFIGURED') studio.setStatus?.('VISION_NOT_CONFIGURED')
+        else studio.setStatus?.(formatClientRpcFailure(e))
+      }
+    }
+
     document.addEventListener('dsh-ws-generate', onGenerate)
     document.addEventListener('dsh-ws-cancel', onCancel)
     document.addEventListener('dsh-ws-video-generate', onVideoGenerate)
+    document.addEventListener('dsh-ws-video-cancel', onVideoCancel)
+    document.addEventListener('dsh-ws-reverse-prompt', onReversePrompt)
     disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
 
 
@@ -320,6 +434,8 @@ export function apply(ctx, _config) {
   disposers.push(() => document.removeEventListener('dsh-ws-plan', onPlan))
     disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
     disposers.push(() => document.removeEventListener('dsh-ws-video-generate', onVideoGenerate))
+    disposers.push(() => document.removeEventListener('dsh-ws-video-cancel', onVideoCancel))
+    disposers.push(() => document.removeEventListener('dsh-ws-reverse-prompt', onReversePrompt))
     disposers.push(() => studio.dispose())
   } catch (error) {
     console.warn('[dsh-image-workstation] sidebar/CTA mount failed:', error)

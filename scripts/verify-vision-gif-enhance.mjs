@@ -8,11 +8,14 @@ import { gifGenerate, ecommerceGenerate, GIF_STUB_NOT_WIRED, ECOM_STUB_NOT_WIRED
 import {
   createCtaRpcHandler,
   mapGenerateRequest,
+  mapVideoRequest,
   CTA_RPC_REVERSE_PROMPT,
   CTA_RPC_ENHANCE_PROMPT,
+  CTA_RPC_VIDEO_GENERATE,
   CTA_RPC_GIF_GENERATE,
   CTA_RPC_ECOM_GENERATE,
 } from '../src/protocol/cta-rpc.js'
+import { createVideoAsyncAdapter } from '../src/protocol/video-async.js'
 import { resolveConfig } from '../src/config.js'
 import { resolveMediaBag } from '../src/protocol/resolve-media.js'
 
@@ -103,6 +106,28 @@ if (!enhanceArgs || enhanceArgs.aspect_ratio !== '16:9' || enhanceArgs.resolutio
 }
 if (enhanceArgs.size !== mapped.size) fail(`size mismatch ${enhanceArgs.size} vs ${mapped.size}`)
 
+// videoGenerate not configured → VIDEO_NOT_CONFIGURED
+const videoAdapter = createVideoAsyncAdapter({ dataDir: '/tmp' }, null)
+mediaProxy.videoGenerate = (req) => videoAdapter.generate(req)
+const mappedV = mapVideoRequest({
+  prompt: 'rain street',
+  duration: '5秒',
+  ratio: '16:9',
+  clarity: '1K',
+  mode: '文生视频',
+})
+if (mappedV.durationSec !== 5 || mappedV.aspect_ratio !== '16:9') {
+  fail(`mapVideoRequest ${JSON.stringify(mappedV)}`)
+}
+const vid = await handler(CTA_RPC_VIDEO_GENERATE, {
+  prompt: 'wet dusk street',
+  duration: '5秒',
+  mode: '文生视频',
+})
+if (vid.ok !== false || vid.error?.code !== 'VIDEO_NOT_CONFIGURED') {
+  fail(`rpc video ${JSON.stringify(vid)}`)
+}
+
 const gif = await handler(CTA_RPC_GIF_GENERATE, { prompt: 'x' })
 if (gif.ok !== false || gif.error?.code !== GIF_STUB_NOT_WIRED) fail(`rpc gif ${JSON.stringify(gif)}`)
 
@@ -117,6 +142,7 @@ if (cfgDef.mediaProvider !== 'anthropic-compat') fail(`default provider ${cfgDef
 
 console.log('OK verify-vision-gif-enhance')
 console.log('- VISION_NOT_CONFIGURED / ENHANCE_NOT_CONFIGURED honest')
+console.log('- VIDEO_NOT_CONFIGURED via videoGenerate RPC')
 console.log('- GIF_STUB_NOT_WIRED / ECOM_STUB_NOT_WIRED')
 console.log('- enhance uses mapGenerateRequest aspect_ratio/resolution/size')
 console.log('- default mediaProvider=anthropic-compat')

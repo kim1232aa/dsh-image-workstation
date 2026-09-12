@@ -8,8 +8,12 @@ export const HOST_GENERATE_TIMEOUT_MS = 300_000
 /** 图生图 multipart can be slower */
 export const HOST_EDIT_TIMEOUT_MS = 180_000
 
+/** Video async poll can run up to ~600s */
+export const HOST_VIDEO_TIMEOUT_MS = 620_000
+
 /** Client abort slightly after host so host scrubbed error wins when possible. */
 export const CLIENT_GENERATE_TIMEOUT_MS = 310_000
+export const CLIENT_VIDEO_TIMEOUT_MS = 630_000
 
 /**
  * @param {string} msg

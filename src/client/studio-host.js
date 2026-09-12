@@ -1955,8 +1955,8 @@ export function createStudioHost(opts = {}) {
       }
       const rpc = getRpc?.()
       if (!rpc || typeof rpc.call !== 'function') {
-        // Honest — do not claim 「已增强」 when RPC missing
-        setStatus(`「${PROMPT_ACTIONS.enhance}」未接线`)
+        // Honest — never fake 「已增强」
+        setStatus('ENHANCE_NOT_CONFIGURED')
         return
       }
       setStatus(`${PROMPT_ACTIONS.enhance}中…`)
@@ -1974,8 +1974,10 @@ export function createStudioHost(opts = {}) {
         } else {
           const code = result?.error?.code ? String(result.error.code) : ''
           const msg = result?.error?.message ? String(result.error.message) : '增强失败'
-          // Missing endpoint / not configured → 未接线; else show scrubbed failure
-          if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED' || code === 'ENHANCE_NOT_CONFIGURED') {
+          // Missing VISION_* → exact ENHANCE_NOT_CONFIGURED; never fake 「已增强」
+          if (code === 'ENHANCE_NOT_CONFIGURED') {
+            setStatus('ENHANCE_NOT_CONFIGURED')
+          } else if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED') {
             setStatus(`「${PROMPT_ACTIONS.enhance}」未接线`)
           } else {
             setStatus(
@@ -1986,10 +1988,9 @@ export function createStudioHost(opts = {}) {
           }
         }
       } catch (e) {
-        const msg = String(e?.message || e)
-        setStatus(/unknown|not.?wired|not.?configured/i.test(msg)
-          ? `「${PROMPT_ACTIONS.enhance}」未接线`
-          : `${PROMPT_ACTIONS.enhance}失败：${msg}`)
+        const code = e?.code ? String(e.code) : ''
+        if (code === 'ENHANCE_NOT_CONFIGURED') setStatus('ENHANCE_NOT_CONFIGURED')
+        else setStatus(`${PROMPT_ACTIONS.enhance}失败：${e?.message || e}`)
       }
     })
     host.querySelector('[data-ws-action="templates"]')?.addEventListener('click', () => {
@@ -2023,6 +2024,17 @@ export function createStudioHost(opts = {}) {
         } else if (name === UI_DESIGN_PAGE || name === 'UI 设计') {
           gifApi?.close?.()
           uiDesignApi?.open?.()
+        } else if (name === '反推提示词') {
+          // Thin: dispatch → client.js reversePrompt RPC (VISION_*)
+          host.dispatchEvent(
+            new CustomEvent('dsh-ws-reverse-prompt', {
+              bubbles: true,
+              detail: {
+                refImages: Array.isArray(state.refImages) ? state.refImages : [],
+                instruction: undefined,
+              },
+            }),
+          )
         } else {
           setStatus(`「${name}」未接线`)
         }
@@ -2422,10 +2434,25 @@ export function createStudioHost(opts = {}) {
     getHostEl() {
       return host
     },
-    /** Honest video stub failure — never invent success */
+    /** Honest video failure — never invent success; status text verbatim (e.g. VIDEO_NOT_CONFIGURED) */
     paintVideoStubFailure(message) {
       ensure()
-      videoApi?.showStubFailure?.(message || '视频通道未接')
+      videoApi?.showStubFailure?.(message || 'VIDEO_NOT_CONFIGURED')
+    },
+    /** Live video.async results */
+    paintVideoResult(value) {
+      ensure()
+      videoApi?.paintVideoResult?.(value)
+    },
+    setVideoProgress(value) {
+      ensure()
+      videoApi?.setVideoProgress?.(value)
+    },
+    /** Fill 普通生图 prompt from reversePrompt RPC */
+    applyReversedPrompt(text) {
+      ensure()
+      state.prompt = String(text || '')
+      syncFields()
     },
     /**
      * Progress UI: 进度 · 耗时 · 取消

@@ -1,7 +1,7 @@
 /**
  * 视频生成 page shell — independent of 普通生图 dock.
  * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
- * Labels exact from ../ui/labels.js. CTA = event stub (no paid generate).
+ * Labels exact from ../ui/labels.js. CTA → dsh-ws-video-generate → host videoGenerate.
  */
 import {
   COLUMNS,
@@ -304,7 +304,7 @@ export function buildVideoPageHtml(T, css, paneWidths, state) {
 }
 
 /**
- * Mount video page into host (after image cols). Wire mode/params/frames/CTA stubs.
+ * Mount video page into host (after image cols). Wire mode/params/frames/CTA → RPC event.
  * @param {HTMLElement} host
  * @param {{ T: TokenMap, css: object, paneWidths: { history: number }, getStatusEl?: () => Element | null }} opts
  * @returns {{ state: ReturnType<typeof defaultVideoState>, setPage: (tab: string) => void, dispose: () => void }}
@@ -525,14 +525,52 @@ export function mountVideoPage(host, opts) {
     setStatus('已清空历史')
   })
 
-  // CTA stub — never disabled / no paid generate
+  // CTA → client.js → /dsh-ws videoGenerate (never fake success)
   const cta = page.querySelector('[data-ws-video-cta]')
   if (cta instanceof HTMLButtonElement) {
     cta.disabled = false
     cta.removeAttribute('disabled')
   }
+
+  const clearFail = () => {
+    const fail = page.querySelector('[data-ws-video-fail]')
+    if (fail) fail.removeAttribute('data-visible')
+  }
+
+  const showBusy = () => {
+    const stage = page.querySelector('[data-ws-video-stage]')
+    const prog = page.querySelector('[data-ws-video-progress]')
+    const hint = page.querySelector('[data-ws-video-stage-empty-hint]')
+    const results = page.querySelector('[data-ws-video-results]')
+    const actions = page.querySelector('[data-ws-video-result-actions]')
+    clearFail()
+    if (results instanceof HTMLElement) {
+      results.innerHTML = ''
+      results.hidden = true
+      results.style.display = 'none'
+    }
+    if (actions) actions.removeAttribute('data-visible')
+    if (hint instanceof HTMLElement) hint.hidden = true
+    if (stage instanceof HTMLElement) {
+      stage.setAttribute('data-busy', '')
+      stage.removeAttribute('data-has-results')
+    }
+    if (prog) {
+      prog.setAttribute('data-visible', '')
+      const label = prog.querySelector('[data-ws-progress-label]')
+      if (label) label.textContent = '等待宿主进度'
+      const elapsed = prog.querySelector('[data-ws-progress-elapsed]')
+      if (elapsed) elapsed.textContent = '耗时 0s'
+      const phase = prog.querySelector('[data-ws-progress-phase]')
+      if (phase) phase.textContent = ''
+      const barWrap = prog.querySelector('[data-ws-progress-bar]')
+      if (barWrap) barWrap.setAttribute('data-indeterminate', '')
+    }
+    setStatus('等待宿主进度…')
+  }
+
   const showStubFailure = (message) => {
-    const msg = message || '视频通道未接'
+    const msg = message || 'VIDEO_NOT_CONFIGURED'
     const stage = page.querySelector('[data-ws-video-stage]')
     const prog = page.querySelector('[data-ws-video-progress]')
     const fail = page.querySelector('[data-ws-video-fail]')
@@ -547,6 +585,7 @@ export function mountVideoPage(host, opts) {
     if (results instanceof HTMLElement) {
       results.innerHTML = ''
       results.hidden = true
+      results.style.display = 'none'
     }
     if (actions) actions.removeAttribute('data-visible')
     if (hint instanceof HTMLElement) hint.hidden = true
@@ -558,9 +597,93 @@ export function mountVideoPage(host, opts) {
     setStatus(msg)
   }
 
+  /**
+   * @param {{ phase?: string, error?: string, results?: Array<{ url?: string, kind?: string }>, elapsedMs?: number, jobId?: string }} value
+   */
+  const paintVideoResult = (value) => {
+    const phase = String(value?.phase || '')
+    const err = value?.error != null ? String(value.error) : ''
+    if (phase === 'failed' || phase === 'error') {
+      showStubFailure(err || 'VIDEO_GENERATE_FAILED')
+      return
+    }
+    if (phase === 'cancelled') {
+      const prog = page.querySelector('[data-ws-video-progress]')
+      const stage = page.querySelector('[data-ws-video-stage]')
+      if (prog) prog.removeAttribute('data-visible')
+      if (stage) stage.removeAttribute('data-busy')
+      clearFail()
+      setStatus('已取消')
+      return
+    }
+    const list = Array.isArray(value?.results) ? value.results : []
+    const urls = list.map((r) => r?.url).filter((u) => typeof u === 'string' && u)
+    if (!urls.length) {
+      showStubFailure(err || 'VIDEO_GENERATE_FAILED')
+      return
+    }
+    const stage = page.querySelector('[data-ws-video-stage]')
+    const prog = page.querySelector('[data-ws-video-progress]')
+    const fail = page.querySelector('[data-ws-video-fail]')
+    const hint = page.querySelector('[data-ws-video-stage-empty-hint]')
+    const results = page.querySelector('[data-ws-video-results]')
+    const actions = page.querySelector('[data-ws-video-result-actions]')
+    if (prog) prog.removeAttribute('data-visible')
+    if (fail) fail.removeAttribute('data-visible')
+    if (hint instanceof HTMLElement) hint.hidden = true
+    if (stage instanceof HTMLElement) {
+      stage.removeAttribute('data-busy')
+      stage.setAttribute('data-has-results', '')
+    }
+    if (results instanceof HTMLElement) {
+      results.hidden = false
+      results.style.display = 'grid'
+      results.style.gridTemplateColumns = 'repeat(auto-fill, minmax(160px, 1fr))'
+      results.style.gap = '8px'
+      results.innerHTML = urls
+        .map(
+          (url) =>
+            `<div data-ws-video-result-card style="border-radius:8px;overflow:hidden;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);">` +
+            `<video src="${escapeHtml(url)}" controls playsinline style="width:100%;display:block;max-height:220px;background:#000;"></video>` +
+            `</div>`,
+        )
+        .join('')
+    }
+    if (actions) actions.setAttribute('data-visible', '')
+    const elapsed = value?.elapsedMs != null ? Math.round(Number(value.elapsedMs) / 1000) : null
+    setStatus(elapsed != null ? `视频生成完成 · ${elapsed}s` : '视频生成完成')
+  }
+
+  /**
+   * @param {{ phase?: string, elapsedMs?: number, status?: string }} value
+   */
+  const setVideoProgress = (value) => {
+    const prog = page.querySelector('[data-ws-video-progress]')
+    const stage = page.querySelector('[data-ws-video-stage]')
+    if (!(prog instanceof HTMLElement)) return
+    prog.setAttribute('data-visible', '')
+    if (stage instanceof HTMLElement) stage.setAttribute('data-busy', '')
+    clearFail()
+    const label = prog.querySelector('[data-ws-progress-label]')
+    if (label) label.textContent = value?.status === 'running' ? '生成中…' : '等待宿主进度'
+    const elapsed = prog.querySelector('[data-ws-progress-elapsed]')
+    if (elapsed && value?.elapsedMs != null) {
+      elapsed.textContent = `耗时 ${Math.max(0, Math.round(Number(value.elapsedMs) / 1000))}s`
+    }
+    const phase = prog.querySelector('[data-ws-progress-phase]')
+    if (phase && value?.phase) phase.textContent = String(value.phase)
+  }
+
   cta?.addEventListener('click', () => {
-    // Honest stub: never invent progress/success — host video.async is VIDEO_STUB_NOT_WIRED
-    showStubFailure('视频通道未接')
+    if (!String(state.prompt || '').trim()) {
+      showStubFailure('请先输入提示词')
+      return
+    }
+    if (state.mode === MODE_IMG && !state.firstFrame?.url) {
+      showStubFailure('图生视频需要首帧图')
+      return
+    }
+    showBusy()
     host.dispatchEvent(
       new CustomEvent('dsh-ws-video-generate', {
         bubbles: true,
@@ -583,7 +706,7 @@ export function mountVideoPage(host, opts) {
     const stage = page.querySelector('[data-ws-video-stage]')
     if (prog) prog.removeAttribute('data-visible')
     if (stage) stage.removeAttribute('data-busy')
-    setStatus('已取消（客户端 stub）')
+    setStatus('已取消')
     host.dispatchEvent(
       new CustomEvent('dsh-ws-video-cancel', { bubbles: true, detail: { reason: 'user' } }),
     )
@@ -640,6 +763,9 @@ export function mountVideoPage(host, opts) {
     state,
     setPage,
     showStubFailure,
+    showBusy,
+    paintVideoResult,
+    setVideoProgress,
     setStatus,
     dispose() {
       ;['first', 'last'].forEach((which) => {
