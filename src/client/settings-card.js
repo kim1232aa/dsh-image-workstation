@@ -158,11 +158,11 @@ export function WorkstationSettingsCard(props) {
   const detectStyle = detectDisabled
     ? {
         ...btnBase,
-        border: borderStrong,
+        border: '1px dashed var(--dsw-alias-border-l3, #c9cdd6)',
         background: 'transparent',
         color: fgMuted,
         cursor: 'not-allowed',
-        opacity: 0.35,
+        opacity: 0.3,
         pointerEvents: 'none',
       }
     : {
@@ -338,27 +338,47 @@ export function WorkstationSettingsCard(props) {
                 background: layer3,
                 padding: '10px 14px 14px',
                 borderTop: border,
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 8,
                 flexShrink: 0,
               },
             },
-            h('button', { type: 'button', style: primaryStyle, disabled: busy, onClick: onSave }, 'Save'),
             h(
-              'button',
+              'div',
               {
-                type: 'button',
-                style: detectStyle,
-                disabled: detectDisabled,
-                'aria-disabled': detectDisabled ? 'true' : 'false',
-                onClick: detectDisabled ? undefined : onProbe,
-                title: canDetect
-                  ? 'Detect available models'
-                  : 'Set API base URL and configure a key first',
+                style: {
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                },
               },
-              'Detect models',
+              h('button', { type: 'button', style: primaryStyle, disabled: busy, onClick: onSave }, 'Save'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  style: detectStyle,
+                  disabled: detectDisabled,
+                  'aria-disabled': detectDisabled ? 'true' : 'false',
+                  onClick: detectDisabled ? undefined : onProbe,
+                  title: canDetect
+                    ? 'Detect available models'
+                    : 'Set API base URL and configure a key first',
+                },
+                canDetect ? 'Detect models' : 'Detect models (needs URL + key)',
+              ),
             ),
+            !canDetect
+              ? h(
+                  'p',
+                  {
+                    style: {
+                      margin: '8px 0 0',
+                      fontSize: 11,
+                      color: fgMuted,
+                    },
+                  },
+                  'Detect stays off until base URL and key are set.',
+                )
+              : null,
           ),
         )
       : null,
