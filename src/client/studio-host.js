@@ -497,11 +497,10 @@ const HOST_STYLES = `
   opacity:.75; color: var(--dsw-alias-label-tertiary); border-style:none;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-panel] {
-  display:none; flex-direction:column; gap:4px; padding:6px 8px;
+  display:flex; flex-direction:column; gap:4px; padding:6px 8px;
   background: var(--dsw-alias-bg-module-platform);
   border:1px solid var(--dsw-alias-border-l2); border-radius:8px; flex:none;
 }
-[data-dsh-ws-studio-host] [data-ws-plan-panel][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] { display:flex; flex-wrap:wrap; gap:6px; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] button {
   padding:4px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
@@ -1081,22 +1080,48 @@ export function createStudioHost(opts = {}) {
   }
 
 
-  /** Prefer state; fall back to select DOM (automation may set value without change). */
+  /** Prefer state; fall back to select DOM (selectedIndex / selectedOptions). */
   const readSkillId = () => {
-    if (state.skillId) return state.skillId
     const sel = host?.querySelector('[data-ws-param="skill"]')
-    if (sel instanceof HTMLSelectElement && sel.value) {
-      state.skillId = sel.value
-      return state.skillId
+    if (sel instanceof HTMLSelectElement) {
+      const fromDom =
+        (sel.value && String(sel.value).trim()) ||
+        (sel.selectedOptions?.[0]?.value && String(sel.selectedOptions[0].value).trim()) ||
+        ''
+      if (fromDom) {
+        if (state.skillId !== fromDom) state.skillId = fromDom
+        return fromDom
+      }
     }
+    if (state.skillId) return state.skillId
     return null
+  }
+
+  /** Apply matched skill into select + state (smart match). Never required for CTA. */
+  const applyMatchedSkill = (label) => {
+    if (!label) return null
+    const id = String(label).trim()
+    if (!id) return null
+    state.skillId = id
+    const sel = host?.querySelector('[data-ws-param="skill"]')
+    if (sel instanceof HTMLSelectElement) {
+      const opt = Array.from(sel.options).find((o) => o.value === id)
+      if (opt) sel.value = id
+      sel.setAttribute('data-ws-skill', id)
+    }
+    if (id === '三联封面') state.ratio = '3:4'
+    if (id === '电影海报') state.ratio = '9:16'
+    if (id === '电影三联') state.ratio = '21:9'
+    paintSkillPlan()
+    syncFields?.()
+    return id
   }
 
   const paintSkillPlan = () => {
     const panel = host?.querySelector('[data-ws-plan-panel]')
     if (!(panel instanceof HTMLElement)) return
-    if (state.skillId) panel.setAttribute('data-visible', '')
-    else panel.removeAttribute('data-visible')
+    // Always show plan panel — smart match does not require pre-selecting a skill
+    panel.setAttribute('data-visible', '')
     const ta = panel.querySelector('[data-ws-plan-text]')
     if (ta instanceof HTMLTextAreaElement) {
       const planText =
@@ -1869,7 +1894,7 @@ export function createStudioHost(opts = {}) {
 
             <div data-ws-plan-panel>
               <div style="${css.paramLabel}">创作方案</div>
-              <textarea data-ws-plan-text rows="2" placeholder="选 Skill 后点「想方案」；也可手写" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
+              <textarea data-ws-plan-text rows="2" placeholder="点「想方案」：可选手选，或不选则按提示词智能匹配" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
               <div data-ws-plan-actions>
                 <button type="button" data-ws-plan-action="plan">${PROMPT_ACTIONS.plan}</button>
                 <button type="button" data-ws-plan-action="replan">${PROMPT_ACTIONS.replan}</button>
@@ -2289,25 +2314,23 @@ export function createStudioHost(opts = {}) {
       btn.addEventListener('click', () => {
         const action = btn.getAttribute('data-ws-plan-action')
         if (action === 'plan' || action === 'replan') {
-          const skillId = readSkillId()
-          if (!skillId) {
-            setStatus('请先选择创作 Skill')
-            return
-          }
+          let skillId = readSkillId()
           applySkillSideEffects?.(skillId)
           paintSkillPlan()
           const ta = host.querySelector('[data-ws-plan-text]')
           if (ta instanceof HTMLTextAreaElement) {
             ta.placeholder = '正在想方案…'
           }
-          setStatus('想方案中…')
+          setStatus(skillId ? '想方案中…' : '未选手选 — 按提示词智能匹配 Skill…')
           host.dispatchEvent(
             new CustomEvent('dsh-ws-plan', {
               bubbles: true,
               detail: {
                 action,
-                skillId,
+                skillId: skillId || '',
+                autoMatch: !skillId,
                 prompt: state.prompt,
+                planText: ta instanceof HTMLTextAreaElement ? ta.value : '',
                 skillPlan: state.skillPlan,
                 mode: state.mode,
                 refImageIds: (state.refImages || []).map((r) => r.id).filter(Boolean),
@@ -2726,6 +2749,11 @@ export function createStudioHost(opts = {}) {
      * Apply host planSkill result to 方案卡 (display only; never locks CTA).
      * @param {any} plan
      */
+    /** Smart-match: set skill select from suggested label (optional). */
+    applyMatchedSkill(label) {
+      ensure()
+      return applyMatchedSkill(label)
+    },
     paintSkillPlanResult(plan) {
       ensure()
       const card =

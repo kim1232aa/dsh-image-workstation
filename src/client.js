@@ -33,6 +33,7 @@ export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 export const CTA_RPC_GALLERY_ADD = 'gallery.add'
 export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
 export const SKILL_RPC_PLAN = 'plan'
+export const SKILL_RPC_SUGGEST = 'suggest'
 
 /**
  * Connection rpc.call POSTs `${resolveBase()}${channel}/${endpoint}`.
@@ -794,22 +795,37 @@ export function apply(ctx, _config) {
    */
   const onPlan = async (ev) => {
     const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
-    const skillId = detail.skillId
-    if (!skillId) {
-      studio.setStatus?.('请先选择创作 Skill')
-      return
-    }
+    let skillId = String(detail.skillId || '').trim()
     const rpc = ctx.connection?.rpc
     if (!rpc || typeof rpc.call !== 'function') {
       studio.setStatus?.('连接不可用，无法想方案')
       return
     }
-    studio.setStatus?.('想方案中…')
+    const brief = String(detail.prompt || detail.planText || '').trim()
     try {
+      // Smart match when user did not pick a skill (or DOM/state desynced)
+      if (!skillId) {
+        studio.setStatus?.('按提示词智能匹配 Skill…')
+        const sug = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_SUGGEST, {
+          theme: brief || detail.prompt || '',
+          prompt: brief || detail.prompt || '',
+        })
+        const topLabel = sug?.ok && sug.value?.top?.label ? String(sug.value.top.label) : ''
+        if (topLabel) {
+          studio.applyMatchedSkill?.(topLabel)
+          skillId = topLabel
+          studio.setStatus?.(`已智能匹配「${topLabel}」，想方案中…`)
+        } else {
+          studio.setStatus?.('未匹配到 Skill — 可不选直接出图，或手选后再想方案')
+          return
+        }
+      } else {
+        studio.setStatus?.('想方案中…')
+      }
       const result = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_PLAN, {
         skillId,
-        brief: detail.prompt || '',
-        prompt: detail.prompt || '',
+        brief: brief || detail.prompt || '',
+        prompt: brief || detail.prompt || '',
         mode: detail.mode,
         refImageIds: Array.isArray(detail.refImageIds) ? detail.refImageIds : undefined,
       })

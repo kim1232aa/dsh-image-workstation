@@ -12,4 +12,5 @@
 | score → CTA | **never** (`disabledByScore: false`) |
 | mediaProxy | **untouched** |
 | suggest | `/dsh-ws-skill` suggest + Agent `suggest_skill`/`list_skills`；永不锁出图 |
-| auto-match | 不自动强绑；主题仅建议（如「生命感人像」→人像） |
+| auto-match | 想方案时可按提示词智能匹配并填入下拉；仍可不选直接出图 |
+| 想方案 | 可不选手选：`suggest`→自动填入口再 `plan`；DOM/state 不同步时以 select 为准 |
