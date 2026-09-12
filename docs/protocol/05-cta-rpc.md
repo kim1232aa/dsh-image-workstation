@@ -34,12 +34,6 @@ mode=`图生图` + `refImages[0].url` (data URL) → `mediaProxy.edit` → `POST
 
 If generate needs accounts / model keys, check host logs and default model (`gpt-image-2`); do not invent success.
 
-## Dev helper: prior local gens (not CTA success)
+## Dev helper: removed
 
-For layout-only shots without another paid CTA:
-
-1. Console: `window.__dshWsPaintDemoResults()`, **or**
-2. `studio.paintDemoLocalResults()`, **or**
-3. `?wsDemoResults=1` (opt-in; production open does not auto-paint)
-
-Paints prior local fixtures into right `[data-ws-results]` via `paintGenerateResult`. Demo disclaimer is **console-only** — never user-visible `setStatus`. Respects current 张数. Broken fixtures are skipped (no near-black fallback). No picsum / stock placeholders.
+`DEMO_LOCAL` / `demo-local-results` / `paintDemoLocalResults` / `?wsDemoResults` / apple fixtures (`802bb6e4`) were deleted (`fcfe98d`). Do **not** revive them. Layout/results shots must use a real CTA generate (or prior real CTA outputs), never apple/robot fixtures.
