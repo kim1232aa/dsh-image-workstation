@@ -5,15 +5,6 @@
  */
 import { randomUUID } from 'node:crypto'
 import { appendFileSync } from 'node:fs'
-
-const CTA_HIT_LOG = '/tmp/dsh-cta-hits.log'
-function logGenHit(line) {
-  try {
-    appendFileSync(CTA_HIT_LOG, `${new Date().toISOString()} ${line}\n`)
-  } catch {
-    /* ignore */
-  }
-}
 import { listPhase1Adapters } from './adapters.js'
 import { CREDENTIAL_LANES } from './types.js'
 import { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
@@ -23,6 +14,15 @@ import { loadVisionEnv, reversePrompt as visionReversePrompt, visionEnvSummary }
 import { enhancePrompt as runEnhancePrompt } from './prompt-enhance.js'
 import { gifGenerate, ecommerceGenerate } from './gif-ecom.js'
 import { canvasGenerate } from './canvas-generate.js'
+
+const CTA_HIT_LOG = '/tmp/dsh-cta-hits.log'
+function logGenHit(line) {
+  try {
+    appendFileSync(CTA_HIT_LOG, `${new Date().toISOString()} ${line}\n`)
+  } catch {
+    /* ignore */
+  }
+}
 
 const NOT_WIRED = (seat) => {
   const err = new Error(`[dsh-image-workstation] host proxy seat "${seat}" not wired`)
@@ -49,6 +49,10 @@ export function createHostProxy(resolved, mediaEnv = null) {
     ? mediaEnv.vision
     : loadVisionEnv()
   const visionConfigured = Boolean(visionEnv?.configured)
+  // GIF seat: Nova sprite sheet via images lane, or optional GIF_* override
+  const gifLane = mediaEnv?.gif && typeof mediaEnv.gif === 'object' ? mediaEnv.gif : null
+  const gifConfigured =
+    liveGenerate || Boolean(gifLane?.baseUrl && (gifLane?.token || gifLane?.apiKey))
 
   const proxy = {
     lanes: CREDENTIAL_LANES,
