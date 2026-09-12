@@ -125,7 +125,7 @@ const css = {
   pill: (opts = {}) =>
     `padding:${opts.pad || '2px 10px'};border:1px solid ${T.border2};border-radius:999px;background:${opts.fill || 'transparent'};color:${opts.color || T.fg2};cursor:pointer;font:inherit;font-size:${opts.size || '11.5px'};`,
   topTab: (on) =>
-    `padding:3px 9px;border:0;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg3};cursor:pointer;border-radius:6px;font:inherit;font-size:11.5px;font-weight:${on ? 600 : 500};line-height:1.2;`,
+    `padding:2px 7px;border:0;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg3};cursor:pointer;border-radius:5px;font:inherit;font-size:11px;font-weight:${on ? 500 : 400};line-height:1.2;`,
 }
 
 const HOST_STYLES = `
@@ -225,18 +225,18 @@ const HOST_STYLES = `
   font:inherit; font-size:11px; display:inline-flex; align-items:center; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-stage] {
-  /* Idle: absorb leftover column height as quiet muted empty (VisioWork-shaped).
-     NEVER leave spacer between dock params and CTA — stage takes the void. */
-  flex:1 1 0; min-height:72px; display:flex; flex-direction:column; gap:4px;
-  margin:0; padding:8px 12px; overflow:hidden;
-  background: var(--dsw-alias-bg-module-platform); border-bottom:1px solid var(--dsw-alias-border-l2);
+  /* Idle: compact hint strip BELOW form — NOT half-column gray sea.
+     Form (dock+CTA) sits above; results land here when present. */
+  flex:0 0 auto; min-height:40px; max-height:72px; display:flex; flex-direction:column; gap:4px;
+  margin:0; padding:6px 12px; overflow:hidden;
+  background: var(--dsw-alias-bg-module-platform); border-top:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-stage][data-has-results] {
-  flex:2.6 1 0; min-height:160px; padding:8px 12px; gap:8px;
+  flex:1 1 auto; min-height:160px; max-height:none; padding:8px 12px; gap:8px;
   background: var(--dsw-alias-bg-base);
 }
 [data-dsh-ws-studio-host] [data-ws-stage][data-busy] {
-  flex:1.2 1 0; min-height:96px; padding:8px 12px; gap:6px;
+  flex:1 1 auto; min-height:96px; max-height:none; padding:8px 12px; gap:6px;
   background: var(--dsw-alias-bg-base);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
@@ -320,9 +320,8 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-has-results]) [data-ws-dock],
 [data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-busy]) [data-ws-dock] {
-  /* Results/busy: stage takes flex growth; dock stays compact */
+  /* Results/busy: stage grows below; dock stays compact at top */
   flex:0 0 auto; max-height:40%;
-  border-top:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-empty] {
   grid-column:1 / -1; flex:1; min-height:120px;
@@ -347,7 +346,7 @@ const HOST_STYLES = `
   flex:1 1 8rem; min-width:0; max-width:14rem;
 }
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
-  /* Pack directly under dock — no margin-top:auto (that created the param–CTA white void). */
+  /* Pack directly under dock at TOP of mid column — form-up, results below. */
   flex:0 0 auto; margin-top:0; position:relative; z-index:2;
   padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
   display:flex; flex-direction:column; gap:4px;
@@ -459,24 +458,29 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-pane-drag][data-active] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+[data-dsh-ws-studio-host] [data-ws-col="studio"] {
+  /* Form-up: dock+CTA pack at top; compact result landing below */
+  display:flex; flex-direction:column; justify-content:flex-start; flex:1; min-width:0; min-height:0;
+  overflow:hidden; background: var(--dsw-alias-bg-base);
+}
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
 [data-dsh-ws-studio-host] [data-ws-top-bar] {
-  display:flex; gap:8px; padding:4px 10px; align-items:center; flex-shrink:0;
+  display:flex; gap:6px; padding:3px 10px; align-items:center; flex-shrink:0;
   background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l1, var(--dsw-alias-border-l2));
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] {
-  display:inline-flex; align-items:center; gap:1px; flex:none;
-  padding:2px; border-radius:8px;
+  display:inline-flex; align-items:center; gap:0; flex:none;
+  padding:1px; border-radius:7px;
   background: var(--dsw-alias-bg-module-platform);
   border:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top] {
-  padding:3px 9px; border:0; border-radius:6px; font:inherit; font-size:11.5px; line-height:1.2;
+  padding:2px 7px; border:0; border-radius:5px; font:inherit; font-size:11px; line-height:1.2; font-weight:400;
   cursor:pointer; background:transparent; color: var(--dsw-alias-label-tertiary);
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][aria-current="true"],
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][data-active] {
-  background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); font-weight:600;
+  background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); font-weight:500;
 }
 [data-dsh-ws-studio-host] textarea,
 [data-dsh-ws-studio-host] input:not([type="checkbox"]):not([type="file"]),
@@ -1331,38 +1335,8 @@ export function createStudioHost() {
         </aside>
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
-        <!-- CENTER: 出图台 — stage (samples/results) + compact dock + sticky CTA -->
-        <section data-ws-col="studio" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:${T.bg};border-left:0;border-right:0;">
-          <div data-ws-stage aria-label="出图台">
-            <div data-ws-stage-head>
-              <strong>${STAGE_LABEL}</strong>
-              <span data-ws-stage-empty-hint>${STAGE_EMPTY_HINT}</span>
-            </div>
-            <div data-ws-progress>
-              <div data-ws-progress-meta>
-                <span data-ws-progress-label>进度 0%</span>
-                <span data-ws-progress-elapsed>耗时 0s</span>
-                <span data-ws-progress-phase style="color:${T.fg3};"></span>
-                <span style="flex:1"></span>
-                <button type="button" data-ws-cancel style="${css.pill()}">${RESULT_ACTIONS[0]}</button>
-              </div>
-              <div data-ws-progress-bar><i></i></div>
-            </div>
-            <div data-ws-fail>
-              <div data-ws-fail-reason>原因：出图失败</div>
-              <button type="button" data-ws-retry style="align-self:flex-start;${css.pill({ pad: '4px 12px', size: '12px', fill: T.active, color: T.fg })}">${RESULT_ACTIONS[1]}</button>
-            </div>
-            <div data-ws-stage-samples hidden></div>
-            <div data-ws-results hidden></div>
-            <div data-ws-result-actions>
-              ${RESULT_ACTIONS.filter((a) => a !== '取消' && a !== '重试')
-                .map(
-                  (a) =>
-                    `<button type="button" data-ws-result-action="${a}">${a}</button>`,
-                )
-                .join('')}
-            </div>
-          </div>
+        <!-- CENTER: 出图台 — form (dock+CTA) up; compact result landing below -->
+        <section data-ws-col="studio" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.bg};border-left:0;border-right:0;">
 
           <div data-ws-dock>
             <div style="display:flex;gap:6px;align-items:center;" role="tablist">
@@ -1465,6 +1439,38 @@ export function createStudioHost() {
             <button type="button" data-ws-cta style="${css.cta}">${CTA}</button>
             <p data-ws-status style="opacity:.65;font-size:11.5px;min-height:0;margin:0;"></p>
           </div>
+
+          <div data-ws-stage aria-label="出图台">
+            <div data-ws-stage-head>
+              <strong>${STAGE_LABEL}</strong>
+              <span data-ws-stage-empty-hint>${STAGE_EMPTY_HINT}</span>
+            </div>
+            <div data-ws-progress>
+              <div data-ws-progress-meta>
+                <span data-ws-progress-label>进度 0%</span>
+                <span data-ws-progress-elapsed>耗时 0s</span>
+                <span data-ws-progress-phase style="color:${T.fg3};"></span>
+                <span style="flex:1"></span>
+                <button type="button" data-ws-cancel style="${css.pill()}">${RESULT_ACTIONS[0]}</button>
+              </div>
+              <div data-ws-progress-bar><i></i></div>
+            </div>
+            <div data-ws-fail>
+              <div data-ws-fail-reason>原因：出图失败</div>
+              <button type="button" data-ws-retry style="align-self:flex-start;${css.pill({ pad: '4px 12px', size: '12px', fill: T.active, color: T.fg })}">${RESULT_ACTIONS[1]}</button>
+            </div>
+            <div data-ws-stage-samples hidden></div>
+            <div data-ws-results hidden></div>
+            <div data-ws-result-actions>
+              ${RESULT_ACTIONS.filter((a) => a !== '取消' && a !== '重试')
+                .map(
+                  (a) =>
+                    `<button type="button" data-ws-result-action="${a}">${a}</button>`,
+                )
+                .join('')}
+            </div>
+          </div>
+
         </section>
 
         <div data-ws-pane-drag="chat" title="拖拽调整灵感/对话栏宽度"></div>
