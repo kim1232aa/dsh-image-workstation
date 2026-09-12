@@ -14,9 +14,13 @@
     --dsw-alias-label-primary: #0f1115;
     --dsw-alias-label-secondary: #61666b;
     --dsw-alias-label-tertiary: #81858c;
+    --dsw-alias-border-l1: rgba(0,0,0,.06);
     --dsw-alias-border-l2: rgba(0,0,0,.1);
+    --dsw-alias-border-l4: rgba(0,0,0,.18);
     --dsw-alias-button-primary-fill: #0f1115;
     --dsw-alias-label-primary-foreground: #fff;
+    --dsw-alias-interactive-bg-active: rgba(0,0,0,.06);
+    --dsw-alias-state-business-primary: #4176e6;
     --dsh-content-font-size: 13px;
   }
   body { margin:0; font: var(--dsh-content-font-size)/1.4 system-ui,sans-serif; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
@@ -24,20 +28,36 @@
   [data-ws-cols] { display:flex; flex:1; min-height:0; }
   [data-ws-col="history"] { width:264px; border-right:1px solid var(--dsw-alias-border-l2); padding:8px; overflow:auto; background: var(--dsw-specific-sidebar-fill); }
   [data-ws-col="studio"] { flex:1; min-width:0; display:flex; flex-direction:column; background: var(--dsw-alias-bg-base); }
-  [data-ws-stage] { flex:1 1 28%; min-height:72px; padding:8px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); }
-  [data-ws-stage][data-has-results] { flex:2.4 1 0; }
-  [data-ws-dock] { flex:0 1 auto; max-height:52%; padding:6px 12px 0; display:flex; flex-direction:column; gap:4px; border-top:1px solid var(--dsw-alias-border-l2); }
-  [data-ws-inspire-wall] { width:318px; border-left:1px solid var(--dsw-alias-border-l2); padding:8px; background: var(--dsw-alias-bg-base); }
-  [data-ws-inspire-empty] { min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:36px 16px; text-align:center; border:1px dashed var(--dsw-alias-border-l2); border-radius:12px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
+  /* Empty stage = compact strip (no white-sea) */
+  [data-ws-stage] { flex:0 0 auto; min-height:0; padding:5px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); display:flex; flex-direction:column; gap:4px; }
+  [data-ws-stage][data-has-results] { flex:2.6 1 0; min-height:160px; padding:8px 12px; }
+  [data-ws-stage][data-busy] { flex:1.2 1 0; min-height:96px; padding:8px 12px; }
+  [data-ws-stage-head] { display:flex; align-items:baseline; gap:8px; }
+  [data-ws-stage-head] strong { font-size:12px; font-weight:600; color: var(--dsw-alias-label-secondary); }
+  [data-ws-stage][data-has-results] [data-ws-stage-head] strong { font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary); }
+  [data-ws-stage-empty-hint] { font-size:11.5px; color: var(--dsw-alias-label-tertiary); }
+  [data-ws-results] { display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:10px; flex:1; min-height:0; overflow:auto; }
+  [data-ws-results][hidden] { display:none !important; }
+  [data-ws-result-card] { border:1px solid var(--dsw-alias-border-l2); border-radius:10px; padding:4px; background: var(--dsw-alias-bg-module-platform); overflow:hidden; }
+  [data-ws-dock] { flex:1 1 auto; padding:8px 12px 0; display:flex; flex-direction:column; gap:4px; overflow:auto; min-height:0; }
+  [data-ws-col="studio"]:has([data-ws-stage][data-has-results]) [data-ws-dock],
+  [data-ws-col="studio"]:has([data-ws-stage][data-busy]) [data-ws-dock] { flex:0 1 auto; max-height:40%; border-top:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-inspire-wall] { width:318px; border-left:1px solid var(--dsw-alias-border-l2); padding:8px; background: var(--dsw-alias-bg-base); display:flex; flex-direction:column; gap:8px; }
+  /* Solid quiet empty — no dashed wireframe */
+  [data-ws-inspire-empty] { min-height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:28px 16px; text-align:center; border:0; border-radius:10px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); flex:1; }
   [data-ws-inspire-empty] span { font-size:11.5px; color: var(--dsw-alias-label-tertiary); }
   [data-ws-pane-drag] { width:5px; cursor:col-resize; background:transparent; }
   [data-ws-ref-slot] { display:none; padding:8px; border:1px dashed var(--dsw-alias-border-l2); margin:0; border-radius:10px; background: var(--dsw-alias-bg-module-platform); }
   [data-ws-ref-slot][data-visible] { display:block; }
   [data-ws-progress], [data-ws-fail], [data-ws-result-actions], [data-ws-plan-panel] { display:none; margin:0; padding:8px; border-radius:10px; border:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-module-platform); }
   [data-ws-progress][data-visible], [data-ws-fail][data-visible], [data-ws-result-actions][data-visible], [data-ws-plan-panel][data-visible] { display:block; }
-  [data-ws-conn-status] { padding:0 10px; height:26px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; display:inline-flex; align-items:center; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
+  [data-ws-conn-status] { padding:0 8px; height:22px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; display:inline-flex; align-items:center; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); font-size:11px; }
   [data-ws-cta] { width:100%; min-height:40px; border:0; border-radius:9px; background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); font-weight:700; cursor:pointer; }
-  header { display:flex; gap:4px; padding:7px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); align-items:center; background: var(--dsw-alias-bg-base); }
+  [data-ws-cta-footer] { flex:none; padding:6px 12px 10px; border-top:1px solid var(--dsw-alias-border-l2); }
+  header[data-ws-top-bar] { display:flex; gap:8px; padding:4px 10px; border-bottom:1px solid var(--dsw-alias-border-l1); align-items:center; background: var(--dsw-alias-bg-base); }
+  [data-ws-top-seg] { display:inline-flex; gap:1px; padding:2px; border-radius:8px; background: var(--dsw-alias-bg-module-platform); border:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-top-seg] button { padding:3px 9px; border:0; border-radius:6px; background:transparent; color: var(--dsw-alias-label-tertiary); font:inherit; font-size:11.5px; cursor:pointer; }
+  [data-ws-top-seg] button[aria-current="true"] { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); font-weight:600; }
   button { font:inherit; cursor:pointer; }
   .note { color: var(--dsw-alias-label-tertiary); font-size:11px; padding:8px 12px; }
 </style>
@@ -46,11 +66,13 @@
 <!-- Mirror of key DOM from src/client/studio-host.js — not a live host -->
 <div data-dsh-ws-studio-host role="main" aria-label="生图">
   <header data-ws-top-bar>
-    <button type="button" data-ws-top="普通生图">普通生图</button>
-    <button type="button" data-ws-top="视频生成">视频生成</button>
-    <button type="button" data-ws-top="无限画布">无限画布</button>
-    <button type="button" data-ws-top="画廊">画廊</button>
-    <button type="button" data-ws-top="电商模式">电商模式</button>
+    <div data-ws-top-seg role="tablist" aria-label="工作台模式">
+      <button type="button" data-ws-top="普通生图" aria-current="true" data-active>普通生图</button>
+      <button type="button" data-ws-top="视频生成" aria-current="false">视频生成</button>
+      <button type="button" data-ws-top="无限画布" aria-current="false">无限画布</button>
+      <button type="button" data-ws-top="画廊" aria-current="false">画廊</button>
+      <button type="button" data-ws-top="电商模式" aria-current="false">电商模式</button>
+    </div>
     <span style="flex:1"></span>
     <span data-ws-conn-status title="已连接">已连接</span>
     <button type="button" data-ws-chat-toggle>AI 对话</button>
@@ -67,7 +89,7 @@
     <section data-ws-col="studio">
       <div data-ws-stage>
         <div data-ws-stage-head><strong>生成结果</strong><span data-ws-stage-empty-hint>生成后显示在这里</span></div>
-        <div data-ws-progress data-visible>
+        <div data-ws-progress>
           <div data-ws-progress-meta>
             <span data-ws-progress-label>等待宿主进度</span>
             <span data-ws-progress-elapsed>耗时 0s</span>
@@ -76,8 +98,8 @@
           <div data-ws-progress-bar><i style="display:block;height:6px;width:36%;background:var(--dsw-alias-state-business-primary, #4176e6);"></i></div>
         </div>
         <div data-ws-fail><div data-ws-fail-reason>原因：示例失败</div><button type="button" data-ws-retry>重试</button></div>
-        <div data-ws-results></div>
-        <div data-ws-result-actions data-visible>
+        <div data-ws-results hidden></div>
+        <div data-ws-result-actions>
           <button type="button" data-ws-result-action="下载">下载</button>
           <button type="button" data-ws-result-action="加画廊">加画廊</button>
           <button type="button" data-ws-result-action="加对话">加对话</button>
@@ -92,51 +114,35 @@
           <button type="button" data-ws-mode="文生图" aria-pressed="true">文生图</button>
           <button type="button" data-ws-mode="图生图" aria-pressed="false">图生图</button>
         </div>
-        <div data-ws-ref-slot data-visible aria-label="参考图">
+        <div data-ws-ref-slot aria-label="参考图">
           <button type="button" data-ws-ref-upload>上传</button>
           <input type="file" data-ws-ref-file accept="image/*" multiple hidden />
           <div data-ws-ref-drop>点击、拖入或 Ctrl+V 粘贴</div>
           <div data-ws-ref-thumbs></div>
         </div>
-        <textarea data-ws-prompt rows="2" placeholder="描述你想生成的画面"></textarea>
-        <div data-ws-param-row>
-          <div data-ws-chips><!-- 比例/清晰度/张数/细节 chips --></div>
-        </div>
-        <div data-ws-model-row>
-          <input data-ws-param="model" placeholder="选择模型" />
-          <label><input type="checkbox" data-ws-compare /> 多模型对比</label>
-        </div>
-        <div data-ws-skill-model-row>
-          <label>创作 Skill <select data-ws-param="skill"><option value="">（不使用）</option></select></label>
-        </div>
-        <div data-ws-plan-panel data-visible>
-          <textarea data-ws-plan-text rows="2" placeholder="LLM 未接 — 可手写方案后点「就这样出图」"></textarea>
-          <div data-ws-plan-actions>
-            <button type="button" data-ws-plan-action="plan">想方案</button>
-            <button type="button" data-ws-plan-action="replan">重新想一版</button>
-            <button type="button" data-ws-plan-action="accept" data-primary>就这样出图</button>
-          </div>
+        <label>提示词 <button type="button">模板库</button> <button type="button">提示词增强</button></label>
+        <textarea rows="2" placeholder="描述你想生成的画面" data-ws-prompt style="width:100%;min-height:56px;"></textarea>
+        <div>比例 / 清晰度 / 张数 / 细节 / 模型（chips）</div>
+        <div data-ws-plan-panel>
+          <textarea rows="2" placeholder="LLM 未接 — 可手写方案后点「就这样出图」"></textarea>
         </div>
       </div>
       <div data-ws-cta-footer>
         <button type="button" data-ws-cta>开始生成</button>
-        <p data-ws-status></p>
+        <p class="note">Empty stage collapsed · dock/CTA primary · quieter top-seg · solid inspire empty</p>
       </div>
     </section>
     <div data-ws-pane-drag="chat"></div>
     <aside data-ws-inspire-wall>
-      <strong>灵感案例</strong>
-      <button type="button" data-ws-empty="shuffle">随机</button>
-      <div data-ws-inspire-grid>
+      <div style="display:flex;align-items:center;gap:8px;"><strong>灵感案例</strong><span style="flex:1"></span><button type="button">随机</button></div>
+      <div data-ws-inspire-grid style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;">
         <div data-ws-inspire-empty>
           <strong>暂无灵感</strong>
           <span>本地案例未接入，生成后可从结果加入灵感</span>
         </div>
       </div>
     </aside>
-    <aside data-ws-col="chat" style="display:none"><strong>AI 对话</strong></aside>
   </div>
 </div>
-<p class="note">Static DOM mirror for Looper / 插件工. Live studio consumes host <code>--dsw-*</code> tokens (light/dark via <code>body[data-ds-dark-theme]</code>). Mount prefers <code>[data-pane="conversation"]</code> / <code>[class*="centerCol"]</code> / <code>[data-dsh-ws-content-mount]</code>.</p>
 </body>
 </html>
