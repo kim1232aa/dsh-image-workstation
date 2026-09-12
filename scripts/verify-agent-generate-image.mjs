@@ -11,6 +11,8 @@ import {
   resolveEditRefInputs,
   listImageRefsFromUserMessage,
   findLatestUserPromptMessage,
+  extractImageRefsFromContentBlock,
+  summarizeMessageContentShapes,
 } from '../src/agent/model-policy.js'
 import {
   renderGenerateImageOutput,
@@ -193,6 +195,86 @@ ensureAgentImageConfigured({ allowAgentImageGeneration: true }, { mediaConfigure
   }
   const latest = findLatestUserPromptMessage(agent)
   if (listImageRefsFromUserMessage(latest)[0]?.attachmentId !== 'cur') fail('latest user prompt')
+}
+
+// Prefer human message that still carries images when a later text-only human exists
+{
+  const agent = {
+    session: {
+      surface: { nodes: [1, 2, 3] },
+      eventAt(seq) {
+        if (seq === 3)
+          return {
+            type: 'user/message',
+            data: {
+              role: 'user',
+              source: { kind: 'user' },
+              content: [{ type: 'text', text: 'go' }],
+            },
+          }
+        if (seq === 2)
+          return {
+            type: 'user/message',
+            data: {
+              role: 'user',
+              source: { kind: 'plugin', plugin: 'x' },
+              content: [{ type: 'text', text: 'ctx' }],
+            },
+          }
+        if (seq === 1)
+          return {
+            type: 'user/message',
+            data: {
+              role: 'user',
+              source: { kind: 'user' },
+              content: [
+                { type: 'image', attachment: { attachmentId: 'img-1', name: 'a.png', mediaType: 'image/png' } },
+                { type: 'text', text: 'edit' },
+              ],
+            },
+          }
+        return null
+      },
+    },
+  }
+  const latest = findLatestUserPromptMessage(agent)
+  if (listImageRefsFromUserMessage(latest)[0]?.attachmentId !== 'img-1') fail('prefer image-bearing user')
+}
+
+// file / image_url / bare attachment_id shapes
+{
+  const fileMsg = {
+    content: [
+      {
+        type: 'file',
+        attachment: { attachmentId: 'f1', name: 'shot.jpg', bytes: 9 },
+      },
+    ],
+  }
+  const fileRefs = listImageRefsFromUserMessage(fileMsg)
+  if (fileRefs.length !== 1 || fileRefs[0].attachmentId !== 'f1' || fileRefs[0]._kind !== 'file')
+    fail('file image-like')
+
+  const urlMsg = {
+    content: [{ type: 'image_url', image_url: { url: 'https://example.com/a.png' } }],
+  }
+  const urlRefs = listImageRefsFromUserMessage(urlMsg)
+  if (urlRefs.length !== 1 || urlRefs[0].url !== 'https://example.com/a.png') fail('image_url')
+
+  const idMsg = {
+    content: [{ type: 'image', attachment_id: 'sha256:abc', name: 'x.png', mediaType: 'image/png' }],
+  }
+  const idRefs = extractImageRefsFromContentBlock(idMsg.content[0])
+  if (idRefs.length !== 1 || idRefs[0].attachmentId !== 'sha256:abc') fail('attachment_id')
+
+  const shapes = summarizeMessageContentShapes(fileMsg)
+  if (!shapes[0]?.hasAttachment) fail('summarize shapes')
+
+  const decided = resolveEditRefInputs({
+    argRefs: ['/home/box/1/city-night-street-cinematic.jpg'],
+    messageImageRefs: fileRefs,
+  })
+  if (decided.source !== 'message_attachment') fail('file refs must override tool path')
 }
 
 console.log('OK verify-agent-generate-image')

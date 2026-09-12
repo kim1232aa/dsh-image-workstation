@@ -232,7 +232,122 @@ export function mapAgentEditRequest(args, model, image, signal) {
  */
 
 /**
- * ImageAttachmentRef[] from one user message content (type=image blocks only).
+ * True when a file/image attachment name or mediaType looks like a raster image.
+ * @param {any} att
+ */
+export function isImageLikeAttachment(att) {
+  if (!att || typeof att !== 'object') return false
+  const media = String(att.mediaType || att.mime || att.contentType || '').toLowerCase()
+  if (media.startsWith('image/')) return true
+  const name = String(att.name || att.filename || '').toLowerCase()
+  return /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(name)
+}
+
+/**
+ * Normalize one attachment-ish object (camel or snake_case).
+ * @param {any} raw
+ * @param {{ kind?: string, url?: string }} [extra]
+ */
+export function normalizeMessageImageRef(raw, extra = {}) {
+  if (!raw || typeof raw !== 'object') {
+    if (typeof raw === 'string' && raw.trim()) {
+      const s = raw.trim()
+      if (/^https?:\/\//i.test(s) || s.startsWith('data:') || s.startsWith('file://') || s.startsWith('/')) {
+        return { url: s, _kind: 'url', ...extra }
+      }
+      return { attachmentId: s, _kind: extra.kind || 'attachment_id', ...extra }
+    }
+    return null
+  }
+  const attachmentId = String(raw.attachmentId || raw.attachment_id || '').trim()
+  const url = String(raw.url || raw.dataUrl || raw.data_url || raw.path || '').trim()
+  const mediaType = raw.mediaType || raw.mime || raw.contentType
+  const name = raw.name || raw.filename
+  const bytes = typeof raw.bytes === 'number' ? raw.bytes : undefined
+  /** @type {any} */
+  const out = { ...extra }
+  if (attachmentId) out.attachmentId = attachmentId
+  if (url) out.url = url
+  if (mediaType) out.mediaType = mediaType
+  if (name) out.name = name
+  if (bytes != null) out.bytes = bytes
+  if (typeof raw.width === 'number') out.width = raw.width
+  if (typeof raw.height === 'number') out.height = raw.height
+  if (!out._kind) {
+    out._kind = attachmentId ? 'attachment' : url ? 'url' : 'unknown'
+  }
+  if (!attachmentId && !url) return null
+  return out
+}
+
+/**
+ * Pull image refs from one content block — covers dsh ImageBlock, FileBlock
+ * (image-like), OpenAI image_url, bare attachmentId / attachment_id, nested.
+ * @param {any} block
+ * @returns {any[]}
+ */
+export function extractImageRefsFromContentBlock(block) {
+  if (!block || typeof block !== 'object') return []
+  const type = String(block.type || '')
+
+  if (type === 'image') {
+    if (block.attachment) {
+      const n = normalizeMessageImageRef(block.attachment, { _kind: 'image' })
+      return n ? [n] : []
+    }
+    const n = normalizeMessageImageRef(block, { _kind: 'image' })
+    return n ? [n] : []
+  }
+
+  if (type === 'file' && block.attachment) {
+    if (!isImageLikeAttachment(block.attachment) && !isImageLikeAttachment(block)) return []
+    const n = normalizeMessageImageRef(block.attachment, { _kind: 'file' })
+    return n ? [n] : []
+  }
+
+  if (type === 'image_url' || type === 'input_image') {
+    const url =
+      (typeof block.image_url === 'string' && block.image_url) ||
+      block.image_url?.url ||
+      block.imageUrl?.url ||
+      block.url ||
+      block.image
+    const n = normalizeMessageImageRef(
+      typeof url === 'string' ? { url } : url && typeof url === 'object' ? url : block,
+      { _kind: 'url' },
+    )
+    return n ? [n] : []
+  }
+
+  // Nested / alternate shapes
+  if (block.attachment && (type === '' || isImageLikeAttachment(block.attachment))) {
+    if (type && type !== 'image' && type !== 'file' && !isImageLikeAttachment(block.attachment)) {
+      /* fall through */
+    } else if (isImageLikeAttachment(block.attachment) || block.attachment.attachmentId || block.attachment.attachment_id) {
+      const n = normalizeMessageImageRef(block.attachment, { _kind: type || 'attachment' })
+      if (n) return [n]
+    }
+  }
+
+  if (block.image && typeof block.image === 'object') {
+    if (block.image.attachment) {
+      const n = normalizeMessageImageRef(block.image.attachment, { _kind: 'image' })
+      return n ? [n] : []
+    }
+    const n = normalizeMessageImageRef(block.image, { _kind: 'image' })
+    return n ? [n] : []
+  }
+
+  if (block.attachmentId || block.attachment_id) {
+    const n = normalizeMessageImageRef(block, { _kind: 'attachment_id' })
+    return n ? [n] : []
+  }
+
+  return []
+}
+
+/**
+ * Image refs from one user message content (image / file / image_url / ids).
  * @param {{ content?: unknown[] } | null | undefined} message
  * @returns {any[]}
  */
@@ -242,26 +357,52 @@ export function listImageRefsFromUserMessage(message) {
   /** @type {any[]} */
   const out = []
   for (const block of content) {
-    if (block && block.type === 'image' && block.attachment) out.push(block.attachment)
+    for (const ref of extractImageRefsFromContentBlock(block)) out.push(ref)
   }
   return out
 }
 
 /**
- * Latest human prompt on the session surface that is not a tool/plugin inject.
- * @param {{ session?: { surface?: { nodes?: Iterable<unknown> }, eventAt?: Function } } | null | undefined} agent
- * @returns {{ role?: string, content?: unknown[], source?: { kind?: string } } | null}
+ * Summarize content block types for diagnostics (no bytes / secrets).
+ * @param {{ content?: unknown[] } | null | undefined} message
  */
-export function findLatestUserPromptMessage(agent) {
-  const session = agent?.session
+export function summarizeMessageContentShapes(message) {
+  const content = message?.content
+  if (!Array.isArray(content)) return []
+  return content.map((block) => {
+    if (!block || typeof block !== 'object') return { type: typeof block }
+    const att = block.attachment && typeof block.attachment === 'object' ? block.attachment : null
+    return {
+      type: block.type || null,
+      keys: Object.keys(block).sort(),
+      hasAttachment: Boolean(att),
+      attachmentId: att
+        ? String(att.attachmentId || att.attachment_id || '').slice(0, 48)
+        : String(block.attachmentId || block.attachment_id || '').slice(0, 48) || null,
+      name: att?.name || block.name || null,
+      mediaType: att?.mediaType || block.mediaType || null,
+    }
+  })
+}
+
+/**
+ * Human user/message events on the session surface, newest first.
+ * Skips tool/plugin/agent-instructions injects.
+ * @param {{ session?: { surface?: { nodes?: Iterable<unknown> }, eventAt?: Function } } | null | undefined} agent
+ * @returns {{ role?: string, content?: unknown[], source?: { kind?: string } }[]}
+ */
+export function listRecentUserPromptMessages(agent) {
+  const session = agent?.session || agent
   const nodes = session?.surface?.nodes
-  if (!session || !nodes || typeof session.eventAt !== 'function') return null
+  if (!session || !nodes || typeof session.eventAt !== 'function') return []
   const list =
     typeof nodes.toReversed === 'function'
       ? nodes.toReversed()
       : Array.isArray(nodes)
         ? [...nodes].reverse()
         : [...nodes].reverse()
+  /** @type {{ role?: string, content?: unknown[], source?: { kind?: string } }[]} */
+  const out = []
   for (const seq of list) {
     const event = session.eventAt(seq)
     if (!event || event.type !== 'user/message') continue
@@ -269,9 +410,24 @@ export function findLatestUserPromptMessage(agent) {
     if (!msg || msg.role !== 'user') continue
     const kind = msg.source?.kind
     if (kind === 'tool' || kind === 'plugin' || kind === 'agent-instructions') continue
-    return msg
+    out.push(msg)
   }
-  return null
+  return out
+}
+
+/**
+ * Latest human prompt — prefer one that carries image refs so a later
+ * text-only human line does not hide the attached turn.
+ * @param {{ session?: { surface?: { nodes?: Iterable<unknown> }, eventAt?: Function } } | null | undefined} agent
+ * @returns {{ role?: string, content?: unknown[], source?: { kind?: string } } | null}
+ */
+export function findLatestUserPromptMessage(agent) {
+  const msgs = listRecentUserPromptMessages(agent)
+  if (msgs.length === 0) return null
+  for (const msg of msgs) {
+    if (listImageRefsFromUserMessage(msg).length > 0) return msg
+  }
+  return msgs[0]
 }
 
 /**

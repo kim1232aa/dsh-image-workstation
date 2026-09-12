@@ -25,6 +25,8 @@ import {
   listImageRefsFromUserMessage,
   findLatestUserPromptMessage,
   resolveEditRefInputs,
+  summarizeMessageContentShapes,
+  extractImageRefsFromContentBlock,
 } from './model-policy.js'
 
 export {
@@ -39,6 +41,8 @@ export {
   listImageRefsFromUserMessage,
   findLatestUserPromptMessage,
   resolveEditRefInputs,
+  summarizeMessageContentShapes,
+  extractImageRefsFromContentBlock,
 } from './model-policy.js'
 
 /**
@@ -167,10 +171,43 @@ async function resolveEditImageMaterial(source, signal) {
  * @param {AbortSignal | undefined} signal
  */
 async function materializeSessionImageRef(ref, attachments, signal) {
-  if (!ref || !attachments) {
+  if (!ref) {
     const err = new Error('session attachment unavailable')
     err.code = 'REF_REQUIRED'
     throw err
+  }
+  // URL / dataUrl / path carried on the parsed message ref
+  if (ref.url || ref._kind === 'url') {
+    return resolveEditImageMaterial(String(ref.url || ''), signal)
+  }
+  if (!attachments) {
+    const err = new Error('session attachment unavailable')
+    err.code = 'REF_REQUIRED'
+    throw err
+  }
+  const kind = String(ref._kind || 'image')
+  if (kind === 'file') {
+    try {
+      const hostPath =
+        typeof attachments.fileHostPath === 'function' ? attachments.fileHostPath(ref) : undefined
+      if (hostPath && existsSync(String(hostPath))) return String(hostPath)
+    } catch {
+      /* fall through */
+    }
+    if (typeof attachments.readFileStream === 'function') {
+      const chunks = []
+      for await (const chunk of attachments.readFileStream(ref, signal)) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+      }
+      const buf = Buffer.concat(chunks)
+      if (buf.length === 0) {
+        const err = new Error('chat file attachment has no bytes')
+        err.code = 'BAD_REF_IMAGE'
+        throw err
+      }
+      const mime = ref.mediaType || 'image/png'
+      return `data:${mime};base64,${buf.toString('base64')}`
+    }
   }
   try {
     const hostPath =
@@ -399,8 +436,21 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
             : args?.image
               ? [args.image]
               : []
-        const latestUser = findLatestUserPromptMessage(exec?.agent)
+        const latestUser =
+          findLatestUserPromptMessage(exec?.agent) ||
+          findLatestUserPromptMessage(exec)
         const messageImageRefs = listImageRefsFromUserMessage(latestUser)
+        if (messageImageRefs.length === 0) {
+          hitAgentToolLog({
+            at: new Date().toISOString(),
+            status: 'ref_scan_empty',
+            tool: 'edit_image',
+            hasAgent: Boolean(exec?.agent),
+            hasSession: Boolean(exec?.agent?.session || exec?.session),
+            contentShapes: summarizeMessageContentShapes(latestUser),
+            argCount: argRaw.length,
+          })
+        }
         const decided = resolveEditRefInputs({
           argRefs: argRaw,
           messageImageRefs,
