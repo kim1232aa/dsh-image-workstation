@@ -12,6 +12,7 @@ import { createVideoAsyncAdapter } from './video-async.js'
 import { loadVisionEnv, reversePrompt as visionReversePrompt, visionEnvSummary } from './vision-read.js'
 import { enhancePrompt as runEnhancePrompt } from './prompt-enhance.js'
 import { gifGenerate, ecommerceGenerate } from './gif-ecom.js'
+import { canvasGenerate } from './canvas-generate.js'
 
 const NOT_WIRED = (seat) => {
   const err = new Error(`[dsh-image-workstation] host proxy seat "${seat}" not wired`)
@@ -44,9 +45,10 @@ export function createHostProxy(resolved, mediaEnv = null) {
     adapters: adapters.map((a) => a.kind),
     /** Honest coverage — do not treat as matrix Pass */
     liveSeats: [
-      ...(liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : []),
+      ...(liveGenerate ? ['openai.images.generate', 'openai.images.edit', 'canvas.generate'] : []),
       ...(videoLive ? ['video.async'] : []),
       ...(visionConfigured ? ['vision.reversePrompt', 'vision.enhancePrompt'] : []),
+      ...(gifConfigured ? ['gif.generate'] : []),
     ],
     stubSeats: [
       'async.task_id',
@@ -58,8 +60,9 @@ export function createHostProxy(resolved, mediaEnv = null) {
       'minimax.image-01',
       ...(!videoLive ? ['video.async'] : []),
       ...(!visionConfigured ? ['vision.reversePrompt', 'vision.enhancePrompt'] : []),
-      'gif.generate',
+      ...(!gifConfigured ? ['gif.generate'] : []),
       'ecommerce.generate',
+      ...(!liveGenerate ? ['canvas.generate'] : []),
     ],
     dataDir: resolved.dataDir,
     mediaConfigured: liveGenerate,
@@ -322,14 +325,24 @@ export function createHostProxy(resolved, mediaEnv = null) {
       return runEnhancePrompt(req || {}, visionEnv)
     },
 
-    /** GIF stub — always GIF_STUB_NOT_WIRED */
+    /** GIF grid — Nova-aligned; live when media or GIF_* configured */
     async gifGenerate(req) {
-      return gifGenerate(req || {})
+      return gifGenerate(req || {}, {
+        mediaConfigured: liveGenerate,
+        generate: (r) => proxy.generate(r),
+        gifEnv: mediaEnv?.gif || null,
+        dataDir: resolved.dataDir,
+      })
     },
 
-    /** Ecommerce stub — always ECOM_STUB_NOT_WIRED */
+    /** Ecommerce — honest stub (Nova has no dedicated ecom seat) */
     async ecommerceGenerate(req) {
       return ecommerceGenerate(req || {})
+    },
+
+    /** Canvas tiles — same openai.images generate/edit path */
+    async canvasGenerate(req) {
+      return canvasGenerate(req || {}, proxy)
     },
 
     visionSummary() {
@@ -338,9 +351,10 @@ export function createHostProxy(resolved, mediaEnv = null) {
 
     describeChannels() {
       const liveSeats = [
-        ...(liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : []),
+        ...(liveGenerate ? ['openai.images.generate', 'openai.images.edit', 'canvas.generate'] : []),
         ...(videoLive ? ['video.async'] : []),
         ...(visionConfigured ? ['vision.reversePrompt', 'vision.enhancePrompt'] : []),
+        ...(gifConfigured ? ['gif.generate'] : []),
       ]
       const fromEnv = Array.isArray(mediaEnv?.channels) ? mediaEnv.channels : []
       if (fromEnv.length) {

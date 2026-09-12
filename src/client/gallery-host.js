@@ -1,8 +1,7 @@
 /**
- * 画廊 page shell — grid + local history/media read (docs/ui/06).
- * Resolves seats via RPC storage.paths (media/gallery · media/history).
- * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
- * Labels exact from ../ui/labels.js. Empty honest if no media — no fake demos.
+ * 画廊 — Nova asset-store semantics (list/add/tag/dedupe/layout persist)
+ * + storage/gallery RPC seats. VisioWork-shaped density only; original CSS tokens.
+ * Labels from ../ui/labels.js. No fake demos / no content-moderation lock.
  */
 import {
   GALLERY_VIEWS,
@@ -17,19 +16,24 @@ import {
 
 export const GALLERY_PAGE = '画廊'
 export const IMAGE_PAGE = '普通生图'
+export const VIDEO_PAGE = '视频生成'
+export const CANVAS_PAGE = '无限画布'
 
 const STORAGE_KEY = 'dsh-ws-gallery-items'
-const HISTORY_KEY = 'dsh-ws-history-v1'
+const TAGS_KEY = 'dsh-ws-gallery-tags-v1'
+const LAYOUT_KEY = 'dsh-ws-gallery-layout-v1'
+const HISTORY_KEY_BASE = 'dsh-ws-history-v1'
 const CTA_RPC_CHANNEL = '/dsh-ws'
 const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 const CTA_RPC_STORAGE_LIST = 'storage.list'
+const CTA_RPC_GALLERY_ADD = 'gallery.add'
+const CTA_RPC_GALLERY_LIST = 'gallery.list'
+const CTA_RPC_GALLERY_TAGS = 'gallery.tags'
 const DEFAULT_PATHS = Object.freeze({
   dataDir: '',
   generated: 'media/generated',
   gallery: 'media/gallery',
   history: 'media/history',
-  canvas: 'media/canvas',
-  templates: 'media/templates',
 })
 const EMPTY_HINT =
   '画廊还是空的。在普通生图或视频结果里点「加画廊」，满意作品会沉淀到这里。'
@@ -44,12 +48,37 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;')
 }
 
-/**
- * @typedef {{ id: string, url: string, kind?: string, mode?: string, model?: string, ratio?: string, tagIds?: string[], createdAt?: number, name?: string }} GalleryItem
- * @typedef {{ id: string, name: string }} GalleryTag
- */
+/** Nova sanitizeTags */
+export function sanitizeTags(tags) {
+  if (!Array.isArray(tags)) return []
+  const unique = new Set()
+  for (const raw of tags) {
+    const tag = String(raw ?? '').trim()
+    if (tag) unique.add(tag)
+  }
+  return [...unique].slice(0, 20)
+}
 
-/** Read local gallery media — never invent fixtures. */
+function makeId(prefix = 'gal') {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+/** Cheap fingerprint for dedupe (Nova hashBlob lite). */
+export function fingerprintSrc(src) {
+  const s = String(src || '')
+  if (!s) return ''
+  let h = 0x811c9dc5
+  const n = Math.min(s.length, 4096)
+  for (let i = 0; i < n; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return `fnv-${s.length}-${h.toString(16)}`
+}
+
 export function readLocalGalleryItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -57,91 +86,175 @@ export function readLocalGalleryItems() {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
-      (it) => it && typeof it === 'object' && typeof it.id === 'string' && typeof it.url === 'string',
+      (it) => it && typeof it === 'object' && typeof it.id === 'string' && (typeof it.url === 'string' || it.localPath),
     )
   } catch (_) {
     return []
   }
 }
 
-/** @param {GalleryItem[]} items */
 export function writeLocalGalleryItems(items) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
   } catch (_) {}
 }
 
-/**
- * @returns {{
- *   filters: { mode: string, model: string, ratio: string, tagIds: string[] },
- *   view: 'waterfall' | 'grid',
- *   sort: 'newest' | 'oldest',
- *   tags: GalleryTag[],
- *   selection: string[],
- *   items: GalleryItem[],
- *   lightboxId?: string,
- * }}
- */
-
-/** @returns {typeof DEFAULT_PATHS & Record<string, string>} */
-export function defaultStoragePaths() {
-  return { ...DEFAULT_PATHS }
-}
-
-/**
- * Read studio local history (if persisted) into gallery-shaped items.
- * Never invent fixtures.
- * @returns {GalleryItem[]}
- */
-export function readLocalHistoryItems() {
+export function readLocalTags() {
   try {
-    const raw = localStorage.getItem(HISTORY_KEY)
+    const raw = localStorage.getItem(TAGS_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    /** @type {GalleryItem[]} */
-    const out = []
-    for (const entry of parsed) {
-      const id = entry?.id != null ? String(entry.id) : ''
-      const value = entry?.value && typeof entry.value === 'object' ? entry.value : {}
-      const results = Array.isArray(value.results) ? value.results : []
-      const snap = entry?.snapshot && typeof entry.snapshot === 'object' ? entry.snapshot : {}
-      results.forEach((r, i) => {
-        const url = r?.url ? String(r.url) : ''
-        const localPath = r?.localPath ? String(r.localPath) : ''
-        if (!url && !localPath) return
-        out.push({
-          id: `${id || 'hist'}-${i}`,
-          url: url || '',
-          localPath: localPath || undefined,
-          kind: r?.kind === 'video' ? 'video' : 'image',
-          mode: snap.mode ? String(snap.mode) : undefined,
-          model: snap.modelId ? String(snap.modelId) : undefined,
-          ratio: snap.ratio ? String(snap.ratio) : undefined,
-          createdAt: Number(entry.savedAt) || Date.now(),
-          name: snap.prompt ? String(snap.prompt).slice(0, 40) : '历史',
-          seat: 'history',
-        })
-      })
-    }
-    return out
+    return parsed.filter((t) => t && typeof t.id === 'string' && typeof t.name === 'string')
   } catch (_) {
     return []
   }
 }
 
+export function writeLocalTags(tags) {
+  try {
+    localStorage.setItem(TAGS_KEY, JSON.stringify(tags))
+  } catch (_) {}
+}
+
+export function readGalleryLayout() {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+export function writeGalleryLayout(layout) {
+  try {
+    localStorage.setItem(
+      LAYOUT_KEY,
+      JSON.stringify({ view: layout.view, sort: layout.sort, filters: layout.filters }),
+    )
+  } catch (_) {}
+}
+
 /**
- * @param {{ getRpc?: () => { call?: Function } | null | undefined } | null | undefined} opts
- * @returns {Promise<{ paths: typeof DEFAULT_PATHS & Record<string, string>, diskItems: GalleryItem[] }>}
+ * Append with content fingerprint dedupe (Nova asset-store).
  */
+export function addLocalGalleryItem(input) {
+  const url = String(input?.url || '').trim()
+  if (!url) {
+    return { added: false, item: null, items: readLocalGalleryItems() }
+  }
+  const hash = input.hash || fingerprintSrc(url)
+  const items = readLocalGalleryItems()
+  const dup = items.find((it) => it.hash === hash || it.url === url)
+  if (dup) {
+    const merged = {
+      ...dup,
+      tagIds: sanitizeTags([...(dup.tagIds || []), ...(input.tagIds || [])]),
+      tags: sanitizeTags([...(dup.tags || []), ...(input.tags || [])]),
+      updatedAt: Date.now(),
+    }
+    const next = items.map((it) => (it.id === dup.id ? merged : it))
+    writeLocalGalleryItems(next)
+    return { added: false, item: merged, items: next }
+  }
+  const item = {
+    id: input.id || makeId(),
+    url,
+    kind: input.kind === 'video' ? 'video' : 'image',
+    mode: input.mode ? String(input.mode) : undefined,
+    model: input.model ? String(input.model) : undefined,
+    ratio: input.ratio ? String(input.ratio) : undefined,
+    prompt: input.prompt ? String(input.prompt) : undefined,
+    name: input.name
+      ? String(input.name)
+      : input.prompt
+        ? String(input.prompt).slice(0, 40)
+        : '画廊',
+    tagIds: sanitizeTags(input.tagIds),
+    tags: sanitizeTags(input.tags),
+    hash,
+    createdAt: Number(input.createdAt) || Date.now(),
+    seat: 'gallery',
+    localPath: input.localPath,
+    relativePath: input.relativePath,
+  }
+  const next = [item, ...items]
+  writeLocalGalleryItems(next)
+  return { added: true, item, items: next }
+}
+
+export function removeLocalGalleryItem(id) {
+  const next = readLocalGalleryItems().filter((it) => it.id !== id)
+  writeLocalGalleryItems(next)
+  return next
+}
+
+export function tagLocalGalleryItem(id, tagIds) {
+  const normalized = sanitizeTags(tagIds)
+  const next = readLocalGalleryItems().map((it) =>
+    it.id === id ? { ...it, tagIds: normalized, tags: normalized } : it,
+  )
+  writeLocalGalleryItems(next)
+  return next
+}
+
+export function defaultStoragePaths() {
+  return { ...DEFAULT_PATHS }
+}
+
+/** Studio history (namespaced keys) → gallery-shaped items. Nova job-store shape. */
+export function readLocalHistoryItems() {
+  const out = []
+  try {
+    const keys = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k === HISTORY_KEY_BASE || (k && k.startsWith(`${HISTORY_KEY_BASE}::`))) keys.push(k)
+    }
+    for (const key of keys) {
+      let parsed
+      try {
+        parsed = JSON.parse(localStorage.getItem(key) || '[]')
+      } catch {
+        continue
+      }
+      if (!Array.isArray(parsed)) continue
+      for (const entry of parsed) {
+        const id = entry?.id != null ? String(entry.id) : ''
+        const value = entry?.value && typeof entry.value === 'object' ? entry.value : {}
+        const results = Array.isArray(value.results) ? value.results : []
+        const snap = entry?.snapshot && typeof entry.snapshot === 'object' ? entry.snapshot : {}
+        results.forEach((r, i) => {
+          const url = r?.url ? String(r.url) : ''
+          const localPath = r?.localPath ? String(r.localPath) : ''
+          if (!url && !localPath) return
+          out.push({
+            id: `${id || 'hist'}-${i}`,
+            url: url || '',
+            localPath: localPath || undefined,
+            kind: r?.kind === 'video' ? 'video' : 'image',
+            mode: snap.mode ? String(snap.mode) : undefined,
+            model: snap.modelId ? String(snap.modelId) : undefined,
+            ratio: snap.ratio ? String(snap.ratio) : undefined,
+            prompt: snap.prompt ? String(snap.prompt) : undefined,
+            createdAt: Number(entry.savedAt) || Date.now(),
+            name: snap.prompt ? String(snap.prompt).slice(0, 40) : '历史',
+            seat: 'history',
+          })
+        })
+      }
+    }
+  } catch (_) {}
+  return out
+}
+
 export async function fetchStorageMedia(opts) {
   const paths = defaultStoragePaths()
-  /** @type {GalleryItem[]} */
   let diskItems = []
   const rpc = typeof opts?.getRpc === 'function' ? opts.getRpc() : null
-  if (!rpc || typeof rpc.call !== 'function') {
-    return { paths, diskItems }
-  }
+  if (!rpc || typeof rpc.call !== 'function') return { paths, diskItems }
   try {
     const pathRes = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_PATHS, {})
     if (pathRes?.ok && pathRes.value && typeof pathRes.value === 'object') {
@@ -150,12 +263,38 @@ export async function fetchStorageMedia(opts) {
       if (v.generated) paths.generated = String(v.generated)
       if (v.gallery) paths.gallery = String(v.gallery)
       if (v.history) paths.history = String(v.history)
-      if (v.canvas) paths.canvas = String(v.canvas)
-      if (v.templates) paths.templates = String(v.templates)
     }
-  } catch (_) {
-    /* keep defaults */
-  }
+  } catch (_) {}
+  try {
+    const listRes = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GALLERY_LIST, { dataDir: paths.dataDir })
+    if (listRes?.ok && listRes.value) {
+      const rows = Array.isArray(listRes.value.entries)
+        ? listRes.value.entries
+        : Array.isArray(listRes.value.items)
+          ? listRes.value.items
+          : []
+      for (const it of rows) {
+        if (!it || typeof it !== 'object') continue
+        diskItems.push({
+          id: String(it.id || makeId('disk')),
+          url: it.url ? String(it.url) : it.images?.[0]?.url ? String(it.images[0].url) : '',
+          localPath: it.localPath || it.images?.[0]?.localPath,
+          relativePath: it.relativePath || it.images?.[0]?.relativePath,
+          kind: it.kind === 'video' ? 'video' : 'image',
+          name: it.name ? String(it.name) : it.prompt ? String(it.prompt).slice(0, 40) : '画廊',
+          prompt: it.prompt ? String(it.prompt) : undefined,
+          mode: it.mode ? String(it.mode) : undefined,
+          model: it.model ? String(it.model) : undefined,
+          ratio: it.ratio ? String(it.ratio) : undefined,
+          tagIds: sanitizeTags(it.tagIds || it.tags),
+          tags: sanitizeTags(it.tags || it.tagIds),
+          hash: it.hash ? String(it.hash) : undefined,
+          createdAt: Number(it.createdAt) || Date.now(),
+          seat: 'gallery',
+        })
+      }
+    }
+  } catch (_) {}
   try {
     const listRes = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_LIST, {})
     if (listRes?.ok && listRes.value && typeof listRes.value === 'object') {
@@ -165,39 +304,43 @@ export async function fetchStorageMedia(opts) {
       if (v.dataDir != null) paths.dataDir = String(v.dataDir)
       const rows = Array.isArray(v.items)
         ? v.items
-        : [...(Array.isArray(v.galleryItems) ? v.galleryItems : []), ...(Array.isArray(v.historyItems) ? v.historyItems : [])]
-      diskItems = rows
-        .filter((it) => it && typeof it === 'object')
-        .map((it) => ({
-          id: String(it.id || it.relativePath || it.name || Math.random()),
+        : [
+            ...(Array.isArray(v.galleryItems) ? v.galleryItems : []),
+            ...(Array.isArray(v.historyItems) ? v.historyItems : []),
+          ]
+      for (const it of rows) {
+        if (!it || typeof it !== 'object') continue
+        const id = String(it.id || it.relativePath || it.name || makeId('seat'))
+        if (diskItems.some((d) => d.id === id || (d.hash && d.hash === it.hash))) continue
+        diskItems.push({
+          id,
           url: it.url ? String(it.url) : '',
           localPath: it.localPath ? String(it.localPath) : undefined,
           kind: it.kind === 'video' ? 'video' : 'image',
           name: it.name ? String(it.name) : it.relativePath ? String(it.relativePath) : '素材',
+          mode: it.mode ? String(it.mode) : undefined,
+          model: it.model ? String(it.model) : undefined,
+          ratio: it.ratio ? String(it.ratio) : undefined,
+          tagIds: sanitizeTags(it.tagIds || it.tags),
           createdAt: Number(it.createdAt) || Date.now(),
           seat: it.seat ? String(it.seat) : undefined,
           relativePath: it.relativePath ? String(it.relativePath) : undefined,
-        }))
+          hash: it.hash ? String(it.hash) : undefined,
+        })
+      }
     }
-  } catch (_) {
-    /* honest empty disk */
-  }
+  } catch (_) {}
   return { paths, diskItems }
 }
 
-/**
- * Merge localStorage gallery + history + disk seats. Dedup by id/url/path.
- * @param {GalleryItem[]} diskItems
- * @returns {GalleryItem[]}
- */
 export function collectLocalMediaItems(diskItems = []) {
   const gallery = readLocalGalleryItems()
   const history = readLocalHistoryItems()
-  const merged = [...diskItems, ...gallery, ...history]
+  const merged = [...gallery, ...diskItems, ...history]
   const seen = new Set()
   const out = []
   for (const it of merged) {
-    const key = it.id || it.url || it.localPath || it.relativePath || ''
+    const key = it.hash || it.id || it.url || it.localPath || it.relativePath || ''
     if (!key || seen.has(key)) continue
     seen.add(key)
     out.push(it)
@@ -206,11 +349,17 @@ export function collectLocalMediaItems(diskItems = []) {
 }
 
 export function defaultGalleryState() {
+  const layout = readGalleryLayout()
   return {
-    filters: { mode: FILTER_ALL, model: FILTER_ALL, ratio: FILTER_ALL, tagIds: [] },
-    view: 'grid',
-    sort: 'newest',
-    tags: [],
+    filters: {
+      mode: layout.filters?.mode || FILTER_ALL,
+      model: layout.filters?.model || FILTER_ALL,
+      ratio: layout.filters?.ratio || FILTER_ALL,
+      tagIds: Array.isArray(layout.filters?.tagIds) ? layout.filters.tagIds : [],
+    },
+    view: layout.view === 'waterfall' ? 'waterfall' : 'grid',
+    sort: layout.sort === 'oldest' ? 'oldest' : 'newest',
+    tags: readLocalTags(),
     selection: [],
     items: collectLocalMediaItems([]),
     paths: defaultStoragePaths(),
@@ -233,7 +382,6 @@ export function galleryHostStyles() {
   display:none !important; pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-cols] {
-  /* display owned by [data-ws-page="gallery"] — same node must not force flex */
   flex:1; min-height:0; width:100%;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-rail] {
@@ -301,11 +449,6 @@ export function galleryHostStyles() {
 `
 }
 
-/**
- * @param {Record<string, string>} T
- * @param {object} css
- * @param {ReturnType<typeof defaultGalleryState>} state
- */
 export function buildGalleryPageHtml(T, css, state) {
   const modeOpts = [FILTER_ALL, ...MODE_TABS, ...VIDEO_MODE_TABS]
   const ratioOpts = [FILTER_ALL, ...RATIOS]
@@ -381,10 +524,6 @@ export function buildGalleryPageHtml(T, css, state) {
 `
 }
 
-/**
- * @param {HTMLElement} host
- * @param {{ T: Record<string, string>, css: object }} opts
- */
 export function mountGalleryPage(host, opts) {
   const { T, css, getRpc } = opts
   const state = defaultGalleryState()
@@ -419,6 +558,10 @@ export function mountGalleryPage(host, opts) {
     if (el) el.textContent = text || ''
   }
 
+  const persistLayout = () => {
+    writeGalleryLayout({ view: state.view, sort: state.sort, filters: state.filters })
+  }
+
   const filteredItems = () => {
     let list = [...state.items]
     const { mode, model, ratio, tagIds } = state.filters
@@ -426,7 +569,10 @@ export function mountGalleryPage(host, opts) {
     if (model && model !== FILTER_ALL) list = list.filter((it) => it.model === model)
     if (ratio && ratio !== FILTER_ALL) list = list.filter((it) => it.ratio === ratio)
     if (tagIds?.length) {
-      list = list.filter((it) => (it.tagIds || []).some((id) => tagIds.includes(id)))
+      list = list.filter((it) => {
+        const ids = it.tagIds || it.tags || []
+        return ids.some((id) => tagIds.includes(id))
+      })
     }
     list.sort((a, b) => {
       const ta = Number(a.createdAt) || 0
@@ -434,6 +580,19 @@ export function mountGalleryPage(host, opts) {
       return state.sort === 'oldest' ? ta - tb : tb - ta
     })
     return list
+  }
+
+  const paintModelFilter = () => {
+    const sel = page.querySelector('[data-ws-gallery-filter="model"]')
+    if (!(sel instanceof HTMLSelectElement)) return
+    const models = [...new Set(state.items.map((it) => it.model).filter(Boolean))].sort()
+    const cur = state.filters.model
+    sel.innerHTML = [FILTER_ALL, ...models]
+      .map(
+        (o) =>
+          `<option value="${escapeHtml(String(o))}" ${String(o) === String(cur) ? 'selected' : ''}>${escapeHtml(String(o))}</option>`,
+      )
+      .join('')
   }
 
   const paintTags = () => {
@@ -446,7 +605,7 @@ export function mountGalleryPage(host, opts) {
     list.innerHTML = state.tags
       .map((tag) => {
         const on = state.filters.tagIds.includes(tag.id)
-        return `<button type="button" data-ws-gallery-tag="${escapeHtml(tag.id)}" aria-pressed="${on}" style="${css.chip(on)}">${escapeHtml(tag.name)}</button>`
+        return `<button type="button" data-ws-gallery-tag="${escapeHtml(tag.id)}" aria-pressed="${on}" style="${css.chip(on)}" title="右键删除">${escapeHtml(tag.name)}</button>`
       })
       .join('')
   }
@@ -526,44 +685,99 @@ export function mountGalleryPage(host, opts) {
     const box = page.querySelector('[data-ws-gallery-lightbox]')
     const body = page.querySelector('[data-ws-gallery-lightbox-body]')
     if (!(box instanceof HTMLElement) || !(body instanceof HTMLElement)) return
-    const isVideo = item.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(item.url)
+    const isVideo = item.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(item.url || '')
     body.innerHTML = isVideo
-      ? `<video class="data-ws-gallery-lightbox-media" data-ws-gallery-lightbox-media controls src="${escapeHtml(item.url)}" style="width:100%;max-height:70vh;border-radius:8px;background:${T.layer1};"></video>`
-      : `<img data-ws-gallery-lightbox-media class="data-ws-gallery-lightbox-media" src="${escapeHtml(item.url)}" alt="" style="width:100%;max-height:70vh;object-fit:contain;border-radius:8px;background:${T.layer1};" />`
+      ? `<video data-ws-gallery-lightbox-media controls src="${escapeHtml(item.url || '')}" style="width:100%;max-height:70vh;border-radius:8px;background:${T.layer1};"></video>`
+      : `<img data-ws-gallery-lightbox-media src="${escapeHtml(item.url || '')}" alt="" style="width:100%;max-height:70vh;object-fit:contain;border-radius:8px;background:${T.layer1};" />`
     box.setAttribute('data-open', '')
     box.setAttribute('aria-hidden', 'false')
+  }
+
+  const downloadUrl = (url, name) => {
+    if (!url) return false
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name || `dsh-gallery-${Date.now()}.png`
+    a.rel = 'noopener'
+    a.target = '_blank'
+    a.click()
+    return true
   }
 
   const reload = async () => {
     const { paths, diskItems } = await fetchStorageMedia({ getRpc })
     state.paths = paths
+    state.tags = readLocalTags()
     state.items = collectLocalMediaItems(diskItems)
+    paintModelFilter()
     paintTags()
     paintGrid()
     paintViewSort()
     const seatHint = `${paths.gallery} · ${paths.history}`
-    if (!state.items.length) {
-      setStatus(`本地座位 ${seatHint}（暂无媒体）`)
-    } else {
-      setStatus(`已读本地媒体 · ${seatHint}`)
+    if (!state.items.length) setStatus(`本地座位 ${seatHint}（暂无媒体）`)
+    else setStatus(`已读 ${state.items.length} 项 · ${seatHint}`)
+  }
+
+  const addFromDetail = async (detail) => {
+    const src = String(detail?.src || detail?.url || '').trim()
+    if (!src) {
+      setStatus('无图可加画廊')
+      return { ok: false }
     }
+    const snap = detail?.snapshot && typeof detail.snapshot === 'object' ? detail.snapshot : {}
+    const local = addLocalGalleryItem({
+      url: src,
+      prompt: detail.prompt || snap.prompt,
+      mode: detail.mode || snap.mode,
+      model: detail.model || snap.modelId,
+      ratio: detail.ratio || snap.ratio,
+      kind: detail.kind,
+      name: detail.prompt || snap.prompt ? String(detail.prompt || snap.prompt).slice(0, 40) : undefined,
+    })
+    state.items = collectLocalMediaItems([])
+    paintGrid()
+    paintModelFilter()
+
+    const rpc = typeof getRpc === 'function' ? getRpc() : null
+    if (rpc && typeof rpc.call === 'function') {
+      try {
+        const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GALLERY_ADD, {
+          src,
+          prompt: detail.prompt || snap.prompt || '',
+          snapshot: snap,
+          mode: detail.mode || snap.mode,
+          model: detail.model || snap.modelId,
+          ratio: detail.ratio || snap.ratio,
+          dataDir: state.paths?.dataDir,
+          galleryRel: state.paths?.gallery,
+        })
+        if (result?.ok) {
+          setStatus(result.value?.added !== false ? '已加入画廊' : '画廊已有相同内容')
+          await reload()
+          return { ok: true, added: result.value?.added !== false }
+        }
+      } catch (_) {}
+    }
+    setStatus(local.added ? '已加入画廊（本地）' : '画廊已有相同内容（本地）')
+    return { ok: true, added: local.added }
   }
 
   page.querySelectorAll('[data-ws-gallery-filter]').forEach((sel) => {
     sel.addEventListener('change', (e) => {
-      const el = /** @type {HTMLSelectElement} */ (e.target)
+      const el = e.target
       const key = el.getAttribute('data-ws-gallery-filter')
       if (key === 'mode') state.filters.mode = el.value
       else if (key === 'model') state.filters.model = el.value
       else if (key === 'ratio') state.filters.ratio = el.value
+      persistLayout()
       paintGrid()
     })
   })
 
   page.querySelectorAll('[data-ws-gallery-view]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const v = btn.getAttribute('data-ws-gallery-view')
-      state.view = v === 'waterfall' ? 'waterfall' : 'grid'
+      state.view = btn.getAttribute('data-ws-gallery-view') === 'waterfall' ? 'waterfall' : 'grid'
+      persistLayout()
       paintViewSort()
       paintGrid()
     })
@@ -571,20 +785,34 @@ export function mountGalleryPage(host, opts) {
 
   page.querySelectorAll('[data-ws-gallery-sort]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const v = btn.getAttribute('data-ws-gallery-sort')
-      state.sort = v === 'oldest' ? 'oldest' : 'newest'
+      state.sort = btn.getAttribute('data-ws-gallery-sort') === 'oldest' ? 'oldest' : 'newest'
+      persistLayout()
       paintViewSort()
       paintGrid()
     })
   })
 
   page.querySelector('[data-ws-gallery-tag-action="create"]')?.addEventListener('click', () => {
-    setStatus('「新建」标签未接线')
+    const name = window.prompt('新标签名称', '')
+    if (name == null) return
+    const trimmed = String(name).trim()
+    if (!trimmed) {
+      setStatus('标签名不能为空')
+      return
+    }
+    if (state.tags.some((t) => t.name === trimmed)) {
+      setStatus('标签已存在')
+      return
+    }
+    const tag = { id: makeId('tag'), name: trimmed }
+    state.tags = [...state.tags, tag]
+    writeLocalTags(state.tags)
+    paintTags()
+    setStatus(`已新建标签「${trimmed}」`)
   })
 
   page.querySelector('[data-ws-gallery-tag-list]')?.addEventListener('click', (e) => {
-    const btn =
-      e.target instanceof Element ? e.target.closest('[data-ws-gallery-tag]') : null
+    const btn = e.target instanceof Element ? e.target.closest('[data-ws-gallery-tag]') : null
     if (!btn) return
     const id = btn.getAttribute('data-ws-gallery-tag') || ''
     if (!id) return
@@ -593,22 +821,42 @@ export function mountGalleryPage(host, opts) {
     } else {
       state.filters.tagIds = [...state.filters.tagIds, id]
     }
+    persistLayout()
     paintTags()
     paintGrid()
   })
 
+  page.querySelector('[data-ws-gallery-tag-list]')?.addEventListener('contextmenu', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest('[data-ws-gallery-tag]') : null
+    if (!btn) return
+    e.preventDefault()
+    const id = btn.getAttribute('data-ws-gallery-tag') || ''
+    const tag = state.tags.find((t) => t.id === id)
+    if (!tag) return
+    if (!window.confirm(`删除标签「${tag.name}」？`)) return
+    state.tags = state.tags.filter((t) => t.id !== id)
+    state.filters.tagIds = state.filters.tagIds.filter((x) => x !== id)
+    writeLocalTags(state.tags)
+    for (const it of readLocalGalleryItems()) {
+      if ((it.tagIds || []).includes(id)) {
+        tagLocalGalleryItem(it.id, (it.tagIds || []).filter((x) => x !== id))
+      }
+    }
+    state.items = collectLocalMediaItems([])
+    persistLayout()
+    paintTags()
+    paintGrid()
+    setStatus(`已删除标签「${tag.name}」`)
+  })
+
   page.querySelector('[data-ws-gallery-grid]')?.addEventListener('click', (e) => {
-    const card =
-      e.target instanceof Element ? e.target.closest('[data-ws-gallery-card]') : null
+    const card = e.target instanceof Element ? e.target.closest('[data-ws-gallery-card]') : null
     if (!card) return
     const id = card.getAttribute('data-id') || ''
     if (!id) return
-    if (/** @type {MouseEvent} */ (e).metaKey || /** @type {MouseEvent} */ (e).ctrlKey) {
-      if (state.selection.includes(id)) {
-        state.selection = state.selection.filter((x) => x !== id)
-      } else {
-        state.selection = [...state.selection, id]
-      }
+    if (e.metaKey || e.ctrlKey) {
+      if (state.selection.includes(id)) state.selection = state.selection.filter((x) => x !== id)
+      else state.selection = [...state.selection, id]
       paintGrid()
       return
     }
@@ -621,24 +869,100 @@ export function mountGalleryPage(host, opts) {
   })
 
   page.querySelector('[data-ws-gallery-lightbox-actions]')?.addEventListener('click', (e) => {
-    const btn =
-      e.target instanceof Element ? e.target.closest('[data-ws-gallery-action]') : null
+    const btn = e.target instanceof Element ? e.target.closest('[data-ws-gallery-action]') : null
     if (!btn) return
     const action = btn.getAttribute('data-ws-gallery-action') || ''
-    setStatus(`「${action}」未接线`)
+    const item = state.items.find((it) => it.id === state.lightboxId)
+    if (!item) {
+      setStatus('无选中素材')
+      return
+    }
+    const src = item.url || ''
+    if (action === '下载') {
+      setStatus(downloadUrl(src, `${item.name || 'gallery'}.png`) ? '已下载' : '无图可下载')
+      return
+    }
+    if (action === '当参考图') {
+      host.dispatchEvent(new CustomEvent('dsh-ws-use-as-ref', { bubbles: true, detail: { src, item, from: 'gallery' } }))
+      host.dispatchEvent(new CustomEvent('dsh-ws-top-page', { bubbles: true, detail: { page: IMAGE_PAGE } }))
+      setStatus(src ? '已设为参考图' : '无图可作参考')
+      return
+    }
+    if (action === '拿去做视频') {
+      host.dispatchEvent(new CustomEvent('dsh-ws-top-page', { bubbles: true, detail: { page: VIDEO_PAGE, frameUrl: src } }))
+      setStatus('已切换到视频生成')
+      return
+    }
+    if (action === '加入画布') {
+      host.dispatchEvent(new CustomEvent('dsh-ws-top-page', { bubbles: true, detail: { page: CANVAS_PAGE, imageUrl: src } }))
+      setStatus('已切换到无限画布')
+      return
+    }
+    if (action === '加对话') {
+      host.dispatchEvent(new CustomEvent('dsh-ws-add-to-chat', { bubbles: true, detail: { src, prompt: item.prompt || item.name || '' } }))
+      setStatus('已发送到对话')
+      return
+    }
+    setStatus(`「${action}」`)
   })
 
   page.querySelectorAll('[data-ws-gallery-batch]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const kind = btn.getAttribute('data-ws-gallery-batch')
       if (!state.selection.length) {
         setStatus('先多选素材（Ctrl/⌘+点击）')
         return
       }
-      if (kind === 'tag') setStatus('「打标签」未接线')
-      else if (kind === 'download') setStatus('「批量下载」未接线')
+      if (kind === 'tag') {
+        if (!state.tags.length) {
+          setStatus('请先新建标签')
+          return
+        }
+        const names = state.tags.map((t) => t.name).join(' / ')
+        const picked = window.prompt(`批量打标签（现有：${names}）`, state.tags[0]?.name || '')
+        if (picked == null) return
+        const tag = state.tags.find((t) => t.name === String(picked).trim())
+        if (!tag) {
+          setStatus('标签不存在，请先新建')
+          return
+        }
+        for (const id of state.selection) {
+          const it = state.items.find((x) => x.id === id)
+          if (!it) continue
+          const nextIds = sanitizeTags([...(it.tagIds || it.tags || []), tag.id])
+          tagLocalGalleryItem(id, nextIds)
+          const rpc = typeof getRpc === 'function' ? getRpc() : null
+          if (rpc && typeof rpc.call === 'function' && it.seat === 'gallery') {
+            try {
+              await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GALLERY_TAGS, {
+                id,
+                tags: nextIds,
+                dataDir: state.paths?.dataDir,
+              })
+            } catch (_) {}
+          }
+        }
+        state.items = collectLocalMediaItems([])
+        paintGrid()
+        setStatus(`已为 ${state.selection.length} 项打上「${tag.name}」`)
+        return
+      }
+      if (kind === 'download') {
+        let n = 0
+        for (const id of state.selection) {
+          const it = state.items.find((x) => x.id === id)
+          if (it?.url && downloadUrl(it.url, `${it.name || id}.png`)) n++
+        }
+        setStatus(n ? `已触发 ${n} 项下载` : '选中项无可下载 URL')
+      }
     })
   })
+
+  const onGalleryAddEvent = (ev) => {
+    const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+    void addFromDetail(detail)
+  }
+  document.addEventListener('dsh-ws-gallery-add', onGalleryAddEvent)
 
   const setPage = (tab) => {
     const name = String(tab || IMAGE_PAGE)
@@ -653,7 +977,9 @@ export function mountGalleryPage(host, opts) {
     setPage,
     reload,
     setStatus,
+    addFromDetail,
     dispose() {
+      document.removeEventListener('dsh-ws-gallery-add', onGalleryAddEvent)
       closeLightbox()
       page.remove()
       styleEl?.remove()
