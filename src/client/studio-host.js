@@ -23,6 +23,10 @@ import {
 import { defaultStudioState } from '../ui/studio-stub.js'
 import { mountVideoPage, VIDEO_PAGE, IMAGE_PAGE } from './video-host.js'
 import { mountCanvasPage, CANVAS_PAGE } from './canvas-host.js'
+import { mountGifHost, GIF_PAGE } from './gif-host.js'
+import { mountUiDesignHost, UI_DESIGN_PAGE } from './ui-design-host.js'
+import { mountTemplateHost, TEMPLATE_PAGE } from './template-host.js'
+import { TOOL_MORE, TOOL_ENTRIES } from '../ui/labels.js'
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
 /** Soft photo-noise fallback for broken real images only (not fake content) */
@@ -516,6 +520,34 @@ const HOST_STYLES = `
   color: var(--dsw-alias-label-primary);
   border-color: var(--dsw-alias-border-l2);
 }
+[data-dsh-ws-studio-host] [data-ws-tool-more] {
+  position:relative; display:inline-flex; align-items:center; flex:none;
+}
+[data-dsh-ws-studio-host] [data-ws-tool-more-toggle] {
+  padding:0 6px; height:18px; border:0; border-radius:4px; background:transparent;
+  color: var(--dsw-alias-label-tertiary); cursor:pointer;
+  font:inherit; font-size:10.5px; line-height:1.25;
+}
+[data-dsh-ws-studio-host] [data-ws-tool-more-toggle]:hover {
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+[data-dsh-ws-studio-host] [data-ws-tool-more-menu] {
+  position:absolute; top:100%; right:0; z-index:50; margin-top:2px;
+  min-width:7rem; padding:4px; display:flex; flex-direction:column; gap:2px;
+  background: var(--dsw-alias-bg-module-platform);
+  border:1px solid var(--dsw-alias-border-l2);
+  border-radius:8px; box-shadow: var(--dsw-elevation-panel);
+}
+[data-dsh-ws-studio-host] [data-ws-tool-more-menu][hidden] { display:none !important; }
+[data-dsh-ws-studio-host] [data-ws-tool-more-menu] [data-ws-tool] {
+  padding:4px 8px; border:0; border-radius:6px; text-align:left;
+  background:transparent; color: var(--dsw-alias-label-secondary);
+  cursor:pointer; font:inherit; font-size:11.5px; line-height:1.3;
+}
+[data-dsh-ws-studio-host] [data-ws-tool-more-menu] [data-ws-tool]:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
 `
 
 /**
@@ -662,6 +694,12 @@ export function createStudioHost() {
   let videoApi = null
   /** @type {ReturnType<typeof mountCanvasPage> | null} */
   let canvasApi = null
+  /** @type {ReturnType<typeof mountGifHost> | null} */
+  let gifApi = null
+  /** @type {ReturnType<typeof mountUiDesignHost> | null} */
+  let uiDesignApi = null
+  /** @type {ReturnType<typeof mountTemplateHost> | null} */
+  let templateApi = null
   /** @type {ReturnType<typeof defaultStudioState> & { compareModels?: boolean, refImages?: Array<{ id: string, url: string, name?: string }>, task?: any }} */
   let state = defaultStudioState()
   /** @type {string | null} */
@@ -1483,6 +1521,12 @@ export function createStudioHost() {
           </div>
         </div>
         <span style="flex:1"></span>
+        <div data-ws-tool-more>
+          <button type="button" data-ws-tool-more-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="${TOOL_MORE}">${TOOL_MORE} ▾</button>
+          <div data-ws-tool-more-menu role="listbox" aria-label="${TOOL_MORE}" hidden>
+            ${TOOL_ENTRIES.map((t) => `<button type="button" data-ws-tool="${t}" role="option">${t}</button>`).join('')}
+          </div>
+        </div>
         <span data-ws-conn-status title="${CHROME.connected}">${CHROME.connected}</span>
       </header>
       <div data-ws-cols>
@@ -1758,8 +1802,51 @@ export function createStudioHost() {
       setStatus(`已请求「${PROMPT_ACTIONS.enhance}」`)
     })
     host.querySelector('[data-ws-action="templates"]')?.addEventListener('click', () => {
-      setStatus(`「${PROMPT_ACTIONS.templates}」`)
+      gifApi?.close?.()
+      uiDesignApi?.close?.()
+      templateApi?.open?.()
+      setStatus(PROMPT_ACTIONS.templates)
     })
+
+    host.querySelector('[data-ws-tool-more-toggle]')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const menu = host.querySelector('[data-ws-tool-more-menu]')
+      const toggle = host.querySelector('[data-ws-tool-more-toggle]')
+      if (!(menu instanceof HTMLElement) || !(toggle instanceof HTMLElement)) return
+      const openMenu = menu.hidden
+      menu.hidden = !openMenu
+      toggle.setAttribute('aria-expanded', openMenu ? 'true' : 'false')
+    })
+    host.querySelectorAll('[data-ws-tool-more-menu] [data-ws-tool]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const name = btn.getAttribute('data-ws-tool') || ''
+        const menu = host.querySelector('[data-ws-tool-more-menu]')
+        const toggle = host.querySelector('[data-ws-tool-more-toggle]')
+        if (menu instanceof HTMLElement) menu.hidden = true
+        if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
+        templateApi?.close?.()
+        if (name === GIF_PAGE || name === 'GIF') {
+          uiDesignApi?.close?.()
+          gifApi?.open?.()
+        } else if (name === UI_DESIGN_PAGE || name === 'UI 设计') {
+          gifApi?.close?.()
+          uiDesignApi?.open?.()
+        } else {
+          setStatus(`「${name}」未接线`)
+        }
+      })
+    })
+    const closeToolMore = (e) => {
+      const wrap = host?.querySelector('[data-ws-tool-more]')
+      if (!(wrap instanceof HTMLElement)) return
+      if (e.target instanceof Node && wrap.contains(e.target)) return
+      const menu = host.querySelector('[data-ws-tool-more-menu]')
+      const toggle = host.querySelector('[data-ws-tool-more-toggle]')
+      if (menu instanceof HTMLElement) menu.hidden = true
+      if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
+    }
+    document.addEventListener('click', closeToolMore)
 
 
     // 【必须】CTA never score-locked; never set disabled; no skill required
@@ -2023,8 +2110,24 @@ export function createStudioHost() {
     mountStudioHostEl(host)
     videoApi?.dispose?.()
     canvasApi?.dispose?.()
+    gifApi?.dispose?.()
+    uiDesignApi?.dispose?.()
+    templateApi?.dispose?.()
     videoApi = mountVideoPage(host, { T, css, paneWidths: state.paneWidths })
     canvasApi = mountCanvasPage(host, { T, css })
+    gifApi = mountGifHost(host, { T, css, setStatus })
+    uiDesignApi = mountUiDesignHost(host, { T, css, setStatus })
+    templateApi = mountTemplateHost(host, {
+      T,
+      css,
+      setStatus,
+      onFillPrompt: (text) => {
+        state.prompt = text || ''
+        syncFields()
+        setStatus('已一键回填')
+        return true
+      },
+    })
     const initialTop =
       state.topTab === VIDEO_PAGE
         ? VIDEO_PAGE
@@ -2132,6 +2235,12 @@ export function createStudioHost() {
       videoApi = null
       canvasApi?.dispose?.()
       canvasApi = null
+      gifApi?.dispose?.()
+      gifApi = null
+      uiDesignApi?.dispose?.()
+      uiDesignApi = null
+      templateApi?.dispose?.()
+      templateApi = null
       host?.remove()
       host = undefined
       open = false

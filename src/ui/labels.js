@@ -252,3 +252,74 @@ export const ECOM_RESULT_ACTIONS = Object.freeze([
   '加画廊',
   '加对话',
 ])
+
+/* ─── GIF ─── */
+
+export const GIF_TITLE = 'GIF'
+
+export const GIF_PARAMS = Object.freeze({
+  frames: '帧数',
+  fps: '帧率',
+  loops: '循环次数',
+  size: '尺寸',
+})
+
+export const GIF_FRAME_ACTIONS = Object.freeze([
+  '单帧重新生成',
+  '删帧',
+  '调顺序',
+])
+
+export const GIF_ACTIONS = Object.freeze({
+  exportGif: '导出 GIF',
+  addGallery: '加画廊',
+})
+
+export const GIF_CTA = '开始生成'
+
+/* ─── UI 设计 ─── */
+
+export const UI_DESIGN_TITLE = 'UI 设计'
+
+export const UI_DESIGN_STEPS = Object.freeze([
+  '上传设计稿',
+  'AI 切图',
+  '切图编辑',
+  '素材处理',
+  '背景填充',
+  '网页复刻',
+  '导出',
+])
+
+export const UI_DESIGN_LABELS = Object.freeze({
+  upload: '上传设计稿',
+  aiSlice: 'AI 切图',
+  confirm: '确认',
+  original: '原图',
+  cutout: '抠图结果',
+  slicesOnly: '只看切片',
+  algoCutout: '算法抠透明',
+  aiCutout: 'AI 抠透明',
+  algoSvg: '算法转 SVG',
+  aiSvg: 'AI 重绘 SVG',
+  localComposite: '本地合成版',
+  aiOriginal: 'AI 原图版',
+  export: '导出',
+})
+
+/* ─── 模板库 / 提示词广场 ─── */
+
+export const TEMPLATE_TITLE = '模板库'
+
+export const TEMPLATE_LABELS = Object.freeze({
+  square: '提示词广场',
+  inspire: '灵感案例',
+  shuffle: '随机',
+  favorite: '收藏',
+  fill: '一键回填',
+})
+
+/* ─── 次要工具入口 ─── */
+
+export const TOOL_MORE = '更多'
+export const TOOL_ENTRIES = Object.freeze(['GIF', 'UI 设计'])
