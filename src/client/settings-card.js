@@ -161,12 +161,13 @@ export function WorkstationSettingsCard(props) {
   const detectStyle = detectDisabled
     ? {
         ...btnBase,
-        border: borderStrong,
-        background: layer2,
-        color: fgMuted,
+        border: '0.5px solid var(--dsw-alias-border-l3)',
+        background: 'var(--dsw-alias-bg-layer-2)',
+        color: 'var(--dsw-alias-label-dimmed)',
         cursor: 'not-allowed',
-        opacity: 0.45,
+        opacity: 0.4,
         pointerEvents: 'none',
+        filter: 'grayscale(1)',
       }
     : {
         ...btnBase,
@@ -210,16 +211,9 @@ export function WorkstationSettingsCard(props) {
         },
       },
       h(
-        'div',
-        {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          },
-        },
-        h('span', { style: { fontWeight: 650, fontSize: 13, lineHeight: '18px' } }, 'Image workstation'),
-        h('span', { style: { fontSize: 11, color: fgMuted, lineHeight: '14px' } }, '生图工作台'),
+        'span',
+        { style: { fontWeight: 650, fontSize: 13, lineHeight: '18px' } },
+        'Image workstation',
       ),
     ),
     open
