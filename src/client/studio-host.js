@@ -22,12 +22,6 @@ import {
 } from '../ui/labels.js'
 import { defaultStudioState } from '../ui/studio-stub.js'
 import { mountVideoPage, VIDEO_PAGE, IMAGE_PAGE } from './video-host.js'
-import {
-  DEMO_LOCAL_RESULT_URLS,
-  DEMO_LOCAL_STATUS,
-  DEMO_LOCAL_JOB_ID,
-} from './demo-local-results.js'
-
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
 /** Soft photo-noise fallback for broken real images only (not fake content) */
@@ -658,7 +652,7 @@ function mountStudioHostEl(hostEl) {
 }
 
 /**
- * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, paintDemoLocalResults: () => void, setProgress: (value: any) => void, setStatus: (text: string) => void, setConnected: (on: boolean) => void, getHostEl: () => HTMLElement | undefined }}
+ * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, setProgress: (value: any) => void, setStatus: (text: string) => void, setConnected: (on: boolean) => void, getHostEl: () => HTMLElement | undefined }}
  */
 export function createStudioHost() {
   let host
@@ -975,44 +969,6 @@ export function createStudioHost() {
   const setStatus = (text) => {
     const status = host?.querySelector('[data-ws-status]')
     if (status) status.textContent = text
-  }
-
-  /**
-   * Dev/screenshot helper: paint prior local gens into right [data-ws-results].
-   * Honest local files (data URLs from fixtures) — NOT a fake CTA / generate success.
-   * Trigger: ?wsDemoResults=1, console __dshWsPaintDemoResults(), or api.paintDemoLocalResults().
-   * Status disclaimer is console-only (never setStatus 「非本次 CTA」).
-   */
-  const paintDemoLocalResults = () => {
-    ensure()
-    const want = Math.max(1, Math.min(Number(state.count) || 1, DEMO_LOCAL_RESULT_URLS.length || 1))
-    const urls = DEMO_LOCAL_RESULT_URLS.filter(Boolean).slice(0, want)
-    if (!urls.length) {
-      try {
-        console.info('[dsh-ws] demo local results: no fixtures')
-      } catch (_) {}
-      return
-    }
-    applyGenerateResult({
-      jobId: DEMO_LOCAL_JOB_ID,
-      phase: 'done',
-      results: urls.map((url) => ({ kind: 'image', url })),
-    })
-    // Mute user-visible demo disclaimer (「非本次 CTA」) — console-only
-    try {
-      console.info('[dsh-ws]', DEMO_LOCAL_STATUS)
-    } catch (_) {}
-  }
-
-  /** Opt-in only via console / API — never auto-paint on open (production path) */
-  const maybePaintDemoFromQuery = () => {
-    try {
-      if (typeof location === 'undefined') return
-      if (/(?:\?|&)wsDemoResults=1(?:&|$)/.test(String(location.search || ''))) {
-        // Kept for explicit ?wsDemoResults=1 debug; prefer __dshWsPaintDemoResults()
-        paintDemoLocalResults()
-      }
-    } catch (_) {}
   }
 
   const syncStageWeight = () => {
@@ -2003,7 +1959,6 @@ export function createStudioHost() {
     paintRefSlot()
     paintSkillPlan()
     paintConnStatus(true)
-    // Do NOT auto-paint demo results on mount — production stays empty until real CTA
     return host
   }
 
@@ -2014,8 +1969,6 @@ export function createStudioHost() {
       mountStudioHostEl(el)
       el.style.display = 'flex'
       open = true
-      // Opt-in only: ?wsDemoResults=1 (production open stays empty until real CTA)
-      maybePaintDemoFromQuery()
     },
     close() {
       if (host) host.style.display = 'none'
@@ -2067,13 +2020,6 @@ export function createStudioHost() {
       ensure()
       applyGenerateResult(value)
     },
-    /**
-     * Dev/screenshot: paint prior local gens into right results (not CTA success).
-     * Also: ?wsDemoResults=1 or window.__dshWsPaintDemoResults(). No user-visible demo status.
-     */
-    paintDemoLocalResults() {
-      paintDemoLocalResults()
-    },
     dispose() {
       stopProgressClock()
       videoApi?.dispose?.()
@@ -2085,11 +2031,6 @@ export function createStudioHost() {
       activeHistoryId = null
     },
   }
-  try {
-    if (typeof window !== 'undefined') {
-      window.__dshWsPaintDemoResults = () => api.paintDemoLocalResults()
-    }
-  } catch (_) {}
   return api
 }
 
