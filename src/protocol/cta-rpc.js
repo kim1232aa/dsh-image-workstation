@@ -22,6 +22,11 @@ import {
   removeGallery,
   updateGalleryTags,
 } from './gallery-store.js'
+import {
+  storagePathsOf,
+  ensureMediaSeats,
+  persistGenerateToSeats,
+} from './media-storage.js'
 
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
@@ -214,18 +219,15 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
       const dataDir = String(
         (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) || '',
       )
-      const paths = {
-        dataDir,
-        generated: 'media/generated',
-        gallery: 'media/gallery',
-        history: 'media/history',
-      }
+      ensureMediaSeats(dataDir)
+      const paths = storagePathsOf(dataDir)
       if (endpoint === CTA_RPC_STORAGE_PATHS) {
         return { ok: true, value: paths }
       }
-      // storage.list — disk seats + gallery index.json (Nova-shaped metadata)
+      // storage.list — Visio seats + Nova-shaped gallery index.json
       const seatGallery = listMediaSeat(dataDir, paths.gallery)
       const historyItems = listMediaSeat(dataDir, paths.history)
+      const generatedItems = listMediaSeat(dataDir, paths.generated)
       let indexGallery = []
       try {
         indexGallery = await listGallery(dataDir)
@@ -239,7 +241,8 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
           ...paths,
           galleryItems,
           historyItems,
-          items: [...galleryItems, ...historyItems],
+          generatedItems,
+          items: [...galleryItems, ...historyItems, ...generatedItems],
         },
       }
     }
@@ -264,6 +267,7 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
           const detail = payload && typeof payload === 'object' ? payload : {}
           const out = await appendGallery(dataDir, {
             src: detail.src,
+            localPath: detail.localPath,
             b64: detail.b64,
             mime: detail.mime,
             prompt: detail.prompt,

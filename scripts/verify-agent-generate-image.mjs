@@ -27,6 +27,7 @@ try {
   fail('expected IMAGE_API_NOT_CONFIGURED')
 } catch (e) {
   if (e.code !== 'IMAGE_API_NOT_CONFIGURED') fail(`code ${e.code}`)
+  if (!/Settings → Plugins → dsh-image-workstation/.test(e.message)) fail(`settings path ${e.message}`)
   if (!/Settings|media\.env|配置/.test(e.message)) fail(`guide ${e.message}`)
 }
 
