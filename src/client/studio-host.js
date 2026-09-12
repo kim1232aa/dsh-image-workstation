@@ -68,7 +68,7 @@ const STAGE_EMPTY_TITLE = '生成后显示在这里'
 const STAGE_EMPTY_HINT = '出图结果会出现在本栏'
 const HISTORY_EMPTY_HINT = '暂无记录'
 
-const DEFAULT_MODEL = 'gpt-image-2'
+const DEFAULT_MODEL = 'grok-imagine-image'
 
 /** Semantic dsh theme tokens — follow body[data-ds-dark-theme] / host skin */
 const T = Object.freeze({
