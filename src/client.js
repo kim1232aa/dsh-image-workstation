@@ -589,13 +589,23 @@ export function apply(ctx, _config) {
   }
 
   try {
-    disposers.push(
-      mountSidebarEntry({
-        labels: { newSession: '新会话', studio: '生图' },
-        onNewSession: () => studio.close(),
-        onStudio: () => studio.open(),
-      }),
-    )
+    const sidebarEntry = mountSidebarEntry({
+      labels: { newSession: '新会话', studio: '生图' },
+      onNewSession: () => studio.close(),
+      onStudio: () => studio.open(),
+    })
+    const openStudio = studio.open.bind(studio)
+    const closeStudio = studio.close.bind(studio)
+    studio.open = () => {
+      openStudio()
+      sidebarEntry.setSelected('studio')
+    }
+    studio.close = () => {
+      closeStudio()
+      sidebarEntry.setSelected('new-session')
+    }
+    if (studio.isOpen?.()) sidebarEntry.setSelected('studio')
+    disposers.push(() => sidebarEntry.dispose())
     /** Video CTA → /dsh-ws videoGenerate — same pattern as image generate */
     let videoInflight = false
     /** @type {AbortController | null} */

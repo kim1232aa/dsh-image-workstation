@@ -197,7 +197,7 @@ export function buildVideoPageHtml(T, css, paneWidths, state) {
   </aside>
   <div data-ws-pane-drag="video-history" title="拖拽调整历史栏宽度"></div>
 
-  <section data-ws-col="studio" data-ws-video-studio style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:${T.bg};">
+  <section data-ws-col="studio" data-ws-video-studio style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:${T.layer2};">
     <div data-ws-video-stage aria-label="视频生成台">
       <div data-ws-stage-head>
         <strong>${STAGE_LABEL}</strong>

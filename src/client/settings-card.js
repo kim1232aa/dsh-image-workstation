@@ -175,9 +175,9 @@ export function WorkstationSettingsCard(props) {
   const fgSecondary = 'var(--dsw-alias-label-secondary, #4b5563)'
   const border = '0.5px solid var(--dsw-alias-border-l4, #d8dbe2)'
   const borderStrong = '0.5px solid var(--dsw-alias-border-l3, #c9cdd6)'
-  const inputBg = 'var(--dsw-alias-bg-layer-1, #fff)'
+  const inputBg = 'var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-module-platform, transparent))'
   const layer2 = 'var(--dsw-alias-bg-layer-2, #f3f4f6)'
-  const layer3 = 'var(--dsw-alias-bg-layer-3, #fff)'
+  const layer3 = 'var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-2, transparent))'
 
   const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8, fontSize: 12 }
   const inputStyle = {
@@ -201,7 +201,7 @@ export function WorkstationSettingsCard(props) {
     ...btnBase,
     border: 0,
     background: 'var(--dsw-alias-button-primary-fill, #1a1d24)',
-    color: 'var(--dsw-alias-label-primary-foreground, #fff)',
+    color: 'var(--dsw-alias-label-primary-foreground)',
     fontWeight: 650,
     cursor: busy ? 'wait' : 'pointer',
   }
@@ -237,7 +237,7 @@ export function WorkstationSettingsCard(props) {
         color: fg,
         marginBottom: 8,
         overflow: 'hidden',
-        font: '12px/1.4 system-ui,sans-serif',
+        font: 'inherit',
       },
     },
     h(

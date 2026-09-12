@@ -89,14 +89,15 @@ const resolveModelId = (raw) => {
   return s || DEFAULT_MODEL
 }
 
-/** Semantic dsh theme tokens — follow body[data-ds-dark-theme] / host skin */
+/** Semantic dsh theme tokens — follow body[data-ds-dark-theme] / host skin.
+ *  Fallbacks stay token-or-transparent — never hardcode #fff panel seas. */
 const T = Object.freeze({
-  bg: 'var(--dsw-alias-bg-base)',
-  layer1: 'var(--dsw-alias-bg-layer-1)',
-  layer2: 'var(--dsw-alias-bg-layer-2)',
-  layer3: 'var(--dsw-alias-bg-layer-3)',
-  module: 'var(--dsw-alias-bg-module-platform)',
-  sidebar: 'var(--dsw-specific-sidebar-fill)',
+  bg: 'var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-2, var(--dsw-specific-sidebar-fill, transparent)))',
+  layer1: 'var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-module-platform, transparent))',
+  layer2: 'var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-module-platform, var(--dsw-specific-sidebar-fill, transparent)))',
+  layer3: 'var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-2, transparent))',
+  module: 'var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent))',
+  sidebar: 'var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-layer-2, transparent))',
   input: 'var(--dsw-specific-input-major)',
   fg: 'var(--dsw-alias-label-primary)',
   fg2: 'var(--dsw-alias-label-secondary)',
@@ -143,7 +144,7 @@ const css = {
   paramLabel: `font-size:11px;font-weight:600;color:${T.fg2};white-space:nowrap;`,
   /** Host primary CTA — theme-aware */
   cta:
-    `width:100%;min-height:40px;padding:9px 14px;border:0;border-radius:9px;background:${T.cta};color:${T.fgOnPrimary};cursor:pointer;font:inherit;font-weight:700;font-size:14px;letter-spacing:.02em;display:inline-flex;align-items:center;justify-content:center;box-shadow:${T.elevPanel};`,
+    `width:100%;min-height:40px;padding:9px 14px;border:0;border-radius:9px;background:${T.cta};color:${T.fgOnPrimary};cursor:pointer;font:inherit;font-weight:600;font-size:14px;letter-spacing:.02em;display:inline-flex;align-items:center;justify-content:center;box-shadow:${T.elevPanel};`,
   pill: (opts = {}) =>
     `padding:${opts.pad || '2px 10px'};border:1px solid ${T.border2};border-radius:999px;background:${opts.fill || 'transparent'};color:${opts.color || T.fg2};cursor:pointer;font:inherit;font-size:${opts.size || '11.5px'};`,
   topTab: (on) =>
@@ -152,16 +153,24 @@ const css = {
 
 const HOST_STYLES = `
 [data-dsh-ws-studio-host] {
-  background: var(--dsw-alias-bg-base);
+  background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-2, var(--dsw-specific-sidebar-fill, transparent)));
   color: var(--dsw-alias-label-primary);
   border-color: var(--dsw-alias-border-l2);
-  font-family: var(--dsw-font-family, inherit);
+  font-family: var(--dsw-font, var(--dsw-font-family, inherit));
   font-size: var(--dsh-content-font-size, 13px);
+  font-weight: 400;
   color-scheme: inherit;
 }
+body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 [data-dsh-ws-studio-host] *,
 [data-dsh-ws-studio-host] *::before,
 [data-dsh-ws-studio-host] *::after { box-sizing: border-box; }
+[data-dsh-ws-studio-host] button,
+[data-dsh-ws-studio-host] input,
+[data-dsh-ws-studio-host] select,
+[data-dsh-ws-studio-host] textarea {
+  font-family: inherit;
+}
 /* Inactive page shells must not steal clicks (gallery/ecom cols flex vs display:none). */
 [data-dsh-ws-studio-host][data-ws-top-page="普通生图"] [data-ws-page]:not([data-ws-page="image"]),
 [data-dsh-ws-studio-host][data-ws-top-page="image"] [data-ws-page]:not([data-ws-page="image"]),
@@ -268,7 +277,7 @@ const HOST_STYLES = `
   display:flex; align-items:baseline; gap:8px; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] strong {
-  font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary);
+  font-size:13px; font-weight:600; color: var(--dsw-alias-label-primary);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty] {
   flex:0 0 auto; min-height:0;
@@ -287,7 +296,7 @@ const HOST_STYLES = `
   display:none !important;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-title] {
-  font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary); line-height:1.35;
+  font-size:13px; font-weight:600; color: var(--dsw-alias-label-primary); line-height:1.35;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint] {
   font-size:12px; color: var(--dsw-alias-label-secondary); font-weight:400; line-height:1.4;
@@ -362,7 +371,7 @@ const HOST_STYLES = `
   /* Pack to natural height — continuous with [data-ws-cta-footer] (gap 0 / small).
      NEVER margin-top:auto / flex-grow between dock params and CTA. */
   flex:0 0 auto; display:flex; flex-direction:column; gap:4px;
-  padding:8px 12px 0; background: var(--dsw-alias-bg-base);
+  padding:8px 12px 0; background: transparent;
   border-top:0;
   max-height:none; overflow:auto; min-height:0;
 }
@@ -378,7 +387,7 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
   /* Pack directly under dock at TOP of mid — write+CTA only; results on right. */
   flex:0 0 auto; margin-top:0; position:relative; z-index:2;
-  padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
+  padding:6px 12px 10px; background: transparent;
   display:flex; flex-direction:column; gap:4px;
   border-top:1px solid var(--dsw-alias-border-l2);
 }
@@ -504,11 +513,11 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-plan-actions] { display:flex; flex-wrap:wrap; gap:6px; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] button {
   padding:4px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
-  background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary);
-  cursor:pointer; font:inherit; font-size:11.5px;
+  background: transparent; color: var(--dsw-alias-label-secondary);
+  cursor:pointer; font:inherit; font-size:11.5px; font-weight:400;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] button[data-primary] {
-  border-color: var(--dsw-alias-border-l4); background: var(--dsw-alias-interactive-bg-active);
+  border-color: var(--dsw-alias-border-l3); background: transparent;
   color: var(--dsw-alias-label-primary); font-weight:600;
 }
 [data-dsh-ws-studio-host] [data-ws-pane-drag] {
@@ -520,54 +529,34 @@ const HOST_STYLES = `
   background: var(--dsw-alias-interactive-bg-hover);
 }
 [data-dsh-ws-studio-host] [data-ws-col="studio"] {
-  /* Write+generate only: dock+CTA pack at top; no result stage / no white sea */
+  /* Write+generate pack at top; leftover uses muted layer — not a #fff sea */
   display:flex; flex-direction:column; justify-content:flex-start; flex:1; min-width:0; min-height:0;
-  overflow:auto; background: var(--dsw-alias-bg-base);
+  overflow:auto; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-module-platform, var(--dsw-specific-sidebar-fill, transparent)));
 }
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
+[data-dsh-ws-studio-host] [data-ws-inspire-wall],
+[data-dsh-ws-studio-host] [data-ws-col="chat"] {
+  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-module-platform, var(--dsw-specific-sidebar-fill, transparent)));
+}
 [data-dsh-ws-studio-host] [data-ws-top-bar] {
   display:flex; gap:8px; padding:0 10px; align-items:center; flex-shrink:0;
   min-height:20px; height:20px;
   background:transparent; border-bottom:0;
 }
-[data-dsh-ws-studio-host] [data-ws-mode-switch] {
-  position:relative; display:inline-flex; align-items:center; flex:none;
+[data-dsh-ws-studio-host] [data-ws-top-seg] {
+  display:inline-flex; align-items:center; gap:2px; flex:none;
+  padding:0; border-radius:0;
+  background:transparent; border:0;
 }
-[data-dsh-ws-studio-host] [data-ws-mode-toggle] {
-  padding:0 2px; border:0; border-radius:0; background:transparent;
-  color: var(--dsw-alias-label-tertiary); cursor:pointer;
-  font:inherit; font-size:10.5px; line-height:1.25; font-weight:400;
+[data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top] {
+  padding:2px 5px 3px; border:0; border-bottom:1px solid transparent;
+  border-radius:0; font:inherit; font-size:11px; line-height:1.25; font-weight:400;
+  cursor:pointer; background:transparent; color: var(--dsw-alias-label-tertiary);
 }
-[data-dsh-ws-studio-host] [data-ws-mode-toggle]:hover {
-  color: var(--dsw-alias-label-secondary);
-}
-[data-dsh-ws-studio-host] [data-ws-mode-current] {
-  color: inherit;
-}
-[data-dsh-ws-studio-host] [data-ws-mode-caret] {
-  color: var(--dsw-alias-label-dimmed);
-  font-size: 9px;
-}
-[data-dsh-ws-studio-host] [data-ws-mode-menu] {
-  position:absolute; top:100%; left:0; z-index:50; margin-top:2px;
-  min-width:7.5rem; padding:4px; display:flex; flex-direction:column; gap:2px;
-  background: var(--dsw-alias-bg-module-platform);
-  border:1px solid var(--dsw-alias-border-l2);
-  border-radius:8px; box-shadow: var(--dsw-elevation-panel);
-}
-[data-dsh-ws-studio-host] [data-ws-mode-menu][hidden] { display:none !important; }
-[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top] {
-  padding:4px 8px; border:0; border-radius:6px; text-align:left;
-  background:transparent; color: var(--dsw-alias-label-secondary);
-  cursor:pointer; font:inherit; font-size:11.5px; line-height:1.3;
-}
-[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top]:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top][aria-current="true"],
-[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top][data-active] {
-  background: var(--dsw-alias-interactive-bg-active);
-  color: var(--dsw-alias-label-primary); font-weight:500;
+[data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][aria-current="true"],
+[data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][data-active] {
+  background:transparent; color: var(--dsw-alias-label-secondary); font-weight:500;
+  border-bottom-color: var(--dsw-alias-label-secondary);
 }
 [data-dsh-ws-studio-host] [data-ws-history-filters][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-history-clear][hidden] { display:none !important; }
@@ -806,20 +795,15 @@ export function createStudioHost(opts = {}) {
   const setTopTab = (tab) => {
     const name = tab || IMAGE_PAGE
     state.topTab = name
-    const cur = host?.querySelector('[data-ws-mode-current]')
-    if (cur) cur.textContent = name
-    host?.querySelectorAll('[data-ws-mode-menu] [data-ws-top]').forEach((b) => {
+    host?.querySelectorAll('[data-ws-top-seg] [data-ws-top]').forEach((b) => {
       const on = b.getAttribute('data-ws-top') === name
       if (b instanceof HTMLElement) {
         b.setAttribute('aria-current', on ? 'true' : 'false')
         if (on) b.setAttribute('data-active', '')
         else b.removeAttribute('data-active')
+        b.style.cssText = css.topTab(on)
       }
     })
-    const menu = host?.querySelector('[data-ws-mode-menu]')
-    const toggle = host?.querySelector('[data-ws-mode-toggle]')
-    if (menu instanceof HTMLElement) menu.hidden = true
-    if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
     // Stamp top-page for sibling page CSS (video/canvas/gallery/ecom hide image cols).
     host?.setAttribute('data-ws-top-page', name)
     const topWired =
@@ -833,11 +817,7 @@ export function createStudioHost(opts = {}) {
       canvasApi?.setPage(name)
       galleryApi?.setPage(name)
       ecomApi?.setPage(name)
-      if (name === VIDEO_PAGE) setStatus('视频生成')
-      else if (name === CANVAS_PAGE) setStatus('无限画布')
-      else if (name === GALLERY_PAGE) setStatus('画廊')
-      else if (name === ECOM_PAGE) setStatus('电商模式')
-      else setStatus('普通生图')
+      // Do not echo the page name into status — tabs already label the chrome band.
     } else {
       setStatus(`「${name}」未接线`)
     }
@@ -1765,7 +1745,7 @@ export function createStudioHost(opts = {}) {
     host.setAttribute('aria-label', '生图')
     // Fill the host *main content pane* only — never fixed left-inset over sidebar
     host.style.cssText =
-      `display:none;position:absolute;inset:0;z-index:40;width:auto;height:auto;background:${T.bg};color:${T.fg};flex-direction:column;font-family:${T.font};font-size:${T.fontSize};line-height:1.4;overflow:hidden;color-scheme:inherit;`
+      `display:none;position:absolute;inset:0;z-index:40;width:auto;height:auto;background:${T.layer2};color:${T.fg};flex-direction:column;font-family:${T.font};font-size:${T.fontSize};line-height:1.4;overflow:hidden;color-scheme:inherit;`
 
     const styleEl = document.createElement('style')
     styleEl.textContent = HOST_STYLES
@@ -1775,16 +1755,11 @@ export function createStudioHost(opts = {}) {
     frame.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;width:100%;'
     frame.innerHTML = `
       <header data-ws-top-bar>
-        <div data-ws-mode-switch>
-          <button type="button" data-ws-mode-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="切换工作台模块">
-            <span data-ws-mode-current>${TOP_TABS[0]}</span><span data-ws-mode-caret aria-hidden="true"> ▾</span>
-          </button>
-          <div data-ws-mode-menu role="listbox" aria-label="工作台模块" hidden>
-            ${TOP_TABS.map(
-              (t, i) =>
-                `<button type="button" data-ws-top="${t}" role="option" aria-current="${i === 0 ? 'true' : 'false'}" ${i === 0 ? 'data-active' : ''}>${t}</button>`,
-            ).join('')}
-          </div>
+        <div data-ws-top-seg role="tablist" aria-label="工作台模式">
+          ${TOP_TABS.map(
+            (t, i) =>
+              `<button type="button" data-ws-top="${t}" role="tab" aria-current="${i === 0 ? 'true' : 'false'}" ${i === 0 ? 'data-active' : ''} style="${css.topTab(i === 0)}">${t}</button>`,
+          ).join('')}
         </div>
         <span style="flex:1"></span>
         <div data-ws-tool-more>
@@ -1815,8 +1790,8 @@ export function createStudioHost(opts = {}) {
         </aside>
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
-        <!-- CENTER: write + generate ONLY (no result stage / no white sea) -->
-        <section data-ws-col="studio" style="flex:1;padding:0;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.bg};border-left:0;border-right:0;">
+        <!-- CENTER: write + generate ONLY (muted leftover, no #fff sea) -->
+        <section data-ws-col="studio" style="flex:1;padding:0;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.layer2};border-left:0;border-right:0;">
 
           <div data-ws-dock>
             <div style="display:flex;gap:6px;align-items:center;" role="tablist">
@@ -1843,8 +1818,8 @@ export function createStudioHost(opts = {}) {
                 <div style="display:flex;align-items:center;gap:6px;">
                   <span style="${css.paramLabel}">${PROMPT_FIELDS.prompt}</span>
                   <span style="flex:1"></span>
-                  <button type="button" data-ws-action="templates" style="padding:0 10px;height:24px;border:1px solid ${T.focus};border-radius:999px;background:${T.hover};color:${T.focus};cursor:pointer;font:inherit;font-size:11px;font-weight:600;">${PROMPT_ACTIONS.templates}</button>
-                  <button type="button" data-ws-action="enhance" style="padding:0 9px;height:24px;border:1px solid ${T.border2};border-radius:999px;background:${T.module};color:${T.fg2};cursor:pointer;font:inherit;font-size:11px;">${PROMPT_ACTIONS.enhance}</button>
+                  <button type="button" data-ws-action="templates" style="padding:0 9px;height:24px;border:1px solid ${T.border2};border-radius:999px;background:transparent;color:${T.fg2};cursor:pointer;font:inherit;font-size:11px;">${PROMPT_ACTIONS.templates}</button>
+                  <button type="button" data-ws-action="enhance" style="padding:0 9px;height:24px;border:1px solid ${T.border2};border-radius:999px;background:transparent;color:${T.fg2};cursor:pointer;font:inherit;font-size:11px;">${PROMPT_ACTIONS.enhance}</button>
                 </div>
                 <textarea data-ws-prompt rows="2" placeholder="描述你想生成的画面" style="resize:vertical;min-height:56px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;line-height:1.45;font-size:12.5px;"></textarea>
               </div>
@@ -1924,7 +1899,7 @@ export function createStudioHost(opts = {}) {
 
         <div data-ws-pane-drag="chat" title="拖拽调整结果/对话栏宽度"></div>
         <!-- RIGHT: 生成结果 landing (replaces empty 灵感 as primary) -->
-        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:flex;flex-direction:column;gap:8px;background:${T.bg};overflow:hidden;min-height:0;">
+        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:flex;flex-direction:column;gap:8px;background:${T.layer2};overflow:hidden;min-height:0;">
           <div data-ws-stage aria-label="${STAGE_LABEL}">
             <div data-ws-stage-head>
               <strong>${STAGE_LABEL}</strong>
@@ -1965,7 +1940,7 @@ export function createStudioHost(opts = {}) {
             </div>
           </div>
         </aside>
-        <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:none;flex-direction:column;background:${T.bg};">
+        <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:none;flex-direction:column;background:${T.layer2};">
           <strong style="font-size:13px;color:${T.fg};">${COLUMNS.chat}</strong>
           <p style="margin:8px 0 0;font-size:12px;color:${T.fg3};">对话线程（可内联出图）</p>
         </aside>
@@ -1973,31 +1948,12 @@ export function createStudioHost(opts = {}) {
     `
     host.appendChild(frame)
 
-    host.querySelector('[data-ws-mode-toggle]')?.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const menu = host.querySelector('[data-ws-mode-menu]')
-      const toggle = host.querySelector('[data-ws-mode-toggle]')
-      if (!(menu instanceof HTMLElement) || !(toggle instanceof HTMLElement)) return
-      const open = menu.hidden
-      menu.hidden = !open
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-    })
-    host.querySelectorAll('[data-ws-mode-menu] [data-ws-top]').forEach((btn) => {
+    host.querySelectorAll('[data-ws-top-seg] [data-ws-top]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation()
         setTopTab(btn.getAttribute('data-ws-top') || IMAGE_PAGE)
       })
     })
-    const closeModeMenu = (e) => {
-      const sw = host?.querySelector('[data-ws-mode-switch]')
-      if (!(sw instanceof HTMLElement)) return
-      if (e.target instanceof Node && sw.contains(e.target)) return
-      const menu = host.querySelector('[data-ws-mode-menu]')
-      const toggle = host.querySelector('[data-ws-mode-toggle]')
-      if (menu instanceof HTMLElement) menu.hidden = true
-      if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
-    }
-    document.addEventListener('click', closeModeMenu)
     host.querySelector('[data-ws-prompt]')?.addEventListener('input', (e) => {
       const t = /** @type {HTMLTextAreaElement} */ (e.target)
       state.prompt = t.value
