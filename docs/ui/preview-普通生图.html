@@ -4,21 +4,42 @@
 <meta charset="utf-8" />
 <title>普通生图 · preview（studio-host DOM 镜像）</title>
 <style>
-  body { margin:0; font:13px/1.4 system-ui,sans-serif; background:#0b0d10; color:#e8eaed; }
-  [data-dsh-ws-studio-host] { display:flex; flex-direction:column; height:100vh; }
+  /* Preview approximates host tokens; live host inherits body[data-ds-dark-theme] */
+  :root {
+    --dsw-alias-bg-base: #fff;
+    --dsw-alias-bg-layer-1: #fff;
+    --dsw-alias-bg-module-platform: #f5f6f7;
+    --dsw-specific-sidebar-fill: #f5f6f7;
+    --dsw-specific-input-major: #fff;
+    --dsw-alias-label-primary: #0f1115;
+    --dsw-alias-label-secondary: #61666b;
+    --dsw-alias-label-tertiary: #81858c;
+    --dsw-alias-border-l2: rgba(0,0,0,.1);
+    --dsw-alias-button-primary-fill: #0f1115;
+    --dsw-alias-label-primary-foreground: #fff;
+    --dsh-content-font-size: 13px;
+  }
+  body { margin:0; font: var(--dsh-content-font-size)/1.4 system-ui,sans-serif; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
+  [data-dsh-ws-studio-host] { display:flex; flex-direction:column; height:100vh; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l2); }
   [data-ws-cols] { display:flex; flex:1; min-height:0; }
-  [data-ws-col="history"] { width:264px; border-right:1px solid #1a1f2a; padding:8px; overflow:auto; }
-  [data-ws-col="studio"] { flex:1; min-width:0; display:flex; flex-direction:column; }
-  [data-ws-inspire-wall] { width:318px; border-left:1px solid #1a1f2a; padding:8px; }
-  [data-ws-pane-drag] { width:5px; cursor:col-resize; background:#1a1f2a; }
-  [data-ws-ref-slot] { display:none; padding:8px; border:1px dashed #2a3140; margin:6px 12px; border-radius:10px; }
+  [data-ws-col="history"] { width:264px; border-right:1px solid var(--dsw-alias-border-l2); padding:8px; overflow:auto; background: var(--dsw-specific-sidebar-fill); }
+  [data-ws-col="studio"] { flex:1; min-width:0; display:flex; flex-direction:column; background: var(--dsw-alias-bg-base); }
+  [data-ws-stage] { flex:1 1 28%; min-height:72px; padding:8px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-stage][data-has-results] { flex:2.4 1 0; }
+  [data-ws-dock] { flex:0 1 auto; max-height:52%; padding:6px 12px 0; display:flex; flex-direction:column; gap:4px; border-top:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-inspire-wall] { width:318px; border-left:1px solid var(--dsw-alias-border-l2); padding:8px; background: var(--dsw-alias-bg-base); }
+  [data-ws-inspire-empty] { min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:36px 16px; text-align:center; border:1px dashed var(--dsw-alias-border-l2); border-radius:12px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
+  [data-ws-inspire-empty] span { font-size:11.5px; color: var(--dsw-alias-label-tertiary); }
+  [data-ws-pane-drag] { width:5px; cursor:col-resize; background:transparent; }
+  [data-ws-ref-slot] { display:none; padding:8px; border:1px dashed var(--dsw-alias-border-l2); margin:0; border-radius:10px; background: var(--dsw-alias-bg-module-platform); }
   [data-ws-ref-slot][data-visible] { display:block; }
-  [data-ws-progress], [data-ws-fail], [data-ws-result-actions], [data-ws-plan-panel] { display:none; margin:8px 12px; padding:8px; border-radius:10px; border:1px solid #1f2430; }
+  [data-ws-progress], [data-ws-fail], [data-ws-result-actions], [data-ws-plan-panel] { display:none; margin:0; padding:8px; border-radius:10px; border:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-module-platform); }
   [data-ws-progress][data-visible], [data-ws-fail][data-visible], [data-ws-result-actions][data-visible], [data-ws-plan-panel][data-visible] { display:block; }
-  [data-ws-conn-status] { padding:0 10px; height:26px; border:1px solid #2a3140; border-radius:999px; display:inline-flex; align-items:center; }
-  header { display:flex; gap:4px; padding:7px 12px; border-bottom:1px solid #1a1f2a; align-items:center; }
+  [data-ws-conn-status] { padding:0 10px; height:26px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; display:inline-flex; align-items:center; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
+  [data-ws-cta] { width:100%; min-height:40px; border:0; border-radius:9px; background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); font-weight:700; cursor:pointer; }
+  header { display:flex; gap:4px; padding:7px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); align-items:center; background: var(--dsw-alias-bg-base); }
   button { font:inherit; cursor:pointer; }
-  .note { color:#6b7280; font-size:11px; padding:8px 12px; }
+  .note { color: var(--dsw-alias-label-tertiary); font-size:11px; padding:8px 12px; }
 </style>
 </head>
 <body>
@@ -38,16 +59,7 @@
     <aside data-ws-col="history">
       <div>历史记录</div>
       <div data-ws-history-list>
-        <div data-ws-history-item="demo">
-          <div class="ws-hist-meta">
-            <div class="ws-hist-line">提示词摘要 · 1:1</div>
-            <div class="ws-hist-model">gpt-image-2</div>
-            <div class="ws-hist-actions">
-              <button type="button" data-ws-history-restore>恢复</button>
-              <button type="button" data-ws-history-delete>删除</button>
-            </div>
-          </div>
-        </div>
+        <div data-ws-history-empty>暂无记录</div>
       </div>
       <button type="button" data-ws-history-clear>清空</button>
     </aside>
@@ -57,11 +69,11 @@
         <div data-ws-stage-head><strong>生成结果</strong><span data-ws-stage-empty-hint>生成后显示在这里</span></div>
         <div data-ws-progress data-visible>
           <div data-ws-progress-meta>
-            <span data-ws-progress-label>进度 42%</span>
-            <span data-ws-progress-elapsed>耗时 12s</span>
+            <span data-ws-progress-label>等待宿主进度</span>
+            <span data-ws-progress-elapsed>耗时 0s</span>
             <button type="button" data-ws-cancel>取消</button>
           </div>
-          <div data-ws-progress-bar><i style="display:block;height:6px;width:42%;background:#5b8def;"></i></div>
+          <div data-ws-progress-bar><i style="display:block;height:6px;width:36%;background:var(--dsw-alias-state-business-primary, #4176e6);"></i></div>
         </div>
         <div data-ws-fail><div data-ws-fail-reason>原因：示例失败</div><button type="button" data-ws-retry>重试</button></div>
         <div data-ws-results></div>
@@ -86,7 +98,7 @@
           <div data-ws-ref-drop>点击、拖入或 Ctrl+V 粘贴</div>
           <div data-ws-ref-thumbs></div>
         </div>
-        <textarea data-ws-prompt placeholder="提示词"></textarea>
+        <textarea data-ws-prompt rows="2" placeholder="描述你想生成的画面"></textarea>
         <div data-ws-param-row>
           <div data-ws-chips><!-- 比例/清晰度/张数/细节 chips --></div>
         </div>
@@ -94,8 +106,11 @@
           <input data-ws-param="model" placeholder="选择模型" />
           <label><input type="checkbox" data-ws-compare /> 多模型对比</label>
         </div>
+        <div data-ws-skill-model-row>
+          <label>创作 Skill <select data-ws-param="skill"><option value="">（不使用）</option></select></label>
+        </div>
         <div data-ws-plan-panel data-visible>
-          <textarea data-ws-plan-text placeholder="方案"></textarea>
+          <textarea data-ws-plan-text rows="2" placeholder="LLM 未接 — 可手写方案后点「就这样出图」"></textarea>
           <div data-ws-plan-actions>
             <button type="button" data-ws-plan-action="plan">想方案</button>
             <button type="button" data-ws-plan-action="replan">重新想一版</button>
@@ -112,11 +127,16 @@
     <aside data-ws-inspire-wall>
       <strong>灵感案例</strong>
       <button type="button" data-ws-empty="shuffle">随机</button>
-      <div data-ws-inspire-grid></div>
+      <div data-ws-inspire-grid>
+        <div data-ws-inspire-empty>
+          <strong>暂无灵感</strong>
+          <span>本地案例未接入，生成后可从结果加入灵感</span>
+        </div>
+      </div>
     </aside>
     <aside data-ws-col="chat" style="display:none"><strong>AI 对话</strong></aside>
   </div>
 </div>
-<p class="note">Static DOM mirror for Looper / 插件工. Live behavior lives in <code>src/client/studio-host.js</code>. Mount prefers <code>[data-pane="conversation"]</code> / <code>[class*="centerCol"]</code> / <code>[data-dsh-ws-content-mount]</code>; host fills with <code>position:absolute;inset:0</code>.</p>
+<p class="note">Static DOM mirror for Looper / 插件工. Live studio consumes host <code>--dsw-*</code> tokens (light/dark via <code>body[data-ds-dark-theme]</code>). Mount prefers <code>[data-pane="conversation"]</code> / <code>[class*="centerCol"]</code> / <code>[data-dsh-ws-content-mount]</code>.</p>
 </body>
 </html>

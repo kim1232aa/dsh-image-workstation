@@ -61,68 +61,117 @@ const HIST_THUMB = 88
 const STAGE_LABEL = '生成结果'
 const STAGE_EMPTY_HINT = '生成后显示在这里'
 const INSPIRE_EMPTY_HINT = '暂无灵感'
+const INSPIRE_EMPTY_HELPER = '本地案例未接入，生成后可从结果加入灵感'
 const HISTORY_EMPTY_HINT = '暂无记录'
 
 const DEFAULT_MODEL = 'gpt-image-2'
 
-const ACCENT = '#5b8def'
+/** Semantic dsh theme tokens — follow body[data-ds-dark-theme] / host skin */
+const T = Object.freeze({
+  bg: 'var(--dsw-alias-bg-base)',
+  layer1: 'var(--dsw-alias-bg-layer-1)',
+  layer2: 'var(--dsw-alias-bg-layer-2)',
+  layer3: 'var(--dsw-alias-bg-layer-3)',
+  module: 'var(--dsw-alias-bg-module-platform)',
+  sidebar: 'var(--dsw-specific-sidebar-fill)',
+  input: 'var(--dsw-specific-input-major)',
+  fg: 'var(--dsw-alias-label-primary)',
+  fg2: 'var(--dsw-alias-label-secondary)',
+  fg3: 'var(--dsw-alias-label-tertiary)',
+  fgDim: 'var(--dsw-alias-label-dimmed)',
+  fgOnPrimary: 'var(--dsw-alias-label-primary-foreground)',
+  border1: 'var(--dsw-alias-border-l1)',
+  border2: 'var(--dsw-alias-border-l2)',
+  border3: 'var(--dsw-alias-border-l3)',
+  border4: 'var(--dsw-alias-border-l4)',
+  hover: 'var(--dsw-alias-interactive-bg-hover)',
+  active: 'var(--dsw-alias-interactive-bg-active)',
+  elevStroke: 'var(--dsw-elevation-stroke)',
+  elevPanel: 'var(--dsw-elevation-panel)',
+  cta: 'var(--dsw-alias-button-primary-fill)',
+  ctaHover: 'var(--dsw-alias-button-primary-hover)',
+  focus: 'var(--dsw-alias-state-business-primary)',
+  error: 'var(--dsw-alias-state-error-primary)',
+  brand: 'var(--dsw-alias-brand-primary)',
+  font: 'var(--dsw-font, var(--dsw-font-family, inherit))',
+  fontSize: 'var(--dsh-content-font-size, 13px)',
+})
+
+const ACCENT = T.focus
 const PANE_WIDTHS_KEY = 'dsh-ws-pane-widths'
 const MODE_TXT = MODE_TABS[0]
 const MODE_IMG = MODE_TABS[1]
 const DEFAULT_PANE_WIDTHS = Object.freeze({ history: 264, studio: null, chat: 318 })
 
-
 const css = {
   mode: (on) =>
-    `padding:4px 12px;border:1px solid ${on ? '#3a4558' : '#2a3140'};border-radius:999px;background:${on ? '#1c2333' : 'transparent'};color:${on ? '#fff' : '#9aa3b2'};cursor:pointer;font:inherit;font-size:12px;`,
+    `padding:4px 12px;border:1px solid ${on ? T.border4 : T.border2};border-radius:999px;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg2};cursor:pointer;font:inherit;font-size:12px;`,
   field:
-    'padding:5px 8px;border-radius:7px;border:1px solid #2a3140;background:#10141c;color:inherit;font:inherit;',
+    `padding:5px 8px;border-radius:7px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;`,
   select:
-    'padding:4px 8px;border-radius:6px;border:1px solid #2a3140;background:#10141c;color:#c5cad3;font:inherit;font-size:12px;min-height:28px;',
+    `padding:4px 8px;border-radius:6px;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;min-height:28px;`,
   chip: (on) =>
-    `padding:4px 10px;border:1px solid ${on ? '#3a4558' : '#2a3140'};border-radius:999px;background:${on ? '#1c2333' : 'transparent'};color:${on ? '#fff' : '#9aa3b2'};cursor:pointer;font:inherit;font-size:12px;line-height:1.2;`,
+    `padding:2px 8px;border:1px solid ${on ? T.border4 : T.border2};border-radius:999px;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg2};cursor:pointer;font:inherit;font-size:11.5px;line-height:1.2;`,
   histAction:
-    'padding:2px 8px;border:1px solid #2a3140;border-radius:6px;background:transparent;color:#c5cad3;cursor:pointer;font:inherit;font-size:11px;',
+    `padding:2px 8px;border:1px solid ${T.border2};border-radius:6px;background:transparent;color:${T.fg2};cursor:pointer;font:inherit;font-size:11px;`,
   /** 出图台 dock 内区块 — 借鉴形态，自写组件 */
   dockBlock:
-    'display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#12161f;border:1px solid #1f2430;border-radius:10px;flex:none;',
-  paramLabel: 'font-size:11px;font-weight:600;color:#9aa3b2;white-space:nowrap;',
-  /** 实心白主 CTA — 始终可点 */
+    `display:flex;flex-direction:column;gap:4px;padding:6px 8px;background:${T.module};border:1px solid ${T.border2};border-radius:8px;flex:none;`,
+  paramLabel: `font-size:11px;font-weight:600;color:${T.fg2};white-space:nowrap;`,
+  /** Host primary CTA — theme-aware */
   cta:
-    `width:100%;min-height:40px;padding:9px 14px;border:0;border-radius:9px;background:#ffffff;color:#0b0d10;cursor:pointer;font:inherit;font-weight:700;font-size:14px;letter-spacing:.02em;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 0 rgba(255,255,255,.2), 0 4px 14px rgba(0,0,0,.35);`,
+    `width:100%;min-height:40px;padding:9px 14px;border:0;border-radius:9px;background:${T.cta};color:${T.fgOnPrimary};cursor:pointer;font:inherit;font-weight:700;font-size:14px;letter-spacing:.02em;display:inline-flex;align-items:center;justify-content:center;box-shadow:${T.elevPanel};`,
+  pill: (opts = {}) =>
+    `padding:${opts.pad || '2px 10px'};border:1px solid ${T.border2};border-radius:999px;background:${opts.fill || 'transparent'};color:${opts.color || T.fg2};cursor:pointer;font:inherit;font-size:${opts.size || '11.5px'};`,
+  topTab: (on) =>
+    `padding:6px 11px;border:0;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg2};cursor:pointer;border-radius:7px;font:inherit;font-size:12.5px;`,
 }
 
 const HOST_STYLES = `
+[data-dsh-ws-studio-host] {
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l2);
+  font-family: var(--dsw-font-family, inherit);
+  font-size: var(--dsh-content-font-size, 13px);
+  color-scheme: inherit;
+}
 [data-dsh-ws-studio-host] *,
 [data-dsh-ws-studio-host] *::before,
 [data-dsh-ws-studio-host] *::after { box-sizing: border-box; }
 [data-dsh-ws-studio-host] [data-ws-history-item] {
   display:flex; gap:8px; align-items:flex-start;
-  padding:5px; border:1px solid #1a1f2a; border-radius:9px;
-  background:#12161f; flex:none; font:inherit; color:inherit; text-align:left;
-  transition: border-color .12s ease;
+  padding:5px; border:1px solid var(--dsw-alias-border-l2); border-radius:9px;
+  background: var(--dsw-alias-bg-module-platform); flex:none; font:inherit; color:inherit; text-align:left;
+  transition: border-color .12s ease, background .12s ease;
 }
-[data-dsh-ws-studio-host] [data-ws-history-item]:hover { border-color:#2a3140; }
-[data-dsh-ws-studio-host] [data-ws-history-item][data-active] { border-color:${ACCENT}; }
+[data-dsh-ws-studio-host] [data-ws-history-item]:hover {
+  border-color: var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+[data-dsh-ws-studio-host] [data-ws-history-item][data-active] {
+  border-color: var(--dsw-alias-state-business-primary);
+}
 [data-dsh-ws-studio-host] [data-ws-history-ghost] {
   display:flex; gap:8px; align-items:center;
-  padding:5px; border:1px solid #1a1f2a; border-radius:9px;
-  background:#12161f; opacity:.92; flex:none;
+  padding:5px; border:1px solid var(--dsw-alias-border-l2); border-radius:9px;
+  background: var(--dsw-alias-bg-module-platform); opacity:.92; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-history-ghost] img,
 [data-dsh-ws-studio-host] [data-ws-history-item] img {
-  width:${HIST_THUMB}px; height:${HIST_THUMB}px; border-radius:7px; object-fit:cover; flex:none; background:#0b0d10;
+  width:${HIST_THUMB}px; height:${HIST_THUMB}px; border-radius:7px; object-fit:cover; flex:none;
+  background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-meta {
   flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;
 }
 [data-dsh-ws-studio-host] [data-ws-history-ghost] .ws-hist-line,
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-line {
-  min-width:0; font-size:11px; line-height:1.35; color:#c5cad3;
+  min-width:0; font-size:11px; line-height:1.35; color: var(--dsw-alias-label-secondary);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-model {
-  font-size:10.5px; color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-size:10.5px; color: var(--dsw-alias-label-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-actions {
   display:flex; gap:4px; flex-wrap:wrap; margin-top:2px;
@@ -130,32 +179,38 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-inspire-card] {
   position:relative; display:flex; flex-direction:column; justify-content:flex-end;
   aspect-ratio:1/1; min-height:0; padding:0; overflow:hidden;
-  border:1px solid #1f2430; border-radius:10px; background:#12161f;
-  color:#c5cad3; cursor:pointer; font:inherit; text-align:left;
+  border:1px solid var(--dsw-alias-border-l2); border-radius:10px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary); cursor:pointer; font:inherit; text-align:left;
   transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-card]:hover {
-  border-color:${ACCENT}; transform:translateY(-2px);
-  box-shadow:0 6px 18px rgba(0,0,0,.28);
+  border-color: var(--dsw-alias-state-business-primary); transform:translateY(-2px);
+  box-shadow: var(--dsw-elevation-panel);
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-card] img {
-  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#12161f;
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-param-row] {
-  display:flex; flex-direction:column; gap:8px;
+  display:flex; flex-direction:column; gap:4px;
 }
 [data-dsh-ws-studio-host] [data-ws-param-group] {
-  display:flex; flex-direction:column; gap:4px; min-width:0;
+  display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 8px; min-width:0;
+}
+[data-dsh-ws-studio-host] [data-ws-param-group] > span {
+  flex:none; min-width:2.2em;
 }
 [data-dsh-ws-studio-host] [data-ws-chips] {
-  display:flex; flex-wrap:wrap; gap:5px; align-items:center;
+  display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1; min-width:0;
 }
 [data-dsh-ws-studio-host] [data-ws-chips] [data-ws-param][data-value] {
-  padding:4px 10px; border:1px solid #2a3140; border-radius:999px;
-  background:transparent; color:#9aa3b2; cursor:pointer; font:inherit; font-size:12px; line-height:1.2;
+  padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  background:transparent; color: var(--dsw-alias-label-secondary); cursor:pointer; font:inherit; font-size:11.5px; line-height:1.2;
 }
 [data-dsh-ws-studio-host] [data-ws-chips] [data-ws-param][data-value][aria-current="true"] {
-  background:#1c2333; color:#fff; border-color:#3a4558;
+  background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l4);
 }
 [data-dsh-ws-studio-host] [data-ws-model-row] {
   display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;
@@ -164,23 +219,29 @@ const HOST_STYLES = `
   flex:0 1 10rem; min-width:5rem; width:10rem;
 }
 [data-dsh-ws-studio-host] [data-ws-conn-status] {
-  padding:0 10px; height:26px; border:1px solid #2a3140; border-radius:999px;
-  background:#12161f; color:#9aa3b2; font:inherit; font-size:12px;
-  display:inline-flex; align-items:center; flex:none;
+  padding:0 10px; height:26px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
+  font:inherit; font-size:12px; display:inline-flex; align-items:center; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-stage] {
-  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:8px;
-  margin:0; padding:10px 12px; overflow:hidden;
-  background:#0b0d10; border-bottom:1px solid #1a1f2a;
+  flex:1 1 28%; min-height:72px; display:flex; flex-direction:column; gap:6px;
+  margin:0; padding:8px 12px; overflow:hidden;
+  background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l2);
+}
+[data-dsh-ws-studio-host] [data-ws-stage][data-has-results] {
+  flex:2.4 1 0; min-height:0;
+}
+[data-dsh-ws-studio-host] [data-ws-stage][data-busy] {
+  flex:1.4 1 0; min-height:0;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
   display:flex; align-items:baseline; gap:10px; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] strong {
-  font-size:13px; font-weight:650; color:#e8eaed;
+  font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint] {
-  font-size:12px; color:#6b7280; font-weight:400;
+  font-size:12px; color: var(--dsw-alias-label-tertiary); font-weight:400;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-stage-samples] {
@@ -197,25 +258,26 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-stage-tile] {
   position:relative; min-height:0; height:100%; border-radius:10px; overflow:hidden;
-  border:1px solid #1f2430; background:#12161f; cursor:pointer; padding:0; font:inherit; color:inherit;
+  border:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-module-platform);
+  cursor:pointer; padding:0; font:inherit; color:inherit;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-tile] img {
   position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-tile] .ws-stage-cap {
   position:absolute; inset:auto 0 0 0; z-index:1; padding:14px 8px 7px;
-  background:linear-gradient(transparent, rgba(0,0,0,.72));
-  color:#fff; font-size:11px; line-height:1.3; text-align:left;
+  background: var(--dsw-alias-bg-mask-2);
+  color: var(--dsw-alias-label-primary-foreground); font-size:11px; line-height:1.3; text-align:left;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 [data-dsh-ws-studio-host] [data-ws-neg-details] { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-neg-details] > summary {
   cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px;
-  color:#9aa3b2; font-size:11px; font-weight:600; user-select:none; line-height:1.4;
+  color: var(--dsw-alias-label-secondary); font-size:11px; font-weight:600; user-select:none; line-height:1.4;
   width:fit-content; border-bottom:1px solid transparent;
 }
 [data-dsh-ws-studio-host] [data-ws-neg-details] > summary:hover {
-  color:#c5cad3; border-bottom-color:#3a4558;
+  color: var(--dsw-alias-label-primary); border-bottom-color: var(--dsw-alias-border-l3);
 }
 [data-dsh-ws-studio-host] [data-ws-neg-details] > summary::-webkit-details-marker { display:none; }
 [data-dsh-ws-studio-host] [data-ws-neg-chev] {
@@ -225,15 +287,36 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-neg-details]:not([open]) { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-neg-details]:not([open]) [data-ws-clear-negative] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-neg-details][open] > summary { margin-bottom:6px; width:100%; border-bottom-color:transparent; }
-[data-dsh-ws-studio-host] [data-ws-cta]:hover { filter:brightness(1.06); }
+[data-dsh-ws-studio-host] [data-ws-cta]:hover { background: var(--dsw-alias-button-primary-hover); }
 [data-dsh-ws-studio-host] [data-ws-cta]:active { filter:brightness(.96); }
+[data-dsh-ws-studio-host] [data-ws-cta]:focus-visible {
+  outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:2px;
+}
 [data-dsh-ws-studio-host] [data-ws-status]:empty { display:none; }
-[data-dsh-ws-studio-host] [data-ws-param="model"]::placeholder { color:#6b7280; opacity:1; }
-[data-dsh-ws-studio-host] [data-ws-param="model"] { color:#c5cad3; }
+[data-dsh-ws-studio-host] [data-ws-param="model"]::placeholder { color: var(--dsw-alias-label-tertiary); opacity:1; }
+[data-dsh-ws-studio-host] [data-ws-param="model"] { color: var(--dsw-alias-label-primary); }
 [data-dsh-ws-studio-host] [data-ws-dock] {
-  flex:0 0 auto; display:flex; flex-direction:column; gap:6px;
-  padding:8px 12px 0; background:#0b0d10; border-top:1px solid #1a1f2a;
-  max-height:none; overflow:visible;
+  flex:0 1 auto; display:flex; flex-direction:column; gap:4px;
+  padding:6px 12px 0; background: var(--dsw-alias-bg-base);
+  border-top:1px solid var(--dsw-alias-border-l2);
+  max-height:52%; overflow:auto; min-height:0;
+}
+[data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-has-results]) [data-ws-dock],
+[data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-busy]) [data-ws-dock] {
+  flex:0 1 auto; max-height:42%;
+}
+[data-dsh-ws-studio-host] [data-ws-inspire-empty] {
+  grid-column:1 / -1; flex:1; min-height:160px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px; padding:36px 16px; text-align:center;
+  border:1px dashed var(--dsw-alias-border-l2); border-radius:12px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+[data-dsh-ws-studio-host] [data-ws-inspire-empty] strong {
+  font-size:14px; font-weight:600; color: var(--dsw-alias-label-secondary); letter-spacing:.02em;
+}
+[data-dsh-ws-studio-host] [data-ws-inspire-empty] span {
+  font-size:11.5px; color: var(--dsw-alias-label-tertiary); line-height:1.45; max-width:16em;
 }
 [data-dsh-ws-studio-host] [data-ws-skill-model-row] {
   display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; min-height:28px;
@@ -246,18 +329,18 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
   flex:none; position:sticky; bottom:0; z-index:2;
-  padding:6px 12px 10px; background:#0b0d10;
+  padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
   display:flex; flex-direction:column; gap:4px;
-  border-top:1px solid #1a1f2a;
+  border-top:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-advanced] { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-advanced] > summary {
   cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px;
-  color:#9aa3b2; font-size:11px; font-weight:600; user-select:none; line-height:1.4;
+  color: var(--dsw-alias-label-secondary); font-size:11px; font-weight:600; user-select:none; line-height:1.4;
   width:fit-content; border-bottom:1px solid transparent;
 }
 [data-dsh-ws-studio-host] [data-ws-advanced] > summary:hover {
-  color:#c5cad3; border-bottom-color:#3a4558;
+  color: var(--dsw-alias-label-primary); border-bottom-color: var(--dsw-alias-border-l3);
 }
 [data-dsh-ws-studio-host] [data-ws-advanced] > summary::-webkit-details-marker { display:none; }
 [data-dsh-ws-studio-host] [data-ws-adv-chev] {
@@ -269,35 +352,40 @@ const HOST_STYLES = `
 
 [data-dsh-ws-studio-host] [data-ws-ref-slot] {
   display:none; flex-direction:column; gap:6px; padding:8px 10px;
-  background:#12161f; border:1px dashed #2a3140; border-radius:10px;
+  background: var(--dsw-alias-bg-module-platform); border:1px dashed var(--dsw-alias-border-l3); border-radius:10px;
 }
 [data-dsh-ws-studio-host] [data-ws-ref-slot][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-ref-drop] {
-  min-height:72px; border-radius:8px; border:1px dashed #3a4558;
-  background:#0e1218; display:flex; align-items:center; justify-content:center;
-  gap:8px; flex-wrap:wrap; padding:8px; color:#9aa3b2; font-size:12px; cursor:pointer;
+  min-height:72px; border-radius:8px; border:1px dashed var(--dsw-alias-border-l3);
+  background: var(--dsw-specific-input-major); display:flex; align-items:center; justify-content:center;
+  gap:8px; flex-wrap:wrap; padding:8px; color: var(--dsw-alias-label-secondary); font-size:12px; cursor:pointer;
 }
-[data-dsh-ws-studio-host] [data-ws-ref-drop][data-dragover] { border-color:#5b8def; color:#c5cad3; }
+[data-dsh-ws-studio-host] [data-ws-ref-drop][data-dragover] {
+  border-color: var(--dsw-alias-state-business-primary); color: var(--dsw-alias-label-primary);
+}
 [data-dsh-ws-studio-host] [data-ws-ref-thumbs] { display:flex; flex-wrap:wrap; gap:6px; }
 [data-dsh-ws-studio-host] [data-ws-ref-thumb] {
   position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden;
-  border:1px solid #2a3140; background:#0b0d10;
+  border:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-ref-thumb] img { width:100%; height:100%; object-fit:cover; display:block; }
 [data-dsh-ws-studio-host] [data-ws-ref-thumb] button {
   position:absolute; top:2px; right:2px; width:18px; height:18px; border:0; border-radius:999px;
-  background:rgba(0,0,0,.7); color:#fff; cursor:pointer; font-size:11px; line-height:1; padding:0;
+  background: var(--dsw-alias-bg-mask-3); color: var(--dsw-alias-label-primary-foreground);
+  cursor:pointer; font-size:11px; line-height:1; padding:0;
 }
 [data-dsh-ws-studio-host] [data-ws-progress] {
-  display:none; flex-direction:column; gap:6px; padding:8px 10px; border:1px solid #1f2430;
-  border-radius:10px; background:#12161f; flex:none;
+  display:none; flex-direction:column; gap:6px; padding:8px 10px;
+  border:1px solid var(--dsw-alias-border-l2); border-radius:10px;
+  background: var(--dsw-alias-bg-module-platform); flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-progress][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-progress-bar] {
-  height:6px; border-radius:999px; background:#1a1f2a; overflow:hidden;
+  height:6px; border-radius:999px; background: var(--dsw-alias-border-l2); overflow:hidden;
 }
 [data-dsh-ws-studio-host] [data-ws-progress-bar] > i {
-  display:block; height:100%; width:0%; background:#5b8def; border-radius:999px; transition:width .2s ease;
+  display:block; height:100%; width:0%; background: var(--dsw-alias-state-business-primary);
+  border-radius:999px; transition:width .2s ease;
 }
 [data-dsh-ws-studio-host] [data-ws-progress-bar][data-indeterminate] > i {
   width:36% !important; transition:none;
@@ -308,11 +396,14 @@ const HOST_STYLES = `
   100% { transform: translateX(280%); }
 }
 [data-dsh-ws-studio-host] [data-ws-progress-meta] {
-  display:flex; align-items:center; gap:10px; font-size:12px; color:#c5cad3; flex-wrap:wrap;
+  display:flex; align-items:center; gap:10px; font-size:12px;
+  color: var(--dsw-alias-label-secondary); flex-wrap:wrap;
 }
 [data-dsh-ws-studio-host] [data-ws-fail] {
-  display:none; flex-direction:column; gap:6px; padding:8px 10px; border:1px solid #3a2a2a;
-  border-radius:10px; background:#1a1214; flex:none; color:#e8b4b4; font-size:12px;
+  display:none; flex-direction:column; gap:6px; padding:8px 10px;
+  border:1px solid var(--dsw-alias-state-error-primary); border-radius:10px;
+  background: var(--dsw-alias-bg-module-platform); flex:none;
+  color: var(--dsw-alias-state-error-primary); font-size:12px;
 }
 [data-dsh-ws-studio-host] [data-ws-fail][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] {
@@ -320,29 +411,46 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-result-actions] button {
-  padding:4px 10px; border:1px solid #2a3140; border-radius:999px; background:#12161f;
-  color:#c5cad3; cursor:pointer; font:inherit; font-size:11.5px;
+  padding:4px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
+  cursor:pointer; font:inherit; font-size:11.5px;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-panel] {
-  display:none; flex-direction:column; gap:6px; padding:8px 10px; background:#12161f;
-  border:1px solid #1f2430; border-radius:10px;
+  display:none; flex-direction:column; gap:4px; padding:6px 8px;
+  background: var(--dsw-alias-bg-module-platform);
+  border:1px solid var(--dsw-alias-border-l2); border-radius:8px; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-panel][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] { display:flex; flex-wrap:wrap; gap:6px; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] button {
-  padding:4px 10px; border:1px solid #2a3140; border-radius:999px; background:#12161f;
-  color:#c5cad3; cursor:pointer; font:inherit; font-size:11.5px;
+  padding:4px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary);
+  cursor:pointer; font:inherit; font-size:11.5px;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] button[data-primary] {
-  border-color:#3a4558; background:#1c2333; color:#fff; font-weight:600;
+  border-color: var(--dsw-alias-border-l4); background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary); font-weight:600;
 }
 [data-dsh-ws-studio-host] [data-ws-pane-drag] {
   flex:0 0 5px; width:5px; cursor:col-resize; background:transparent; position:relative; z-index:2;
   align-self:stretch;
 }
 [data-dsh-ws-studio-host] [data-ws-pane-drag]:hover,
-[data-dsh-ws-studio-host] [data-ws-pane-drag][data-active] { background:rgba(91,141,239,.35); }
+[data-dsh-ws-studio-host] [data-ws-pane-drag][data-active] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
+[data-dsh-ws-studio-host] [data-ws-top-bar] {
+  display:flex; gap:4px; padding:7px 12px; align-items:center; flex-shrink:0;
+  background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l2);
+}
+[data-dsh-ws-studio-host] textarea,
+[data-dsh-ws-studio-host] input:not([type="checkbox"]):not([type="file"]),
+[data-dsh-ws-studio-host] select {
+  background: var(--dsw-specific-input-major);
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l2);
+}
 `
 
 /**
@@ -561,7 +669,7 @@ export function createStudioHost() {
     const on = connected !== false
     el.textContent = on ? CHROME.connected : CHROME.disconnected
     el.title = el.textContent
-    el.style.color = on ? '#9aa3b2' : '#e8b4b4'
+    el.style.color = on ? T.fg2 : T.error
     el.dataset.connected = on ? '1' : '0'
   }
 
@@ -657,6 +765,8 @@ export function createStudioHost() {
         fail.removeAttribute('data-visible')
       }
     }
+    // syncStageWeight defined later in createStudioHost; safe at call-time
+    try { syncStageWeight() } catch (_) {}
   }
 
   const paintResultActions = (show) => {
@@ -765,6 +875,23 @@ export function createStudioHost() {
     if (status) status.textContent = text
   }
 
+  const syncStageWeight = () => {
+    const stage = host?.querySelector('[data-ws-stage]')
+    if (!(stage instanceof HTMLElement)) return
+    const hasResults = !!(host.querySelector('[data-ws-results]:not([hidden])')?.childElementCount)
+    const busy =
+      !!state.task &&
+      (state.task.status === 'running' ||
+        state.task.status === 'queued' ||
+        state.task.status === 'submitted' ||
+        state.task.status === 'polling' ||
+        state.task.status === 'downloading')
+    if (hasResults) stage.setAttribute('data-has-results', '')
+    else stage.removeAttribute('data-has-results')
+    if (busy) stage.setAttribute('data-busy', '')
+    else stage.removeAttribute('data-busy')
+  }
+
   /** First paint / empty: empty stage + hint only (no fake sample tiles). */
   const paintStageIdle = () => {
     const samples = host?.querySelector('[data-ws-stage-samples]')
@@ -787,6 +914,7 @@ export function createStudioHost() {
       state.task = null
       paintProgressUi()
     }
+    syncStageWeight()
   }
 
   const showResultStage = () => {
@@ -802,18 +930,21 @@ export function createStudioHost() {
       hint.hidden = true
       hint.textContent = STAGE_EMPTY_HINT
     }
+    syncStageWeight()
   }
 
-  /** Inspire wall: quiet empty — no stock photos */
+  /** Inspire wall: quiet intentional empty — no stock photos / picsum */
   const paintInspiration = () => {
     const grid = host?.querySelector('[data-ws-inspire-grid]')
     if (!grid) return
     grid.innerHTML = ''
     const empty = document.createElement('div')
     empty.dataset.wsInspireEmpty = ''
-    empty.style.cssText =
-      'grid-column:1/-1;padding:28px 10px;text-align:center;font-size:12px;color:#6b7280;line-height:1.5;'
-    empty.textContent = INSPIRE_EMPTY_HINT
+    const title = document.createElement('strong')
+    title.textContent = INSPIRE_EMPTY_HINT
+    const helper = document.createElement('span')
+    helper.textContent = INSPIRE_EMPTY_HELPER
+    empty.append(title, helper)
     grid.appendChild(empty)
   }
 
@@ -828,7 +959,7 @@ export function createStudioHost() {
     if (histEl.querySelector('[data-ws-history-empty]')) return
     const empty = document.createElement('div')
     empty.dataset.wsHistoryEmpty = ''
-    empty.style.cssText = 'padding:8px 4px;font-size:12px;color:#6b7280;'
+    empty.style.cssText = `padding:8px 4px;font-size:12px;color:${T.fg3};`
     empty.textContent = HISTORY_EMPTY_HINT
     histEl.appendChild(empty)
   }
@@ -1000,7 +1131,7 @@ export function createStudioHost() {
           const card = document.createElement('div')
           card.dataset.wsResultCard = ''
           card.style.cssText =
-            'border:1px solid #2a3140;border-radius:10px;padding:4px;background:#10141c;max-width:min(48%,280px);overflow:hidden;'
+            `border:1px solid ${T.border2};border-radius:10px;padding:4px;background:${T.module};max-width:min(48%,280px);overflow:hidden;`
           if (src) {
             const img = document.createElement('img')
             img.src = src
@@ -1049,7 +1180,7 @@ export function createStudioHost() {
         item.innerHTML =
           (thumb
             ? `<img src="${escapeHtml(thumb)}" alt="" width="${HIST_THUMB}" height="${HIST_THUMB}" />`
-            : `<span style="width:${HIST_THUMB}px;height:${HIST_THUMB}px;border-radius:7px;background:#1a2030;flex:none;"></span>`) +
+            : `<span style="width:${HIST_THUMB}px;height:${HIST_THUMB}px;border-radius:7px;background:${T.module};flex:none;"></span>`) +
           `<div class="ws-hist-meta">` +
           `<div class="ws-hist-line" title="${escapeHtml(state.prompt || '生成结果')}">${escapeHtml(line)}</div>` +
           `<div class="ws-hist-model">${escapeHtml(modelLine)}</div>` +
@@ -1127,7 +1258,7 @@ export function createStudioHost() {
     host.setAttribute('aria-label', '生图')
     // Fill the host *main content pane* only — never fixed left-inset over sidebar
     host.style.cssText =
-      'display:none;position:absolute;inset:0;z-index:40;width:auto;height:auto;background:#0b0d10;color:#e8eaed;flex-direction:column;font:13px/1.4 system-ui,sans-serif;overflow:hidden;'
+      `display:none;position:absolute;inset:0;z-index:40;width:auto;height:auto;background:${T.bg};color:${T.fg};flex-direction:column;font-family:${T.font};font-size:${T.fontSize};line-height:1.4;overflow:hidden;color-scheme:inherit;`
 
     const styleEl = document.createElement('style')
     styleEl.textContent = HOST_STYLES
@@ -1136,20 +1267,20 @@ export function createStudioHost() {
     const frame = document.createElement('div')
     frame.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;width:100%;'
     frame.innerHTML = `
-      <header data-ws-top-bar style="display:flex;gap:4px;padding:7px 12px;border-bottom:1px solid #1a1f2a;align-items:center;background:#0b0d10;flex-shrink:0;">
+      <header data-ws-top-bar>
         ${TOP_TABS.map(
           (t, i) =>
-            `<button type="button" data-ws-top="${t}" style="padding:6px 11px;border:0;background:${i === 0 ? '#1c2333' : 'transparent'};color:${i === 0 ? '#fff' : '#9aa3b2'};cursor:pointer;border-radius:7px;font:inherit;font-size:12.5px;">${t}</button>`,
+            `<button type="button" data-ws-top="${t}" style="${css.topTab(i === 0)}">${t}</button>`,
         ).join('')}
         <span style="flex:1"></span>
         <span data-ws-conn-status title="${CHROME.connected}">${CHROME.connected}</span>
-        <button type="button" data-ws-chat-toggle style="padding:0 10px;height:26px;border:1px solid #2a3140;border-radius:999px;background:#12161f;color:#c5cad3;cursor:pointer;font:inherit;font-size:12px;">${CHROME.expandChat}</button>
-        <button type="button" data-ws-close style="padding:6px 10px;border:0;background:transparent;color:#9aa3b2;cursor:pointer;font:inherit;">关闭</button>
+        <button type="button" data-ws-chat-toggle style="${css.pill({ pad: '0 10px', size: '12px', fill: T.module })}">${CHROME.expandChat}</button>
+        <button type="button" data-ws-close style="padding:6px 10px;border:0;background:transparent;color:${T.fg2};cursor:pointer;font:inherit;">关闭</button>
       </header>
       <div data-ws-cols>
         <!-- LEFT: 历史记录 -->
-        <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid #1a1f2a;padding:8px;overflow:auto;background:#0b0d10;display:flex;flex-direction:column;gap:6px;">
-          <div style="font-size:13px;font-weight:600;color:#e8eaed;">${COLUMNS.history}</div>
+        <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid ${T.border2};padding:8px;overflow:auto;background:${T.sidebar};display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:13px;font-weight:600;color:${T.fg};">${COLUMNS.history}</div>
           <input type="search" placeholder="搜索历史" aria-label="搜索历史" style="width:100%;${css.field};font-size:12px;" />
           <div style="display:flex;gap:6px;">
             <select aria-label="全部模型" style="flex:1;${css.select}">
@@ -1160,12 +1291,12 @@ export function createStudioHost() {
             </select>
           </div>
           <div data-ws-history-list style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;"></div>
-          <button type="button" data-ws-history-clear style="align-self:flex-start;padding:2px 8px;border:1px solid #2a3140;border-radius:999px;background:transparent;color:#6b7280;cursor:pointer;font:inherit;font-size:11.5px;">${HISTORY_ACTIONS.clear}</button>
+          <button type="button" data-ws-history-clear style="align-self:flex-start;${css.pill({ color: T.fg3 })}">${HISTORY_ACTIONS.clear}</button>
         </aside>
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
         <!-- CENTER: 出图台 — stage (samples/results) + compact dock + sticky CTA -->
-        <section data-ws-col="studio" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:#0b0d10;border-left:0;border-right:0;">
+        <section data-ws-col="studio" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:${T.bg};border-left:0;border-right:0;">
           <div data-ws-stage aria-label="出图台">
             <div data-ws-stage-head>
               <strong>${STAGE_LABEL}</strong>
@@ -1175,15 +1306,15 @@ export function createStudioHost() {
               <div data-ws-progress-meta>
                 <span data-ws-progress-label>进度 0%</span>
                 <span data-ws-progress-elapsed>耗时 0s</span>
-                <span data-ws-progress-phase style="color:#6b7280;"></span>
+                <span data-ws-progress-phase style="color:${T.fg3};"></span>
                 <span style="flex:1"></span>
-                <button type="button" data-ws-cancel style="padding:2px 10px;border:1px solid #2a3140;border-radius:999px;background:transparent;color:#c5cad3;cursor:pointer;font:inherit;font-size:11.5px;">${RESULT_ACTIONS[0]}</button>
+                <button type="button" data-ws-cancel style="${css.pill()}">${RESULT_ACTIONS[0]}</button>
               </div>
               <div data-ws-progress-bar><i></i></div>
             </div>
             <div data-ws-fail>
               <div data-ws-fail-reason>原因：出图失败</div>
-              <button type="button" data-ws-retry style="align-self:flex-start;padding:4px 12px;border:1px solid #3a4558;border-radius:999px;background:#1c2333;color:#fff;cursor:pointer;font:inherit;font-size:12px;">${RESULT_ACTIONS[1]}</button>
+              <button type="button" data-ws-retry style="align-self:flex-start;${css.pill({ pad: '4px 12px', size: '12px', fill: T.active, color: T.fg })}">${RESULT_ACTIONS[1]}</button>
             </div>
             <div data-ws-stage-samples></div>
             <div data-ws-results hidden></div>
@@ -1208,9 +1339,9 @@ export function createStudioHost() {
             <div data-ws-ref-slot aria-label="参考图">
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="${css.paramLabel}">参考图</span>
-                <span data-ws-ref-hint style="font-size:11px;color:#6b7280;">上传 / 拖拽 / 粘贴参考图</span>
+                <span data-ws-ref-hint style="font-size:11px;color:${T.fg3};">上传 / 拖拽 / 粘贴参考图</span>
                 <span style="flex:1"></span>
-                <button type="button" data-ws-ref-upload style="padding:2px 10px;border:1px solid #2a3140;border-radius:999px;background:#12161f;color:#c5cad3;cursor:pointer;font:inherit;font-size:11px;">上传</button>
+                <button type="button" data-ws-ref-upload style="${css.pill({ size: '11px', fill: T.module })}">上传</button>
                 <input type="file" data-ws-ref-file accept="image/*" multiple hidden />
               </div>
               <div data-ws-ref-drop tabindex="0">点击、拖入或 Ctrl+V 粘贴</div>
@@ -1222,18 +1353,18 @@ export function createStudioHost() {
                 <div style="display:flex;align-items:center;gap:6px;">
                   <span style="${css.paramLabel}">${PROMPT_FIELDS.prompt}</span>
                   <span style="flex:1"></span>
-                  <button type="button" data-ws-action="templates" style="padding:0 10px;height:24px;border:1px solid ${ACCENT};border-radius:999px;background:rgba(91,141,239,.12);color:${ACCENT};cursor:pointer;font:inherit;font-size:11px;font-weight:600;">${PROMPT_ACTIONS.templates}</button>
-                  <button type="button" data-ws-action="enhance" style="padding:0 9px;height:24px;border:1px solid #2a3140;border-radius:999px;background:#12161f;color:#9aa3b2;cursor:pointer;font:inherit;font-size:11px;">${PROMPT_ACTIONS.enhance}</button>
+                  <button type="button" data-ws-action="templates" style="padding:0 10px;height:24px;border:1px solid ${T.focus};border-radius:999px;background:${T.hover};color:${T.focus};cursor:pointer;font:inherit;font-size:11px;font-weight:600;">${PROMPT_ACTIONS.templates}</button>
+                  <button type="button" data-ws-action="enhance" style="padding:0 9px;height:24px;border:1px solid ${T.border2};border-radius:999px;background:${T.module};color:${T.fg2};cursor:pointer;font:inherit;font-size:11px;">${PROMPT_ACTIONS.enhance}</button>
                 </div>
-                <textarea data-ws-prompt rows="3" placeholder="写一句想法即可出图，不必选 Skill" style="resize:vertical;min-height:92px;padding:8px 10px;border-radius:8px;border:1px solid #2a3140;background:#0e1218;color:inherit;font:inherit;line-height:1.5;font-size:12.5px;"></textarea>
+                <textarea data-ws-prompt rows="2" placeholder="描述你想生成的画面" style="resize:vertical;min-height:56px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;line-height:1.45;font-size:12.5px;"></textarea>
               </div>
               <details data-ws-neg-details>
                 <summary>
                   <span data-ws-neg-chev aria-hidden="true">▸</span>
                   <span>${PROMPT_FIELDS.negative}</span>
-                  <button type="button" data-ws-clear-negative style="margin-left:auto;padding:1px 7px;border:0;border-radius:4px;background:#1c2333;color:#c5cad3;cursor:pointer;font:inherit;font-size:10.5px;">${PROMPT_FIELDS.clearNegative}</button>
+                  <button type="button" data-ws-clear-negative style="margin-left:auto;padding:1px 7px;border:0;border-radius:4px;background:${T.active};color:${T.fg2};cursor:pointer;font:inherit;font-size:10.5px;">${PROMPT_FIELDS.clearNegative}</button>
                 </summary>
-                <textarea data-ws-negative rows="1" placeholder="Skill 预填负面词会出现在这里，可改可清" style="width:100%;resize:vertical;padding:5px 8px;border-radius:7px;border:1px solid #2a3140;background:#0e1218;color:inherit;font:inherit;font-size:12px;"></textarea>
+                <textarea data-ws-negative rows="1" placeholder="不想出现的元素（可选）" style="width:100%;resize:vertical;padding:5px 8px;border-radius:7px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12px;"></textarea>
               </details>
             </div>
 
@@ -1266,32 +1397,26 @@ export function createStudioHost() {
 
             <div data-ws-model-row>
               <span style="${css.paramLabel}">${PARAM_LABELS.model}</span>
-              <input data-ws-param="model" placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;border:1px solid #2a3140;background:#12161f;color:#c5cad3;font:inherit;font-size:12px;" />
-              <label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#9aa3b2;cursor:pointer;user-select:none;margin:0;">
-                <input type="checkbox" data-ws-compare style="accent-color:${ACCENT};" />
+              <input data-ws-param="model" placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;" />
+              <label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:${T.fg2};cursor:pointer;user-select:none;margin:0;">
+                <input type="checkbox" data-ws-compare style="accent-color:${T.focus};" />
                 ${COMPARE}
               </label>
             </div>
 
-            <details data-ws-advanced>
-              <summary>
-                <span data-ws-adv-chev aria-hidden="true">▸</span>
-                <span>高级</span>
-              </summary>
-              <div data-ws-skill-model-row>
-                <label>
-                  <span style="${css.paramLabel}">${PROMPT_ACTIONS.skill}</span>
-                  <select data-ws-param="skill" aria-label="${PROMPT_ACTIONS.skill}" style="${css.select}">
-                    <option value="">（不使用 Skill）</option>
-                    ${SKILL_ENTRIES.map((s) => `<option value="${s}">${s}</option>`).join('')}
-                  </select>
-                </label>
-              </div>
-            </details>
+            <div data-ws-skill-model-row>
+              <label>
+                <span style="${css.paramLabel}">${PROMPT_ACTIONS.skill}</span>
+                <select data-ws-param="skill" aria-label="${PROMPT_ACTIONS.skill}" style="${css.select}">
+                  <option value="">（不使用）</option>
+                  ${SKILL_ENTRIES.map((s) => `<option value="${s}">${s}</option>`).join('')}
+                </select>
+              </label>
+            </div>
 
             <div data-ws-plan-panel>
-              <div style="${css.paramLabel}">创作方案（可编辑；评分只提示，永不锁出图）</div>
-              <textarea data-ws-plan-text rows="3" placeholder="LLM 未接 — 可手写方案后点「就这样出图」" style="width:100%;resize:vertical;min-height:72px;padding:8px 10px;border-radius:8px;border:1px solid #2a3140;background:#0e1218;color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
+              <div style="${css.paramLabel}">创作方案</div>
+              <textarea data-ws-plan-text rows="2" placeholder="LLM 未接 — 可手写方案后点「就这样出图」" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
               <div data-ws-plan-actions>
                 <button type="button" data-ws-plan-action="plan">${PROMPT_ACTIONS.plan}</button>
                 <button type="button" data-ws-plan-action="replan">${PROMPT_ACTIONS.replan}</button>
@@ -1308,17 +1433,17 @@ export function createStudioHost() {
 
         <div data-ws-pane-drag="chat" title="拖拽调整灵感/对话栏宽度"></div>
         <!-- RIGHT: 灵感墙 -->
-        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid #1a1f2a;padding:8px;display:flex;flex-direction:column;gap:8px;background:#0b0d10;overflow:auto;min-height:0;">
+        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:flex;flex-direction:column;gap:8px;background:${T.bg};overflow:auto;min-height:0;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <strong style="font-size:13px;font-weight:650;">${EMPTY.inspiration}</strong>
+            <strong style="font-size:13px;font-weight:650;color:${T.fg};">${EMPTY.inspiration}</strong>
             <span style="flex:1"></span>
-            <button type="button" data-ws-empty="shuffle" style="padding:3px 9px;border:1px solid #2a3140;border-radius:6px;background:transparent;color:#c5cad3;cursor:pointer;font:inherit;font-size:12px;">${EMPTY.shuffle}</button>
+            <button type="button" data-ws-empty="shuffle" style="${css.pill({ pad: '3px 9px', size: '12px' })}">${EMPTY.shuffle}</button>
           </div>
-          <div data-ws-inspire-grid style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start;flex:1;"></div>
+          <div data-ws-inspire-grid style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start;flex:1;min-height:0;"></div>
         </aside>
-        <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid #1a1f2a;padding:8px;display:none;flex-direction:column;background:#0b0d10;">
-          <strong style="font-size:13px;">${COLUMNS.chat}</strong>
-          <p style="margin:8px 0 0;font-size:12px;color:#6b7280;">对话线程（可内联出图）</p>
+        <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:none;flex-direction:column;background:${T.bg};">
+          <strong style="font-size:13px;color:${T.fg};">${COLUMNS.chat}</strong>
+          <p style="margin:8px 0 0;font-size:12px;color:${T.fg3};">对话线程（可内联出图）</p>
         </aside>
       </div>
     `
@@ -1333,8 +1458,7 @@ export function createStudioHost() {
       btn.addEventListener('click', () => {
         host.querySelectorAll('[data-ws-top]').forEach((b) => {
           const on = b === btn
-          b.style.background = on ? '#1c2333' : 'transparent'
-          b.style.color = on ? '#fff' : '#9aa3b2'
+          if (b instanceof HTMLElement) b.style.cssText = css.topTab(on)
         })
       })
     })
@@ -1377,10 +1501,7 @@ export function createStudioHost() {
       else state.skillPlan = null
       syncFields()
       paintSkillPlan()
-      // Open advanced when skill chosen so plan is visible nearby
-      const adv = host.querySelector('[data-ws-advanced]')
-      if (adv instanceof HTMLDetailsElement && id) adv.open = true
-      setStatus(id ? `已选「${id}」（可选；出图仍不强制）` : '已取消 Skill')
+      setStatus(id ? `已选「${id}」` : '已取消 Skill')
     })
     host.querySelector('[data-ws-param-row]')?.addEventListener('click', (e) => {
       const t = /** @type {HTMLElement | null} */ (
