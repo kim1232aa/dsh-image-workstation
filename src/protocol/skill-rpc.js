@@ -190,7 +190,7 @@ export function attachSkillRpc(ctx, bag) {
         )
         return
       }
-      const result = await rpcHandler(endpoint, body.params ?? {})
+      const result = await rpcHandler(endpoint, body.payload ?? body.params ?? {})
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ type: 'server-response', rpcId, result }))
     },

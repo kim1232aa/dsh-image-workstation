@@ -117,6 +117,43 @@ async function callCtaRpc(rpc, endpoint, payload, signal) {
   throw new Error('fetch and connection.rpc.call unavailable')
 }
 
+/** POST /dsh-ws-skill/<endpoint> — same envelope as generate (`payload`). */
+async function postSkillRpc(endpoint, payload, signal) {
+  const base = resolveCtaBase()
+  const url = `${base}${SKILL_RPC_CHANNEL}/${endpoint}`
+  const rpcId = newRpcId()
+  const res = await globalThis.fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId,
+      method: endpoint,
+      payload,
+    }),
+    ...(signal ? { signal } : {}),
+  })
+  if (!res.ok) {
+    throw new Error(`transport failure for ${SKILL_RPC_CHANNEL}/${endpoint}: HTTP ${res.status}`)
+  }
+  const full = await res.json()
+  if (!full || full.type !== 'server-response' || typeof full.rpcId !== 'string') {
+    throw new TypeError('connection: invalid server-response envelope')
+  }
+  return full.result
+}
+
+async function callSkillRpc(rpc, endpoint, payload, signal) {
+  if (typeof globalThis.fetch === 'function') {
+    return postSkillRpc(endpoint, payload, signal)
+  }
+  if (rpc && typeof rpc.call === 'function') {
+    return rpc.call(SKILL_RPC_CHANNEL, endpoint, payload, signal)
+  }
+  throw new Error('fetch and connection.rpc.call unavailable')
+}
+
 /**
  * @param {any} ctx
  * @param {Record<string, unknown>} [_config]
@@ -798,11 +835,14 @@ export function apply(ctx, _config) {
     const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
     let skillId = String(detail.skillId || '').trim()
     const rpc = ctx.connection?.rpc
-    if (!rpc || typeof rpc.call !== 'function') {
+    const canCall = typeof globalThis.fetch === 'function' || (rpc && typeof rpc.call === 'function')
+    if (!canCall) {
       studio.setStatus?.('连接不可用，无法想方案')
       return
     }
     const brief = String(detail.prompt || detail.planText || '').trim() // live DOM prompt preferred from studio
+    /** Set when local/RPC suggest already applied a skill — keep that status over SKILL_REQUIRED. */
+    let matchedLabel = ''
     try {
       // Smart match when user did not pick a skill (or DOM/state desynced)
       if (!skillId) {
@@ -812,7 +852,7 @@ export function apply(ctx, _config) {
         let topLabel = suggestSkillsFromTheme(theme).top?.label || ''
         if (!topLabel) {
           try {
-            const sug = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_SUGGEST, {
+            const sug = await callSkillRpc(rpc, SKILL_RPC_SUGGEST, {
               theme,
               prompt: theme,
               brief: theme,
@@ -825,6 +865,7 @@ export function apply(ctx, _config) {
         if (topLabel) {
           studio.applyMatchedSkill?.(topLabel)
           skillId = topLabel
+          matchedLabel = topLabel
           studio.setStatus?.(`已智能匹配「${topLabel}」，想方案中…`)
         } else {
           studio.setStatus?.(
@@ -837,8 +878,10 @@ export function apply(ctx, _config) {
       } else {
         studio.setStatus?.('想方案中…')
       }
-      const result = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_PLAN, {
+      // PLAN with matched/hand-picked label; host maps via LABEL_TO_SKILL_ID
+      const result = await callSkillRpc(rpc, SKILL_RPC_PLAN, {
         skillId,
+        label: skillId,
         brief: brief || detail.prompt || '',
         prompt: brief || detail.prompt || '',
         mode: detail.mode,
@@ -849,17 +892,23 @@ export function apply(ctx, _config) {
         const lab = result.value?.label || result.value?.skillId
         if (lab) studio.applyMatchedSkill?.(lab)
       } else {
-        const code = result?.error?.code || ''
-        const raw = result?.error?.message || '想方案失败'
-        // Never leave the old「请先选择创作 Skill」as a hard gate tone
-        const msg =
-          code === 'SKILL_REQUIRED'
-            ? scrubErrorMessage(raw.replace(/^请先选择创作 Skill$/, '请先写提示词或选择创作 Skill（也可不选直接出图）'))
-            : scrubErrorMessage(raw)
-        studio.setStatus?.(msg)
+        const code = result?.error?.code ? String(result.error.code) : ''
+        // After smart-match PASS: never overwrite with SKILL_REQUIRED / 「请先选择创作 Skill」
+        if (code === 'SKILL_REQUIRED' && matchedLabel) {
+          studio.setStatus?.(`已智能匹配「${matchedLabel}」…`)
+        } else if (code === 'SKILL_REQUIRED') {
+          const raw = result?.error?.message || '请先写提示词或选择创作 Skill'
+          studio.setStatus?.(scrubErrorMessage(raw))
+        } else {
+          studio.setStatus?.(scrubErrorMessage(result?.error?.message || '想方案失败'))
+        }
       }
     } catch (e) {
-      studio.setStatus?.(formatClientRpcFailure(e))
+      if (matchedLabel) {
+        studio.setStatus?.(`已智能匹配「${matchedLabel}」…`)
+      } else {
+        studio.setStatus?.(formatClientRpcFailure(e))
+      }
     }
   }
   document.addEventListener('dsh-ws-plan', onPlan)
