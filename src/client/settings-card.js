@@ -144,7 +144,7 @@ export function WorkstationSettingsCard(props) {
   }
   const btnBase = {
     padding: '0 12px',
-    height: 32,
+    height: 36,
     borderRadius: 16,
     font: 'inherit',
     fontSize: 13,
@@ -161,11 +161,11 @@ export function WorkstationSettingsCard(props) {
   const detectStyle = detectDisabled
     ? {
         ...btnBase,
-        border: '1px dashed var(--dsw-alias-border-l3, #c9cdd6)',
+        border: borderStrong,
         background: layer2,
         color: fgMuted,
         cursor: 'not-allowed',
-        opacity: 0.28,
+        opacity: 0.45,
         pointerEvents: 'none',
       }
     : {
@@ -214,23 +214,12 @@ export function WorkstationSettingsCard(props) {
         {
           style: {
             display: 'flex',
-            alignItems: 'baseline',
-            gap: 6,
-            flexWrap: 'wrap',
+            flexDirection: 'column',
+            gap: 2,
           },
         },
-        h('span', { style: { fontWeight: 650, fontSize: 13 } }, 'Image workstation · 生图工作台'),
-        h(
-          'span',
-          {
-            style: {
-              fontSize: 10,
-              color: fgMuted,
-              fontFamily: 'var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
-            },
-          },
-          `${NS} · ${ENTRY}`,
-        ),
+        h('span', { style: { fontWeight: 650, fontSize: 13, lineHeight: '18px' } }, 'Image workstation'),
+        h('span', { style: { fontSize: 11, color: fgMuted, lineHeight: '14px' } }, '生图工作台'),
       ),
     ),
     open
@@ -240,7 +229,7 @@ export function WorkstationSettingsCard(props) {
             style: {
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: 'min(42vh, 320px)',
+              maxHeight: 'min(44vh, 340px)',
             },
           },
           h(
@@ -288,54 +277,40 @@ export function WorkstationSettingsCard(props) {
               }),
             ),
             h(
-              'div',
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Provider'),
+              h(
+                'select',
+                {
+                  style: inputStyle,
+                  value: provider,
+                  onChange: (e) => setProvider(e.target.value),
+                  disabled: busy,
+                },
+                h('option', { value: 'anthropic-compat' }, 'Primary — grok-imagine (alibb)'),
+                h('option', { value: 'gptimg' }, 'GPTIMG — gpt-image-2 (birdsun)'),
+                h('option', { value: 'openai-images' }, 'openai-images (custom URL)'),
+              ),
+            ),
+            h(
+              'label',
               {
                 style: {
                   display: 'flex',
-                  alignItems: 'flex-end',
-                  gap: 10,
+                  alignItems: 'center',
+                  gap: 6,
                   marginBottom: 8,
-                  flexWrap: 'wrap',
+                  fontSize: 12,
                 },
               },
-              h(
-                'label',
-                { style: { ...fieldStyle, marginBottom: 0, flex: '1 1 160px', minWidth: 140 } },
-                h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Provider'),
-                h(
-                  'select',
-                  {
-                    style: inputStyle,
-                    value: provider,
-                    onChange: (e) => setProvider(e.target.value),
-                    disabled: busy,
-                  },
-                  h('option', { value: 'anthropic-compat' }, 'Primary — grok-imagine (alibb)'),
-                  h('option', { value: 'gptimg' }, 'GPTIMG — gpt-image-2 (birdsun)'),
-                  h('option', { value: 'openai-images' }, 'openai-images (custom URL)'),
-                ),
-              ),
-              h(
-                'label',
-                {
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginBottom: 6,
-                    fontSize: 12,
-                    whiteSpace: 'nowrap',
-                    flex: '0 0 auto',
-                  },
-                },
-                h('input', {
-                  type: 'checkbox',
-                  checked: allowAgent,
-                  onChange: (e) => setAllowAgent(e.target.checked),
-                  disabled: busy,
-                }),
-                h('span', { style: { color: fg } }, 'Allow agent'),
-              ),
+              h('input', {
+                type: 'checkbox',
+                checked: allowAgent,
+                onChange: (e) => setAllowAgent(e.target.checked),
+                disabled: busy,
+              }),
+              h('span', { style: { color: fg } }, 'Allow agent'),
             ),
             status ? h('p', { style: { margin: '0 0 6px', fontSize: 11, color: fgMuted } }, status) : null,
             models.length
@@ -389,7 +364,7 @@ export function WorkstationSettingsCard(props) {
                     ? 'Detect available models'
                     : 'Set API base URL and configure a key first',
                 },
-                canDetect ? 'Detect models' : 'Detect models (needs URL + key)',
+                'Detect models',
               ),
             ),
             !canDetect
@@ -402,7 +377,7 @@ export function WorkstationSettingsCard(props) {
                       color: fgMuted,
                     },
                   },
-                  'Detect off until URL + key set.',
+                  'Needs URL + key.',
                 )
               : null,
           ),
