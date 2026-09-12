@@ -360,6 +360,24 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
         const model = resolveAgentImageModel(config, args.model)
         const material = await resolveEditImageMaterial(source, exec?.signal)
         const req = mapAgentEditRequest(args, model, material, exec?.signal)
+        const srcStr = String(source || '')
+        const refKind = srcStr.startsWith('data:')
+          ? 'dataUrl'
+          : /^https?:\/\//i.test(srcStr)
+            ? 'url'
+            : 'path'
+        let refBase = null
+        let refBytes = null
+        if (refKind === 'path') {
+          try {
+            refBase = srcStr.split(/[\\/]/).pop() || null
+          } catch {
+            refBase = null
+          }
+        } else if (refKind === 'dataUrl') {
+          const m = /^data:[^;]+;base64,(.+)$/i.exec(srcStr)
+          refBytes = m ? Math.floor((m[1].length * 3) / 4) : null
+        }
         hitAgentToolLog({
           at: new Date().toISOString(),
           status: 'invoke',
@@ -367,11 +385,9 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
           promptLen: String(req.prompt || '').length,
           model: req.model || null,
           n: req.n,
-          refKind: String(source).startsWith('data:')
-            ? 'dataUrl'
-            : /^https?:\/\//i.test(String(source))
-              ? 'url'
-              : 'path',
+          refKind,
+          refBase,
+          refBytes,
         })
         try {
           // Prefer direct edit (CTA 图生图 seat). Also mirrors wantsEdit → edit.
