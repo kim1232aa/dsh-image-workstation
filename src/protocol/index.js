@@ -2,14 +2,37 @@ export { PROTOCOL_KINDS, CREDENTIAL_LANES, IMAGE_MODALITIES, VIDEO_MODALITIES } 
 export { createAdapterStub, listPhase1Adapters } from './adapters.js'
 export { createHostProxy, attachHostProxy } from './host-proxy.js'
 export { loadMediaEnv, mediaEnvSummary, loadVideoEnv, resolveVideoEnvFromMap } from './load-media-env.js'
-export {
-  resolveMediaBag,
-  resolveMediaCfg,
-  resolveVideoCfg,
-  resolveVideoEnv,
-  resolveVideoBag,
-} from './resolve-media.js'
+export { resolveMediaBag, resolveVideoEnv, resolveVideoBag } from './resolve-media.js'
 export { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
 export { DEFAULT_IMAGE_MODEL, isMediaModelId } from './defaults.js'
 
 export { createVideoAsyncAdapter, VIDEO_PROTOCOL, VIDEO_CHANNEL_FIELDS, createStubVideoJob } from './video-async.js'
+
+export {
+  runAsyncTask,
+  DEFAULT_ASYNC_CONFIG,
+  defaultImageAsyncConfig,
+  defaultVideoAsyncConfig,
+  getByPath,
+  extractUrls,
+  scrubToken,
+} from './async-task-id.js'
+
+export {
+  loadVisionEnv,
+  reversePrompt,
+  visionEnvSummary,
+  VISION_NOT_CONFIGURED,
+} from './vision-read.js'
+export {
+  enhancePrompt,
+  ENHANCE_NOT_CONFIGURED,
+} from './prompt-enhance.js'
+export {
+  gifGenerate,
+  ecommerceGenerate,
+  GIF_STUB_NOT_WIRED,
+  ECOM_STUB_NOT_WIRED,
+  CTA_RPC_GIF_GENERATE,
+  CTA_RPC_ECOM_GENERATE,
+} from './gif-ecom.js'

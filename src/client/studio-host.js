@@ -687,7 +687,8 @@ function mountStudioHostEl(hostEl) {
 /**
  * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, setProgress: (value: any) => void, setStatus: (text: string) => void, setConnected: (on: boolean) => void, getHostEl: () => HTMLElement | undefined }}
  */
-export function createStudioHost() {
+export function createStudioHost(opts = {}) {
+  const getRpc = typeof opts.getRpc === 'function' ? opts.getRpc : null
   let host
   let open = false
   /** @type {ReturnType<typeof mountVideoPage> | null} */
@@ -1798,8 +1799,41 @@ export function createStudioHost() {
       const t = /** @type {HTMLInputElement} */ (e.target)
       state.compareModels = !!t.checked
     })
-    host.querySelector('[data-ws-action="enhance"]')?.addEventListener('click', () => {
-      setStatus(`已请求「${PROMPT_ACTIONS.enhance}」`)
+    host.querySelector('[data-ws-action="enhance"]')?.addEventListener('click', async () => {
+      const prompt = String(state.prompt || '').trim()
+      if (!prompt) {
+        setStatus('请先输入提示词再增强')
+        return
+      }
+      const rpc = getRpc?.()
+      if (!rpc || typeof rpc.call !== 'function') {
+        setStatus('连接不可用，无法增强提示词')
+        return
+      }
+      setStatus(`${PROMPT_ACTIONS.enhance}中…`)
+      try {
+        const result = await rpc.call('/dsh-ws', 'enhancePrompt', {
+          prompt,
+          ratio: state.ratio,
+          clarity: state.clarity,
+          modelId: state.modelId,
+        })
+        if (result?.ok && result.value?.prompt) {
+          state.prompt = String(result.value.prompt)
+          syncFields()
+          setStatus(`${PROMPT_ACTIONS.enhance}完成`)
+        } else {
+          const code = result?.error?.code ? String(result.error.code) : ''
+          const msg = result?.error?.message ? String(result.error.message) : '增强失败'
+          setStatus(
+            code
+              ? `${PROMPT_ACTIONS.enhance}失败：${msg}（${code}）`
+              : `${PROMPT_ACTIONS.enhance}失败：${msg}`,
+          )
+        }
+      } catch (e) {
+        setStatus(`${PROMPT_ACTIONS.enhance}失败：${e?.message || e}`)
+      }
     })
     host.querySelector('[data-ws-action="templates"]')?.addEventListener('click', () => {
       gifApi?.close?.()

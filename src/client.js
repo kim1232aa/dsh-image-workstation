@@ -34,7 +34,9 @@ export function apply(ctx, _config) {
     `[dsh-image-workstation] client — sidebar「生图」+ CTA→${CTA_RPC_CHANNEL}/${CTA_RPC_GENERATE}`,
   )
 
-  const studio = createStudioHost()
+  const studio = createStudioHost({
+    getRpc: () => ctx.connection?.rpc,
+  })
   const disposers = []
   let inflight = false
   /** @type {AbortController | null} */

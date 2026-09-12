@@ -53,7 +53,7 @@
   "scripts": {
     "check": "node --check src/index.js && node --check src/config.js && node --check lib/client.js",
     "build:client": "esbuild src/client.js --bundle --format=cjs --platform=browser --loader:.jpg=dataurl --external:react --external:react/jsx-runtime --external:react-dom --outfile=/tmp/ws-client.cjs && node scripts/wrap-client.mjs",
-    "verify": "node scripts/verify-redlines.mjs && node scripts/verify-cta-rpc.mjs && node scripts/verify-agent-tools.mjs",
+    "verify": "node scripts/verify-redlines.mjs && node scripts/verify-cta-rpc.mjs && node scripts/verify-agent-tools.mjs && node scripts/test-async-task-id.mjs && node scripts/verify-agent-generate-image.mjs && node scripts/verify-vision-gif-enhance.mjs",
     "build": "pnpm run build:client && pnpm run check && pnpm run verify"
   },
   "dependencies": {

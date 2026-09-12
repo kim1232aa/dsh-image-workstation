@@ -1,3 +1,5 @@
+import { readdirSync, statSync } from 'node:fs'
+import path from 'node:path'
 /**
  * CTA → host Connection RPC → mediaProxy.generate
  * Channel is plugin-owned (not /api Typert). Token never crosses this boundary.
@@ -8,11 +10,20 @@ import {
   HOST_EDIT_TIMEOUT_MS,
   anySignal,
 } from './rpc-errors.js'
+import {
+  handleGifEcomRpc,
+  CTA_RPC_GIF_GENERATE,
+  CTA_RPC_ECOM_GENERATE,
+} from './gif-ecom.js'
 
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
 export const CTA_RPC_PROBE = 'probe'
+export const CTA_RPC_REVERSE_PROMPT = 'reversePrompt'
+export const CTA_RPC_ENHANCE_PROMPT = 'enhancePrompt'
+export { CTA_RPC_GIF_GENERATE, CTA_RPC_ECOM_GENERATE }
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
+export const CTA_RPC_STORAGE_LIST = 'storage.list'
 
 /**
  * Map studio CTA detail → mediaProxy.generate request (no prompt rewrite).
@@ -85,19 +96,79 @@ function sizeFromRatio(ratio, clarity) {
  * @param {{ generate: (req: any) => Promise<any>, mediaConfigured?: boolean }} mediaProxy
  * @param {{ getDataDir?: () => string, dataDir?: string }} [opts]
  */
+
+const MEDIA_IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp4', '.webm', '.mov'])
+
+/**
+ * List image/video files under dataDir/relativeSeat (non-recursive).
+ * @param {string} dataDir
+ * @param {string} relativeSeat
+ */
+function listMediaSeat(dataDir, relativeSeat) {
+  const root = String(dataDir || '').trim()
+  const seat = String(relativeSeat || '').trim().replace(/^\/+/, '')
+  if (!root || !seat) return []
+  const abs = path.join(root, seat)
+  let names = []
+  try {
+    names = readdirSync(abs)
+  } catch {
+    return []
+  }
+  const out = []
+  for (const name of names) {
+    const ext = path.extname(name).toLowerCase()
+    if (!MEDIA_IMAGE_EXT.has(ext)) continue
+    const full = path.join(abs, name)
+    let st
+    try {
+      st = statSync(full)
+    } catch {
+      continue
+    }
+    if (!st.isFile()) continue
+    const kind = ['.mp4', '.webm', '.mov'].includes(ext) ? 'video' : 'image'
+    out.push({
+      id: `${seat}/${name}`,
+      name,
+      relativePath: `${seat}/${name}`,
+      seat,
+      kind,
+      createdAt: Math.floor((st.mtimeMs || Date.now())),
+      // No file:// URLs — client cannot display them; localPath for host later
+      localPath: full,
+      url: '',
+    })
+  }
+  out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  return out
+}
+
 export function createCtaRpcHandler(mediaProxy, opts = {}) {
   return async (endpoint, payload, signal) => {
-    if (endpoint === CTA_RPC_STORAGE_PATHS) {
+    if (endpoint === CTA_RPC_STORAGE_PATHS || endpoint === CTA_RPC_STORAGE_LIST) {
       const dataDir = String(
         (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) || '',
       )
+      const paths = {
+        dataDir,
+        generated: 'media/generated',
+        gallery: 'media/gallery',
+        history: 'media/history',
+      }
+      if (endpoint === CTA_RPC_STORAGE_PATHS) {
+        return { ok: true, value: paths }
+      }
+      // storage.list — read gallery + history seats (honest empty if none)
+      const galleryItems = listMediaSeat(dataDir, paths.gallery)
+      const historyItems = listMediaSeat(dataDir, paths.history)
       return {
         ok: true,
         value: {
-          dataDir,
-          generated: 'media/generated',
-          gallery: 'media/gallery',
-          history: 'media/history',
+          ...paths,
+          galleryItems,
+          historyItems,
+          items: [...galleryItems, ...historyItems],
         },
       }
     }
@@ -128,6 +199,93 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
         }
       }
     }
+    // Vision reverse-prompt
+    if (endpoint === CTA_RPC_REVERSE_PROMPT) {
+      try {
+        if (typeof mediaProxy?.reversePrompt !== 'function' && typeof mediaProxy?.visionReversePrompt !== 'function') {
+          return {
+            ok: false,
+            error: { code: 'HOST_PROXY_NOT_WIRED', message: 'reversePrompt not available', details: {} },
+          }
+        }
+        const detail = payload && typeof payload === 'object' ? payload : {}
+        const imageUrl =
+          (detail.imageUrl && String(detail.imageUrl)) ||
+          (detail.dataUrl && String(detail.dataUrl)) ||
+          (Array.isArray(detail.refImages) &&
+            detail.refImages[0] &&
+            (detail.refImages[0].url || detail.refImages[0].dataUrl)) ||
+          ''
+        if (!imageUrl) {
+          return {
+            ok: false,
+            error: { code: 'IMAGE_REQUIRED', message: 'reversePrompt needs imageUrl, dataUrl, or refImages[0]', details: {} },
+          }
+        }
+        const fn = mediaProxy.reversePrompt || mediaProxy.visionReversePrompt
+        const out = await fn.call(mediaProxy, {
+          imageUrl: String(imageUrl),
+          dataUrl: detail.dataUrl ? String(detail.dataUrl) : undefined,
+          instruction: detail.instruction != null ? String(detail.instruction) : undefined,
+          signal,
+        })
+        return { ok: true, value: { prompt: String(out?.prompt || '') } }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'REVERSE_PROMPT_FAILED',
+            message: scrubMessage(e?.message || e),
+            details: e?.visionCode ? { visionCode: e.visionCode } : {},
+          },
+        }
+      }
+    }
+
+    // 提示词增强 — reuse mapGenerateRequest for ratio/clarity → aspect_ratio/resolution/size
+    if (endpoint === CTA_RPC_ENHANCE_PROMPT) {
+      try {
+        if (typeof mediaProxy?.enhancePrompt !== 'function') {
+          return {
+            ok: false,
+            error: { code: 'HOST_PROXY_NOT_WIRED', message: 'enhancePrompt not available', details: {} },
+          }
+        }
+        const detail = payload && typeof payload === 'object' ? payload : {}
+        if (!String(detail.prompt || '').trim()) {
+          return {
+            ok: false,
+            error: { code: 'PROMPT_REQUIRED', message: 'prompt required', details: {} },
+          }
+        }
+        const mapped = mapGenerateRequest(detail, signal)
+        const out = await mediaProxy.enhancePrompt({
+          prompt: mapped.prompt,
+          modelId: detail.modelId ? String(detail.modelId) : mapped.model,
+          aspect_ratio: mapped.aspect_ratio,
+          resolution: mapped.resolution,
+          size: mapped.size,
+          signal: mapped.signal || signal,
+        })
+        return { ok: true, value: { prompt: String(out?.prompt || '') } }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'ENHANCE_FAILED',
+            message: scrubMessage(e?.message || e),
+            details: e?.visionCode ? { visionCode: e.visionCode } : {},
+          },
+        }
+      }
+    }
+
+    // GIF / ecommerce stubs
+    {
+      const stub = await handleGifEcomRpc(endpoint, payload && typeof payload === 'object' ? payload : {})
+      if (stub) return stub
+    }
+
     if (endpoint !== CTA_RPC_GENERATE) {
       return {
         ok: false,

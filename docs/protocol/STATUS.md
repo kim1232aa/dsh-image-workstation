@@ -17,11 +17,16 @@ Studio 「开始生成」→ `dsh-ws-generate` → host `/dsh-ws` RPC → `media
 |---|---|
 | `openai.images` generate | **live** |
 | `openai.images` edit (图生图) | **live** (multipart `/v1/images/edits`; needs refImages) |
-| `async.task_id` | stub |
+| `async.task_id` | **skeleton live** (helper `runAsyncTask` / path extract / scrub; no standalone paid seat) |
 | Grok/Gemini/Seedream/Qwen/智谱/MiniMax native | stub |
-| `video.async` | stub |
+| `video.async` | **live** when `VIDEO_*` / settings videoBaseUrl+videoApiKey; else `VIDEO_NOT_CONFIGURED` (`forceStub` → `VIDEO_STUB_NOT_WIRED`) |
+| `vision.reversePrompt` | **live** when `VISION_*` set; else `VISION_NOT_CONFIGURED` |
+| `vision.enhancePrompt` | **live** when `VISION_*` set; else `ENHANCE_NOT_CONFIGURED` |
+| `gif.generate` (`gifGenerate` RPC) | **stub** (`GIF_STUB_NOT_WIRED`) |
+| `ecommerce.generate` (`ecommerceGenerate` RPC) | **stub** (`ECOM_STUB_NOT_WIRED`) |
 | `detectModels` | live filter (drops chat/embedding) |
 | `cancel` | AbortController aborts upstream |
+| Agent `generate_image` tool register | **live** (register path); full Agent UX = **not Pass** |
 
 Do **not** claim matrix Pass. 图生图 / video / 无限画布 are not full docs/03.
 
@@ -40,6 +45,8 @@ Provide bag gets `mediaEnvSummary` only (`baseUrlSet` / `tokenSet` / `source` / 
 | `gptimg` | openai-images | `gpt-image-2` | Settings provider GPTIMG (birdsun) |
 
 Default model (`MEDIA_IMAGE_MODEL`): `grok-imagine-image`.
+Default Config `mediaProvider`: `anthropic-compat` (Schema also allows `openai-images` | `gptimg`).
+**Channel drift fix:** only `settingsProvider === 'gptimg'` selects birdsun; `openai-images` alone falls through to env primary.
 **`9.alibb` was a bad host** — do not use. Working gate is `sub.alibb123`.
 
 Summary never includes tokens.
@@ -53,9 +60,35 @@ Ten docs/03 零、红线 passed @ `be91e70`. Not full 03. Only UI CTA generate c
 
 | Seat | Status |
 |---|---|
-| `video.async` generate | **stub** (`VIDEO_STUB_NOT_WIRED`) — built-in, no nested plugin pack |
-| `video.async` poll/cancel | stub shape only |
+| `video.async` generate | **live when configured**; else `VIDEO_NOT_CONFIGURED`; `forceStub` → `VIDEO_STUB_NOT_WIRED` |
+| `video.async` status/cancel | wired job map + AbortController |
 | Settings card fields | `videoBaseUrl` / `videoApiKey`(host) / `videoProvider` / `videoDefaultModel` on **Video** section; poll interval·timeout config-only |
-| `resolveVideoCfg` / `resolveMediaBag().video` | settings first, else media.env `VIDEO_*` → host-proxy `mediaEnv.video` (stub still not paid-live) |
+| `resolveVideoBag` | settings first, else media.env `VIDEO_*` → host-proxy `mediaEnv.video` (stub still not paid-live) |
 
 Rules when live later: verbatim result URLs; same queue/history concepts as image; no Nova JSON plugin packs.
+
+
+## Vision / 反推 / 提示词增强 (see `07-vision-read.md`)
+
+| Item | Status |
+|---|---|
+| `VISION_*` lane | separate from images; no Images/ANTHROPIC/GPTIMG fallback |
+| `/dsh-ws` `reversePrompt` | wired; live iff vision configured |
+| `/dsh-ws` `enhancePrompt` | wired; Studio button fills textarea on ok; ratio via `mapGenerateRequest` |
+| Studio enhance UI layout | unchanged (behavior only) |
+
+## GIF / 电商 stubs (see `08-gif-ecommerce-draft.md`)
+
+| Item | Status |
+|---|---|
+| `gifGenerate` | stub → `GIF_STUB_NOT_WIRED` (no fake success) |
+| `ecommerceGenerate` | stub → `ECOM_STUB_NOT_WIRED` (no fake success) |
+| Verbatim URL rule | documented for when live |
+
+## Agent generate_image
+
+| Item | Status |
+|---|---|
+| tool register → `mediaProxy.generate` | **live** |
+| full Agent UX (inline chat, slash edit, vision, web search) | **not Pass** |
+| verify | `node scripts/verify-agent-generate-image.mjs` (no paid APIs) |

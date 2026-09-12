@@ -1,7 +1,7 @@
 /**
  * Host-side media proxy. generate wired to openai.images when media.env present.
  * Token closed over — never returned from methods / describeChannels / errors.
- * Matrix status: ONLY openai.images generate is live; edit/async/video/native adapters = stub.
+ * Matrix status: openai.images generate/edit live when media.env set; video.async live when video env set; other adapters stub.
  */
 import { randomUUID } from 'node:crypto'
 import { listPhase1Adapters } from './adapters.js'
@@ -9,6 +9,9 @@ import { CREDENTIAL_LANES } from './types.js'
 import { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
 import { DEFAULT_IMAGE_MODEL, isMediaModelId } from './defaults.js'
 import { createVideoAsyncAdapter } from './video-async.js'
+import { loadVisionEnv, reversePrompt as visionReversePrompt, visionEnvSummary } from './vision-read.js'
+import { enhancePrompt as runEnhancePrompt } from './prompt-enhance.js'
+import { gifGenerate, ecommerceGenerate } from './gif-ecom.js'
 
 const NOT_WIRED = (seat) => {
   const err = new Error(`[dsh-image-workstation] host proxy seat "${seat}" not wired`)
@@ -30,12 +33,18 @@ export function createHostProxy(resolved, mediaEnv = null) {
   const _baseUrl = mediaEnv?.baseUrl || ''
   const liveGenerate = baseUrlSet && tokenSet
   const videoAdapter = createVideoAsyncAdapter(resolved, mediaEnv?.video || null)
+  const videoLive = Boolean(videoAdapter?.live)
+  const visionConfigured = loadVisionEnv().configured
 
   const proxy = {
     lanes: CREDENTIAL_LANES,
     adapters: adapters.map((a) => a.kind),
     /** Honest coverage — do not treat as matrix Pass */
-    liveSeats: liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : [],
+    liveSeats: [
+      ...(liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : []),
+      ...(videoLive ? ['video.async'] : []),
+      ...(visionConfigured ? ['vision.reversePrompt', 'vision.enhancePrompt'] : []),
+    ],
     stubSeats: [
       'async.task_id',
       'grok.imagine',
@@ -44,7 +53,10 @@ export function createHostProxy(resolved, mediaEnv = null) {
       'qwen.dashscope',
       'zhipu.glm-image',
       'minimax.image-01',
-      'video.async',
+      ...(!videoLive ? ['video.async'] : []),
+      ...(!visionConfigured ? ['vision.reversePrompt', 'vision.enhancePrompt'] : []),
+      'gif.generate',
+      'ecommerce.generate',
     ],
     dataDir: resolved.dataDir,
     mediaConfigured: liveGenerate,
@@ -294,8 +306,41 @@ export function createHostProxy(resolved, mediaEnv = null) {
       return videoAdapter.cancel(jobId)
     },
 
+    /** Vision lane reverse-prompt (VISION_* only). Alias: visionReversePrompt. */
+    async reversePrompt(req) {
+      const env = loadVisionEnv()
+      return visionReversePrompt(req || {}, env)
+    },
+    async visionReversePrompt(req) {
+      return proxy.reversePrompt(req)
+    },
+
+    /** 提示词增强 — same VISION_* lane as reversePrompt. */
+    async enhancePrompt(req) {
+      const env = loadVisionEnv()
+      return runEnhancePrompt(req || {}, env)
+    },
+
+    /** GIF stub — always GIF_STUB_NOT_WIRED */
+    async gifGenerate(req) {
+      return gifGenerate(req || {})
+    },
+
+    /** Ecommerce stub — always ECOM_STUB_NOT_WIRED */
+    async ecommerceGenerate(req) {
+      return ecommerceGenerate(req || {})
+    },
+
+    visionSummary() {
+      return visionEnvSummary(loadVisionEnv())
+    },
+
     describeChannels() {
-      const liveSeats = liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : []
+      const liveSeats = [
+        ...(liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : []),
+        ...(videoLive ? ['video.async'] : []),
+        ...(visionConfigured ? ['vision.reversePrompt', 'vision.enhancePrompt'] : []),
+      ]
       const fromEnv = Array.isArray(mediaEnv?.channels) ? mediaEnv.channels : []
       if (fromEnv.length) {
         return [
