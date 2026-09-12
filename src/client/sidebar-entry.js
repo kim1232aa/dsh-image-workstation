@@ -30,8 +30,9 @@ const TAB_STYLES = `
 [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"][data-dsh-ws-tab-current] {
   font-weight:500;
   background: transparent;
-  border-color: var(--dsw-alias-border-l2, rgba(0,0,0,.12));
+  border-color: rgba(0,0,0,.14);
   color: var(--dsw-alias-label-secondary, inherit);
+  box-shadow: none;
 }
 [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"][data-dsh-ws-tab-current] {
   font-weight:600; background: var(--dsw-alias-interactive-bg-hover, transparent);
@@ -47,11 +48,18 @@ body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-s
   box-shadow: none !important;
   color: inherit !important;
 }
+/* Left 生图 stays quiet outline while top 画廊 (or any page) is primary */
 html[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"],
-body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"] {
-  font-weight: 500;
-  border-color: var(--dsw-alias-border-l2, rgba(0,0,0,.12));
-  color: var(--dsw-alias-label-secondary, inherit);
+html[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"][data-dsh-ws-tab-current],
+body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"],
+body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"][data-dsh-ws-tab-current] {
+  font-weight: 500 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: rgba(0,0,0,.14) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: var(--dsw-alias-label-secondary, inherit) !important;
 }
 /* Host leftover New Session / English button must not look active while studio open */
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] button[data-dsh-part="new-session"],
@@ -83,48 +91,59 @@ body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-acti
 [data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="sessionItem"][aria-current="true"],
 [data-dsh-ws-sidebar-root][data-dsh-ws-studio-open] [class*="sessionItem"][data-active],
 [data-pane="sidebar"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"],
-[class*="sidebarCol"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"] {
-  background: transparent !important;
-  background-color: transparent !important;
-  font-weight: inherit !important;
-  box-shadow: none !important;
-  outline: none !important;
-}
-html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][aria-current="true"]::before,
-html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"]::before,
-html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-active]::before {
-  opacity: 0 !important;
-  background: transparent !important;
-}
-/* Host session list row literally titled New Session — quiet while workstation open */
-html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"],
-html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][aria-current="true"],
-html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][aria-current="true"],
-html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="Session"][aria-current="true"],
+[class*="sidebarCol"][data-dsh-ws-studio-open] [class*="session"][aria-current="true"],
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"],
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="SessionRow"][class*="selected"],
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][class*="selected"],
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][class*="selected"],
 html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="SessionRow"][class*="selected"],
 html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][class*="selected"],
 body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"],
-body[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"] {
+body[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="selected"][class*="session"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="selected"][class*="session"] {
   background: transparent !important;
   background-color: transparent !important;
+  font-weight: inherit !important;
   box-shadow: none !important;
   outline: none !important;
   color: inherit !important;
-  font-weight: inherit !important;
   opacity: 1;
 }
+/* Kill selected rail / fill on row + descendants */
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"] *,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="SessionRow"][class*="selected"] *,
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"] *,
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"] *,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"] *,
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][aria-current="true"] * {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][aria-current="true"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][aria-current="true"]::after,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"]::after,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-active]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-active]::after,
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::after,
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][class*="selected"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][class*="selected"]::after,
 html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"]::before,
-body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::before {
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"]::after,
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::before,
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::after {
   opacity: 0 !important;
   background: transparent !important;
+  background-color: transparent !important;
   content: none !important;
+  display: none !important;
   width: 0 !important;
+  height: 0 !important;
+  border: none !important;
 }
 `
 
@@ -190,11 +209,57 @@ export function mountSidebarEntry(opts) {
     }
   }
 
+  const paintRowQuiet = (el) => {
+    if (!(el instanceof HTMLElement)) return
+    try {
+      el.style.setProperty('background', 'transparent', 'important')
+      el.style.setProperty('background-color', 'transparent', 'important')
+      el.style.setProperty('box-shadow', 'none', 'important')
+      el.style.setProperty('outline', 'none', 'important')
+      el.style.setProperty('font-weight', 'inherit', 'important')
+      for (const child of el.children) {
+        if (!(child instanceof HTMLElement)) continue
+        child.style.setProperty('background', 'transparent', 'important')
+        child.style.setProperty('background-color', 'transparent', 'important')
+        child.style.setProperty('box-shadow', 'none', 'important')
+      }
+    } catch (_) {}
+  }
+
+  const stripSelectedTokens = (el) => {
+    if (!(el instanceof HTMLElement)) return
+    const cls = String(el.className || '')
+    if (!cls) return
+    const next = cls
+      .split(/\s+/)
+      .filter((t) => t && !/selected|Selected|active|Active|current|Current|isActive|IsActive/i.test(t))
+      .join(' ')
+    if (next !== el.className) el.className = next
+  }
+
   const clearHostSessionChrome = (scope) => {
     const root = scope instanceof HTMLElement ? scope : sidebarColumn() || document
-    const nodes = root.querySelectorAll(
-      '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected],button[data-dsh-part="new-session"],button[class*="newSession"],[class*="sessionRow"],[class*="SessionRow"],[class*="sessionItem"],[class*="SessionItem"]',
+    const nodes = new Set(
+      root.querySelectorAll(
+        '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected],button[data-dsh-part="new-session"],button[class*="newSession"],[class*="sessionRow"],[class*="SessionRow"],[class*="sessionItem"],[class*="SessionItem"],[class*="session"][class*="selected"],[class*="Session"][class*="selected"],[class*="selected"][class*="session"],[class*="Selected"]',
+      ),
     )
+    // Also catch host rows titled exactly "New Session" / "新会话" (class names vary)
+    try {
+      const walkRoot = root instanceof Document ? root.body : root
+      if (walkRoot instanceof HTMLElement) {
+        for (const el of walkRoot.querySelectorAll('button,a,div,li,span')) {
+          if (!(el instanceof HTMLElement)) continue
+          if (el.closest(ENTRY_TABS) || el.closest('[data-dsh-ws-session-tabs]')) continue
+          if (el.closest('[data-dsh-ws-studio-host]')) continue
+          const label = (el.textContent || '').replace(/\s+/g, ' ').trim()
+          if (/^(New Session|新会话|\+\s*新会话)$/i.test(label)) {
+            nodes.add(el)
+            if (el.parentElement instanceof HTMLElement) nodes.add(el.parentElement)
+          }
+        }
+      }
+    } catch (_) {}
     for (const el of nodes) {
       if (!(el instanceof HTMLElement)) continue
       // Our dual tabs: keep 生图 current; strip 新会话 current while studio open
@@ -209,7 +274,7 @@ export function mountSidebarEntry(opts) {
       // Never touch our studio frame / top tabs
       if (el.closest('[data-dsh-ws-studio-host]')) continue
       const cls = String(el.className || '')
-      const label = (el.textContent || '').trim()
+      const label = (el.textContent || '').replace(/\s+/g, ' ').trim()
       const looksNewSession =
         el.getAttribute('data-dsh-part') === 'new-session' ||
         /newSession/i.test(cls) ||
@@ -228,19 +293,16 @@ export function mountSidebarEntry(opts) {
           el.removeAttribute('data-active')
           el.removeAttribute('data-selected')
         }
-        // Host uses hashed CSS modules like YDXeBa_sessionRow YDXeBa_selected
-        if (/sessionRow|SessionRow|sessionItem|SessionItem/i.test(cls) && /selected|Selected|active|Active/i.test(cls)) {
-          const next = String(el.className || '')
-            .split(/\s+/)
-            .filter((t) => t && !/selected|Selected|active|Active|current|Current/i.test(t))
-            .join(' ')
-          if (next !== el.className) el.className = next
+        // Host uses hashed CSS modules like YDXeBa_sessionRow YDXeBa_selected — strip aggressively
+        if (
+          /sessionRow|SessionRow|sessionItem|SessionItem|session|Session|newSession/i.test(cls) ||
+          looksNewSession ||
+          /selected|Selected|active|Active|current|Current/i.test(cls)
+        ) {
+          stripSelectedTokens(el)
         }
-        if (/selected|active|current|session|newSession/i.test(cls) || looksNewSession) {
-          el.style.setProperty('background', 'transparent', 'important')
-          el.style.setProperty('background-color', 'transparent', 'important')
-          el.style.setProperty('box-shadow', 'none', 'important')
-          el.style.setProperty('font-weight', 'inherit', 'important')
+        if (/selected|active|current|session|newSession/i.test(cls) || looksNewSession || looksSession) {
+          paintRowQuiet(el)
         }
       } catch (_) {}
     }
@@ -320,17 +382,32 @@ export function mountSidebarEntry(opts) {
 
   /** Host often re-applies session aria-current after route paint — keep clearing while open. */
   let chromeObserver
+  let flagObserver
   let chromeQuiet = false
+  const studioOpenDesired = () => {
+    // User chose 新会话 — never fight close() / re-stamp open chrome
+    if (current === TAB_NEW) return false
+    if (current === TAB_STUDIO) return true
+    // Gallery/other workstation page may stamp html flag before sidebar current flips
+    if (document.documentElement.hasAttribute('data-dsh-ws-studio-open')) return true
+    if (document.body?.hasAttribute('data-dsh-ws-studio-open')) return true
+    return Boolean(document.querySelector('[data-dsh-ws-studio-host][data-ws-top-page="画廊"]'))
+  }
+
   const watchHostChrome = () => {
     chromeObserver?.disconnect()
+    flagObserver?.disconnect()
     const col = sidebarColumn()
     if (!(col instanceof HTMLElement)) return
     chromeObserver = new MutationObserver(() => {
-      if (disposed || current !== TAB_STUDIO || chromeQuiet) return
+      if (disposed || chromeQuiet) return
+      if (!studioOpenDesired()) return
       chromeQuiet = true
       try {
-        // Re-stamp html/body flag + clear host selection chrome
+        // Re-stamp html/body flag + clear host selection chrome (class + ::before)
+        if (current !== TAB_NEW) current = TAB_STUDIO
         stampStudioOpen(true)
+        if (tabsEl) paintSelected(tabsEl)
       } finally {
         // Observer delivers records after this stack — keep quiet until next macrotask
         setTimeout(() => {
@@ -340,15 +417,45 @@ export function mountSidebarEntry(opts) {
     })
     chromeObserver.observe(col, {
       subtree: true,
+      childList: true,
       attributes: true,
-      attributeFilter: ['aria-current', 'aria-selected', 'data-active', 'data-selected', 'class'],
+      attributeFilter: ['aria-current', 'aria-selected', 'data-active', 'data-selected', 'class', 'style'],
     })
+    // If host/React strips our flag while 画廊/studio is still up, put it back
+    flagObserver = new MutationObserver(() => {
+      if (disposed || chromeQuiet) return
+      if (!studioOpenDesired()) return
+      if (!document.documentElement.hasAttribute('data-dsh-ws-studio-open')) {
+        chromeQuiet = true
+        try {
+          if (current !== TAB_NEW) current = TAB_STUDIO
+          stampStudioOpen(true)
+          if (tabsEl) paintSelected(tabsEl)
+        } finally {
+          setTimeout(() => {
+            chromeQuiet = false
+          }, 0)
+        }
+      }
+    })
+    flagObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-dsh-ws-studio-open'],
+    })
+    if (document.body) {
+      flagObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['data-dsh-ws-studio-open'],
+      })
+    }
   }
 
   const placeAndWatch = () => {
     place()
-    if (!disposed && current === TAB_STUDIO) {
+    if (!disposed && studioOpenDesired()) {
+      if (current !== TAB_NEW) current = TAB_STUDIO
       stampStudioOpen(true)
+      if (tabsEl) paintSelected(tabsEl)
       watchHostChrome()
     }
   }
@@ -361,6 +468,7 @@ export function mountSidebarEntry(opts) {
     disposed = true
     observer?.disconnect()
     chromeObserver?.disconnect()
+    flagObserver?.disconnect()
     tabsEl?.remove()
     styleEl?.remove()
     styleEl = undefined

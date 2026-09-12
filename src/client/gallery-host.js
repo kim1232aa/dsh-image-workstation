@@ -238,40 +238,65 @@ export function imageElLooksLikeLightUiChrome(img) {
   }
 }
 
-/** One-line muted caption: model chip + prompt / session hint. */
+/** Friendly time for captions — never bare HH:MM (reads like video duration). */
+export function formatCaptionTime(ts) {
+  const n = Number(ts) || 0
+  if (n <= 0) return ''
+  try {
+    const d = new Date(n)
+    if (Number.isNaN(d.getTime())) return ''
+    const now = Date.now()
+    const diff = now - d.getTime()
+    if (diff >= 0 && diff < 45_000) return '刚刚'
+    if (diff >= 0 && diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))}分钟前`
+    if (diff >= 0 && diff < 86400_000) return `${Math.max(1, Math.floor(diff / 3600_000))}小时前`
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    const today = new Date()
+    if (
+      d.getFullYear() === today.getFullYear() &&
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate()
+    ) {
+      return `今天 ${hh}:${mm}`
+    }
+    const yesterday = new Date(today.getTime() - 86400_000)
+    if (
+      d.getFullYear() === yesterday.getFullYear() &&
+      d.getMonth() === yesterday.getMonth() &&
+      d.getDate() === yesterday.getDate()
+    ) {
+      return `昨天 ${hh}:${mm}`
+    }
+    return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`
+  } catch (_) {
+    return ''
+  }
+}
+
+/** One-line caption: prefer `model · truncated prompt`; never bare mm:ss duration. */
 export function cardCaption(it) {
   if (!it || typeof it !== 'object') return '素材'
   const modelRaw = it.model ? String(it.model).trim() : ''
-  const model = modelRaw
-    ? modelRaw.replace(/^.*\//, '').replace(/[-_]/g, ' ').slice(0, 18)
-    : ''
+  // Keep model id readable (grok-imagine-image), strip org prefix only
+  const model = modelRaw ? modelRaw.replace(/^.*\//, '').slice(0, 28) : ''
   const prompt = String(it.prompt || it.name || '')
     .replace(/\s+/g, ' ')
     .trim()
-  // Avoid dumping raw filesystem paths into the caption
+  // Avoid dumping raw filesystem paths / filenames into the caption
   const safePrompt =
     prompt && !/^(media\/|file:\/\/|\/)/i.test(prompt) && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(prompt)
       ? prompt
       : ''
-  const snippet = safePrompt.slice(0, 32)
-  let time = ''
-  const ts = Number(it.createdAt) || 0
-  if (ts > 0) {
-    try {
-      const d = new Date(ts)
-      const hh = String(d.getHours()).padStart(2, '0')
-      const mm = String(d.getMinutes()).padStart(2, '0')
-      time = `${hh}:${mm}`
-    } catch (_) {}
-  }
+  const snippet = safePrompt ? `${safePrompt.slice(0, 28)}${safePrompt.length > 28 ? '…' : ''}` : ''
+  const time = formatCaptionTime(it.createdAt)
+  const modeHint =
+    it.kind === 'video' ? '视频' : it.mode ? String(it.mode) : '文生图'
   if (model && snippet) return `${model} · ${snippet}`
-  if (model && time) return `${model} · ${time}`
-  if (model) return model
-  if (snippet && time) return `${snippet} · ${time}`
+  if (model) return `${model} · ${modeHint}`
   if (snippet) return snippet
-  if (it.mode && time) return `${it.mode} · ${time}`
-  if (it.mode) return String(it.mode)
-  return time ? `素材 · ${time}` : '素材'
+  if (time) return `素材 · ${time}`
+  return '素材'
 }
 
 function friendlyGalleryStatus(n) {
@@ -656,13 +681,15 @@ export function galleryHostStyles() {
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-grid] {
   flex:1; min-height:0; overflow:auto;
-  display:grid; gap:10px; align-content:start; align-items:start;
+  display:grid; gap:12px; align-content:start; align-items:start;
+  grid-auto-rows: auto;
 }
+/* auto-fit collapses empty tracks — no trailing blank slot from auto-fill */
 [data-dsh-ws-studio-host] [data-ws-gallery-grid][data-view="grid"] {
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-grid][data-view="waterfall"] {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] {
   border:1px solid var(--dsw-alias-border-l2); border-radius:10px; overflow:hidden;
@@ -672,26 +699,35 @@ export function galleryHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-gallery-card][data-selected] {
   outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:1px;
 }
-[data-dsh-ws-studio-host] [data-ws-gallery-card] img,
-[data-dsh-ws-studio-host] [data-ws-gallery-card] video {
-  width:100%; aspect-ratio:1; object-fit:cover; display:block; flex:none;
+[data-dsh-ws-studio-host] [data-ws-gallery-card-media] {
+  position:relative; width:100%; aspect-ratio:1; overflow:hidden; flex:none;
   background: var(--dsw-alias-bg-layer-1);
 }
+[data-dsh-ws-studio-host] [data-ws-gallery-card-media] img,
+[data-dsh-ws-studio-host] [data-ws-gallery-card-media] video {
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+/* Overlay caption on every thumb — never clipped by grid row / overflow */
 [data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-meta] {
-  padding:5px 8px 6px; font-size:11px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+  position:absolute; left:0; right:0; bottom:0; z-index:1;
+  padding:16px 8px 6px; font-size:11px;
+  color: rgba(255,255,255,.94);
+  background: linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.35) 55%, transparent 100%);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  display:flex; align-items:center; gap:5px; min-width:0; line-height:1.35; flex:none;
+  display:flex; align-items:center; gap:5px; min-width:0; line-height:1.35;
+  pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-model] {
-  flex:none; max-width:42%; padding:0 5px; height:16px; line-height:16px;
+  flex:none; max-width:46%; padding:0 5px; height:16px; line-height:16px;
   border-radius:999px; font-size:10px;
-  color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,.04));
-  border:1px solid var(--dsw-alias-border-l2);
+  color: rgba(255,255,255,.95);
+  background: rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.22);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-snip] {
   flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
 }
 /* Soften dual-history: image history rail stays hidden on 画廊 (empty vs host sessions) */
 [data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="image"] [data-ws-col="history"],
@@ -988,11 +1024,59 @@ export function mountGalleryPage(host, opts) {
     return true
   }
 
-  const paintGrid = () => {
+  /** HARD RULE: probe before DOM — never mount a card without a loaded displayable image. */
+  const probeImageSrc = (src) =>
+    new Promise((resolve) => {
+      if (!src) return resolve(null)
+      const img = new Image()
+      const done = (ok) => {
+        if (!ok || !img.naturalWidth) return resolve(null)
+        resolve(img)
+      }
+      img.onload = () => done(true)
+      img.onerror = () => done(false)
+      try {
+        img.decoding = 'async'
+      } catch (_) {}
+      img.src = src
+      if (img.complete) done(img.naturalWidth > 0)
+    })
+
+  let paintGen = 0
+
+  const buildCardHtml = (it, src, isVideo) => {
+    const selected = state.selection.includes(it.id)
+    const media = isVideo
+      ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
+      : `<img src="${escapeHtml(src)}" alt="" decoding="async" />`
+    const modelRaw = it.model ? String(it.model).replace(/^.*\//, '').slice(0, 18) : ''
+    const caption = cardCaption(it)
+    const snip =
+      caption.includes(' · ') && modelRaw ? caption.slice(caption.indexOf(' · ') + 3) : caption
+    const metaInner = modelRaw
+      ? `<span data-ws-gallery-card-model title="${escapeHtml(String(it.model || ''))}">${escapeHtml(modelRaw)}</span><span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(snip)}</span>`
+      : `<span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(caption)}</span>`
+    return `<article data-ws-gallery-card data-id="${escapeHtml(it.id)}" role="listitem" ${selected ? 'data-selected' : ''}>
+          <div data-ws-gallery-card-media>
+            ${media}
+            <div data-ws-gallery-card-meta>${metaInner}</div>
+          </div>
+        </article>`
+  }
+
+  const reconcileVisibleCount = (grid) => {
+    const n = grid.querySelectorAll('[data-ws-gallery-card]').length
+    syncCountLabel()
+    setStatus(friendlyGalleryStatus(n))
+    return n
+  }
+
+  const paintGrid = async () => {
     const grid = page.querySelector('[data-ws-gallery-grid]')
     if (!(grid instanceof HTMLElement)) return
+    const gen = ++paintGen
     grid.setAttribute('data-view', state.view)
-    // HARD RULE: only cards with a real <img>/<video> src — no empty shells / blank white tiles
+    // Candidates with a browser-usable src only
     const items = filteredItems().filter((it) => usableDisplaySrc(it.displayUrl || it.url))
 
     if (!items.length) {
@@ -1000,64 +1084,56 @@ export function mountGalleryPage(host, opts) {
       return
     }
 
-    grid.innerHTML = items
-      .map((it) => {
-        const selected = state.selection.includes(it.id)
+    // Probe images first — drop broken / zero-size / light-UI chrome before layout
+    const probed = await Promise.all(
+      items.map(async (it) => {
         const src = usableDisplaySrc(it.displayUrl || it.url)
+        if (!src) return null
         const isVideo =
           it.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(src || it.relativePath || '')
-        const media = isVideo
-          ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
-          : `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" />`
-        const modelRaw = it.model ? String(it.model).replace(/^.*\//, '').slice(0, 14) : ''
-        const caption = cardCaption(it)
-        const snip = caption.includes(' · ') && modelRaw
-          ? caption.slice(caption.indexOf(' · ') + 3)
-          : caption
-        const metaInner = modelRaw
-          ? `<span data-ws-gallery-card-model title="${escapeHtml(String(it.model || ''))}">${escapeHtml(modelRaw)}</span><span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(snip)}</span>`
-          : `<span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(caption)}</span>`
-        return `<article data-ws-gallery-card data-id="${escapeHtml(it.id)}" role="listitem" ${selected ? 'data-selected' : ''}>
-          ${media}
-          <div data-ws-gallery-card-meta>${metaInner}</div>
-        </article>`
-      })
-      .join('')
+        if (isVideo) return { it, src, isVideo: true }
+        const img = await probeImageSrc(src)
+        if (!img) {
+          it.displayUrl = ''
+          return null
+        }
+        const w = img.naturalWidth || 0
+        const h = img.naturalHeight || 0
+        it.width = w
+        it.height = h
+        const lightChrome = imageElLooksLikeLightUiChrome(img)
+        if (lightChrome) it.uiChrome = true
+        if (looksLikeUiScreenshot(it) || lightChrome) {
+          it.displayUrl = ''
+          return null
+        }
+        return { it, src, isVideo: false }
+      }),
+    )
+    if (gen !== paintGen) return
 
-    // Broken / zero-size media → remove the card entirely (never leave a white grid slot)
+    const ready = probed.filter(Boolean)
+    if (!ready.length) {
+      paintEmptyGrid(grid)
+      return
+    }
+
+    // Only place existing cards — no empty shells, no trailing blank track fillers
+    grid.innerHTML = ready.map((row) => buildCardHtml(row.it, row.src, row.isVideo)).join('')
+
+    // Belt-and-suspenders: runtime error / late decode still removes the card + reconciles counts
     grid.querySelectorAll('[data-ws-gallery-card] img, [data-ws-gallery-card] video').forEach((el) => {
-      const onFail = () => dropBrokenCard(el, grid)
+      const onFail = () => {
+        dropBrokenCard(el, grid)
+        reconcileVisibleCount(grid)
+      }
       el.addEventListener('error', onFail, { once: true })
       if (el instanceof HTMLImageElement) {
-        const checkUiAspect = () => {
-          if (mediaLooksBroken(el)) return onFail()
-          const w = el.naturalWidth || 0
-          const h = el.naturalHeight || 0
-          if (!w || !h) return
-          const card = el.closest('[data-ws-gallery-card]')
-          const id = card?.getAttribute('data-id')
-          const hit = id ? state.items.find((x) => x.id === id) : null
-          const lightChrome = imageElLooksLikeLightUiChrome(el)
-          if (hit) {
-            hit.width = w
-            hit.height = h
-            if (lightChrome) hit.uiChrome = true
-            if (looksLikeUiScreenshot(hit) || lightChrome) return onFail()
-          } else {
-            const ar = w / h
-            const commonUi =
-              (w === 1280 && h === 720) ||
-              (w === 1440 && h === 900) ||
-              (w === 1920 && h === 1080) ||
-              (w === 1440 && h === 960) ||
-              (w === 1280 && h === 800) ||
-              (w === 1366 && h === 768)
-            if (commonUi || lightChrome || (ar >= 1.7 && ar <= 2.05 && w >= 1100)) return onFail()
-          }
+        const check = () => {
+          if (mediaLooksBroken(el)) onFail()
         }
-        el.addEventListener('load', checkUiAspect, { once: true })
-        // Already complete from cache
-        if (el.complete) checkUiAspect()
+        el.addEventListener('load', check, { once: true })
+        if (el.complete) check()
       } else if (el instanceof HTMLVideoElement) {
         el.addEventListener(
           'loadedmetadata',
@@ -1068,17 +1144,13 @@ export function mountGalleryPage(host, opts) {
         )
       }
     })
-    // Post-paint reconcile: count label = actual visible media cards
-    syncCountLabel()
-    setStatus(friendlyGalleryStatus(grid.querySelectorAll('[data-ws-gallery-card]').length))
-    // Second-pass settle after lazy decode (drop any late zero-size thumbs)
+    reconcileVisibleCount(grid)
     requestAnimationFrame(() => {
+      if (gen !== paintGen) return
       grid.querySelectorAll('[data-ws-gallery-card] img, [data-ws-gallery-card] video').forEach((el) => {
         if (mediaLooksBroken(el)) dropBrokenCard(el, grid)
       })
-      syncCountLabel()
-      const n = grid.querySelectorAll('[data-ws-gallery-card]').length
-      setStatus(friendlyGalleryStatus(n))
+      reconcileVisibleCount(grid)
     })
   }
 
@@ -1146,13 +1218,13 @@ export function mountGalleryPage(host, opts) {
     await hydrateDisplayUrls(state.items)
     paintModelFilter()
     paintTags()
-    paintGrid()
+    await paintGrid()
     paintViewSort()
-    // Friendly footer only — never echo media/gallery · media/history paths
-    const visible = state.items.filter(
-      (it) => itemHasDisplayableThumb(it) && !looksLikeUiScreenshot(it),
-    ).length
-    setStatus(friendlyGalleryStatus(visible))
+    // Friendly footer = visible card count only (post-probe)
+    const grid = page.querySelector('[data-ws-gallery-grid]')
+    const n =
+      grid instanceof HTMLElement ? grid.querySelectorAll('[data-ws-gallery-card]').length : 0
+    setStatus(friendlyGalleryStatus(n))
   }
 
   const addFromDetail = async (detail) => {
@@ -1172,7 +1244,7 @@ export function mountGalleryPage(host, opts) {
       name: detail.prompt || snap.prompt ? String(detail.prompt || snap.prompt).slice(0, 40) : undefined,
     })
     state.items = collectLocalMediaItems([])
-    paintGrid()
+    void paintGrid()
     paintModelFilter()
 
     const rpc = typeof getRpc === 'function' ? getRpc() : null
@@ -1207,7 +1279,7 @@ export function mountGalleryPage(host, opts) {
       else if (key === 'model') state.filters.model = el.value
       else if (key === 'ratio') state.filters.ratio = el.value
       persistLayout()
-      paintGrid()
+      void paintGrid()
     })
   })
 
@@ -1216,7 +1288,7 @@ export function mountGalleryPage(host, opts) {
       state.view = btn.getAttribute('data-ws-gallery-view') === 'waterfall' ? 'waterfall' : 'grid'
       persistLayout()
       paintViewSort()
-      paintGrid()
+      void paintGrid()
     })
   })
 
@@ -1225,7 +1297,7 @@ export function mountGalleryPage(host, opts) {
       state.sort = btn.getAttribute('data-ws-gallery-sort') === 'oldest' ? 'oldest' : 'newest'
       persistLayout()
       paintViewSort()
-      paintGrid()
+      void paintGrid()
     })
   })
 
@@ -1260,7 +1332,7 @@ export function mountGalleryPage(host, opts) {
     }
     persistLayout()
     paintTags()
-    paintGrid()
+    void paintGrid()
   })
 
   page.querySelector('[data-ws-gallery-tag-list]')?.addEventListener('contextmenu', (e) => {
@@ -1282,7 +1354,7 @@ export function mountGalleryPage(host, opts) {
     state.items = collectLocalMediaItems([])
     persistLayout()
     paintTags()
-    paintGrid()
+    void paintGrid()
     setStatus(`已删除标签「${tag.name}」`)
   })
 
@@ -1294,7 +1366,7 @@ export function mountGalleryPage(host, opts) {
     if (e.metaKey || e.ctrlKey) {
       if (state.selection.includes(id)) state.selection = state.selection.filter((x) => x !== id)
       else state.selection = [...state.selection, id]
-      paintGrid()
+      void paintGrid()
       return
     }
     openLightbox(id)
@@ -1380,7 +1452,7 @@ export function mountGalleryPage(host, opts) {
           }
         }
         state.items = collectLocalMediaItems([])
-        paintGrid()
+        void paintGrid()
         setStatus(`已为 ${state.selection.length} 项打上「${tag.name}」`)
         return
       }
@@ -1414,9 +1486,16 @@ export function mountGalleryPage(host, opts) {
       try {
         document.documentElement.setAttribute('data-dsh-ws-studio-open', '')
         document.body?.setAttribute('data-dsh-ws-studio-open', '')
+        // Nudge sidebar MutationObserver / dual-tab to keep 生图 quiet + clear host row
+        document.dispatchEvent(
+          new CustomEvent('dsh-ws-top-tab', {
+            bubbles: true,
+            detail: { tab: name, studioPage: true },
+          }),
+        )
       } catch (_) {}
     }
-    if (name === GALLERY_PAGE) reload()
+    if (name === GALLERY_PAGE) void reload()
   }
 
   reload()
