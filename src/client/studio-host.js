@@ -181,6 +181,11 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   display: none !important;
   pointer-events: none !important;
 }
+/* Soften dual-history on 画廊: empty 生图 history rail vs host sessions looks wrong */
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-col="history"],
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-pane-drag="history"] {
+  display: none !important;
+}
 [data-dsh-ws-studio-host] [data-ws-history-item] {
   display:flex; gap:7px; align-items:flex-start;
   padding:4px; border:1px solid var(--dsw-alias-border-l2); border-radius:8px;
@@ -859,6 +864,20 @@ export function createStudioHost(opts = {}) {
     })
     // Stamp top-page for sibling page CSS (video/canvas/gallery/ecom hide image cols).
     host?.setAttribute('data-ws-top-page', name)
+    // Same as studio-open flag: any workstation page (incl. 画廊) must clear host New Session chrome.
+    try {
+      document.documentElement.setAttribute('data-dsh-ws-studio-open', '')
+      document.body?.setAttribute('data-dsh-ws-studio-open', '')
+    } catch (_) {}
+    // Soft stack: left 「生图」 + top page tab. Differentiate browser tab title (avoid duplicate 夜景).
+    try {
+      const prev = String(document.title || '')
+      const base = '生图工作台'
+      const nextTitle = name === GALLERY_PAGE ? `画廊 · ${base}` : `${name} · ${base}`
+      if (!/deepseek|Harness/i.test(prev) || prev.includes(base) || prev.includes('画廊')) {
+        document.title = nextTitle
+      }
+    } catch (_) {}
     // Sync host sidebar: left 「生图」 stays active for whole plugin while studio open;
     // top tabs show which page — never paint New Session as selected.
     try {
@@ -1486,12 +1505,23 @@ export function createStudioHost(opts = {}) {
     histEl.querySelector('[data-ws-history-empty]')?.remove()
     const promptText =
       (snapshot?.prompt != null ? String(snapshot.prompt) : state.prompt || '').trim()
-    const snippet = promptText.slice(0, 28) || '生成结果'
+    const snippet = promptText.slice(0, 22) || '生成结果'
     const ratio = snapshot?.ratio != null ? String(snapshot.ratio) : state.ratio || '1:1'
     const mode = snapshot?.mode != null ? String(snapshot.mode) : state.mode || MODE_TXT
     const modelId = resolveModelId(snapshot?.modelId ?? state.modelId)
-    const line = `${snippet} · ${ratio}`
-    const modelLine = `${modelId} · ${mode}`
+    const modelShort = String(modelId || '').replace(/^.*\//, '').slice(0, 12) || 'model'
+    let timeBit = ''
+    try {
+      const d = new Date(Number(value?.createdAt) || Date.now())
+      timeBit = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    } catch (_) {
+      timeBit = ''
+    }
+    // Differentiate near-duplicate 夜景 session titles: model + short time
+    const line = timeBit
+      ? `${snippet} · ${modelShort} · ${timeBit}`
+      : `${snippet} · ${ratio}`
+    const modelLine = `${modelId} · ${mode}${ratio ? ` · ${ratio}` : ''}`
     const results = Array.isArray(value?.results) ? value.results : []
     const thumb = results.length ? pickDisplayUrl(results[0]) : ''
 

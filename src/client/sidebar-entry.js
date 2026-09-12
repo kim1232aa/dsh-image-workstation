@@ -36,6 +36,33 @@ const TAB_STYLES = `
 [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"][data-dsh-ws-tab-current] {
   font-weight:600; background: var(--dsw-alias-interactive-bg-hover, transparent);
 }
+/* While any workstation page (画廊/普通生图/…) is open, never let 新会话 look selected */
+html[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"],
+html[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"][data-dsh-ws-tab-current],
+body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"],
+body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="new-session"][data-dsh-ws-tab-current] {
+  font-weight: 400 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+}
+html[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"],
+body[data-dsh-ws-studio-open] [data-dsh-ws-session-tabs] [data-dsh-ws-tab="studio"] {
+  font-weight: 500;
+  border-color: var(--dsw-alias-border-l2, rgba(0,0,0,.12));
+  color: var(--dsw-alias-label-secondary, inherit);
+}
+/* Host leftover New Session / English button must not look active while studio open */
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] button[data-dsh-part="new-session"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] button[class*="newSession"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] button[class*="newSession"],
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] button[data-dsh-part="new-session"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  font-weight: inherit !important;
+}
 /* When studio module open, never leave host New Session / session rows looking selected.
    Flag lives on html/body so host remounts cannot drop the chrome clear. */
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionItem"][aria-current="true"],
@@ -136,32 +163,46 @@ export function mountSidebarEntry(opts) {
   const clearHostSessionChrome = (scope) => {
     const root = scope instanceof HTMLElement ? scope : sidebarColumn() || document
     const nodes = root.querySelectorAll(
-      '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected]',
+      '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected],button[data-dsh-part="new-session"],button[class*="newSession"]',
     )
     for (const el of nodes) {
       if (!(el instanceof HTMLElement)) continue
-      if (el.closest(ENTRY_TABS) || el.closest('[data-dsh-ws-session-tabs]')) continue
+      // Our dual tabs: keep 生图 current; strip 新会话 current while studio open
+      if (el.closest(ENTRY_TABS) || el.closest('[data-dsh-ws-session-tabs]')) {
+        if (el.getAttribute('data-dsh-ws-tab') === 'new-session') {
+          el.removeAttribute('data-dsh-ws-tab-current')
+          el.setAttribute('aria-selected', 'false')
+        }
+        continue
+      }
       if (el.getAttribute('data-dsh-ws-tab')) continue
       // Never touch our studio frame / top tabs
       if (el.closest('[data-dsh-ws-studio-host]')) continue
       const cls = String(el.className || '')
+      const label = (el.textContent || '').trim()
+      const looksNewSession =
+        el.getAttribute('data-dsh-part') === 'new-session' ||
+        /newSession/i.test(cls) ||
+        /^(New Session|新会话|\+\s*新会话)$/i.test(label)
       const looksSession =
+        looksNewSession ||
         /session|Session|workspace|Workspace|conversation|Conversation/i.test(cls) ||
-        /session|Session|workspace|New Session|新会话/i.test(el.textContent || '')
+        /session|Session|workspace|New Session|新会话/i.test(label)
       // Only strip host session-list / New Session chrome — leave folders/settings alone
       if (!looksSession && !el.hasAttribute('aria-current') && !el.hasAttribute('aria-selected')) continue
       if (!looksSession && el.hasAttribute('data-active') && !/session|Session/i.test(cls)) continue
       try {
         if (el.hasAttribute('aria-current')) el.setAttribute('aria-current', 'false')
         if (el.hasAttribute('aria-selected')) el.setAttribute('aria-selected', 'false')
-        if (/session|Session|workspace|Workspace/i.test(cls)) {
+        if (/session|Session|workspace|Workspace|newSession/i.test(cls) || looksNewSession) {
           el.removeAttribute('data-active')
           el.removeAttribute('data-selected')
         }
-        if (/selected|active|current|session/i.test(cls)) {
+        if (/selected|active|current|session|newSession/i.test(cls) || looksNewSession) {
           el.style.setProperty('background', 'transparent', 'important')
           el.style.setProperty('background-color', 'transparent', 'important')
           el.style.setProperty('box-shadow', 'none', 'important')
+          el.style.setProperty('font-weight', 'inherit', 'important')
         }
       } catch (_) {}
     }

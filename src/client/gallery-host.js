@@ -107,6 +107,84 @@ export function itemNeedsHydration(it) {
   return false
 }
 
+/** Heuristic: drop obvious UI / smoke screenshots from the gens grid. Prefer keeping real gens when unsure. */
+export function looksLikeUiScreenshot(it) {
+  if (!it || typeof it !== 'object') return false
+  const blob = [
+    it.relativePath,
+    it.localPath,
+    it.url,
+    it.name,
+    it.prompt,
+    it.mode,
+    it.seat,
+    ...(Array.isArray(it.tags) ? it.tags : []),
+    ...(Array.isArray(it.tagIds) ? it.tagIds : []),
+  ]
+    .filter(Boolean)
+    .map((x) => String(x))
+    .join('\n')
+  const lower = blob.toLowerCase()
+  // Path / filename seats that are clearly docs or smoke dumps
+  if (/docs\/ui\/ref|ui\/ref|smoke[-_]?ui|crit[-_]?|gate[-_]?(studio|final)|reinstall-smoke/i.test(blob)) return true
+  if (/\b(screenshot|screen-?shot|ui-?dump|desktop[-_]?shot)\b/i.test(lower)) return true
+  // Prompt / title Chinese chrome hints
+  if (/工作台|截图|界面截图|浏览器截图/.test(blob) && !/夜景|苹果|赛博|街头|人像|产品/.test(blob)) return true
+  // Chat edit false-ref / host chrome seats
+  if (/false[-_]?ref|edit[-_]?image[-_]?ref|chat[-_]?edit.*ref/i.test(lower)) return true
+  // Ultra-wide chrome-like ratios (browser window), only when name/path also smells like UI
+  const ratio = String(it.ratio || '')
+  if ((ratio === '21:9' || ratio === '16:9') && /ui|chrome|sidebar|settings|harness|工作台/i.test(blob)) return true
+  return false
+}
+
+/** One-line muted caption: model chip + prompt / session hint. */
+export function cardCaption(it) {
+  if (!it || typeof it !== 'object') return '素材'
+  const modelRaw = it.model ? String(it.model).trim() : ''
+  const model = modelRaw
+    ? modelRaw.replace(/^.*\//, '').replace(/[-_]/g, ' ').slice(0, 18)
+    : ''
+  const prompt = String(it.prompt || it.name || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  // Avoid dumping raw filesystem paths into the caption
+  const safePrompt =
+    prompt && !/^(media\/|file:\/\/|\/)/i.test(prompt) && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(prompt)
+      ? prompt
+      : ''
+  const snippet = safePrompt.slice(0, 32)
+  let time = ''
+  const ts = Number(it.createdAt) || 0
+  if (ts > 0) {
+    try {
+      const d = new Date(ts)
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      time = `${hh}:${mm}`
+    } catch (_) {}
+  }
+  if (model && snippet) return `${model} · ${snippet}`
+  if (model && time) return `${model} · ${time}`
+  if (model) return model
+  if (snippet && time) return `${snippet} · ${time}`
+  if (snippet) return snippet
+  if (it.mode && time) return `${it.mode} · ${time}`
+  if (it.mode) return String(it.mode)
+  return time ? `素材 · ${time}` : '素材'
+}
+
+function friendlyGalleryStatus(n) {
+  const count = Math.max(0, Number(n) || 0)
+  if (!count) return '本机画廊 · 暂无作品'
+  return `本机画廊 · ${count} 项`
+}
+
+function friendlyEmptySeatsHint() {
+  // Never surface raw media/gallery · media/history paths to users
+  return '作品会保存在本机画廊'
+}
+
 export function readLocalGalleryItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -449,8 +527,27 @@ export function galleryHostStyles() {
   width:100%; aspect-ratio:1; object-fit:cover; display:block; background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-meta] {
-  padding:6px 8px; font-size:11px; color: var(--dsw-alias-label-secondary);
+  padding:5px 8px 6px; font-size:11px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  display:flex; align-items:center; gap:5px; min-width:0; line-height:1.35;
+}
+[data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-model] {
+  flex:none; max-width:42%; padding:0 5px; height:16px; line-height:16px;
+  border-radius:999px; font-size:10px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,.04));
+  border:1px solid var(--dsw-alias-border-l2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+[data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-snip] {
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* Soften dual-history: image history rail stays hidden on 画廊 (empty vs host sessions) */
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="image"] [data-ws-col="history"],
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="image"] [data-ws-pane-drag="history"],
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-col="history"],
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-pane-drag="history"] {
+  display:none !important;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-empty] {
   grid-column:1 / -1; padding:28px 16px; text-align:center;
@@ -594,7 +691,8 @@ export function mountGalleryPage(host, opts) {
 
   const filteredItems = () => {
     // HARD RULE: only items with displayable src — never lay empty card shells
-    let list = state.items.filter(itemHasDisplayableThumb)
+    // Also drop obvious UI/smoke screenshots so gens grid stays clean
+    let list = state.items.filter((it) => itemHasDisplayableThumb(it) && !looksLikeUiScreenshot(it))
     const { mode, model, ratio, tagIds } = state.filters
     if (mode && mode !== FILTER_ALL) list = list.filter((it) => it.mode === mode)
     if (model && model !== FILTER_ALL) list = list.filter((it) => it.model === model)
@@ -698,21 +796,56 @@ export function mountGalleryPage(host, opts) {
     if (countEl) countEl.textContent = `共 ${n} 项`
   }
 
+  const paintEmptyGrid = (grid) => {
+    grid.innerHTML = `<div data-ws-gallery-empty role="status">${EMPTY_HINT}<div style="margin-top:8px;font-size:11px;opacity:.85;">${friendlyEmptySeatsHint()}</div></div>`
+    syncCountLabel()
+    setStatus(friendlyGalleryStatus(0))
+  }
+
+  const dropBrokenCard = (el, grid) => {
+    const card = el instanceof Element ? el.closest('[data-ws-gallery-card]') : null
+    if (!card) return
+    const id = card.getAttribute('data-id')
+    card.remove()
+    if (id) {
+      const hit = state.items.find((x) => x.id === id)
+      if (hit) {
+        hit.displayUrl = ''
+        const src = el.getAttribute?.('src') || ''
+        if (src && usableDisplaySrc(hit.url) === src) hit.url = ''
+      }
+      state.selection = state.selection.filter((x) => x !== id)
+    }
+    if (!grid.querySelector('[data-ws-gallery-card]')) paintEmptyGrid(grid)
+    else {
+      syncCountLabel()
+      setStatus(friendlyGalleryStatus(grid.querySelectorAll('[data-ws-gallery-card]').length))
+    }
+  }
+
+  const mediaLooksBroken = (el) => {
+    if (!(el instanceof HTMLElement)) return true
+    if (el instanceof HTMLImageElement) {
+      if (el.complete && el.naturalWidth === 0) return true
+      return false
+    }
+    if (el instanceof HTMLVideoElement) {
+      // HAVE_METADATA or better with zero size → broken
+      if (el.readyState >= 1 && el.videoWidth === 0) return true
+      return false
+    }
+    return true
+  }
+
   const paintGrid = () => {
     const grid = page.querySelector('[data-ws-gallery-grid]')
     if (!(grid instanceof HTMLElement)) return
     grid.setAttribute('data-view', state.view)
-    // HARD RULE: only cards with a real <img>/<video> src — no empty shells, no 「无预览」tiles in the grid
+    // HARD RULE: only cards with a real <img>/<video> src — no empty shells / blank white tiles
     const items = filteredItems().filter((it) => usableDisplaySrc(it.displayUrl || it.url))
 
     if (!items.length) {
-      const seats = state.paths
-        ? `本地座位：${escapeHtml(state.paths.gallery)} · ${escapeHtml(state.paths.history)}`
-        : ''
-      grid.innerHTML = `<div data-ws-gallery-empty role="status">${EMPTY_HINT}${
-        seats ? `<div style="margin-top:8px;font-size:11px;opacity:.85;">${seats}</div>` : ''
-      }</div>`
-      syncCountLabel()
+      paintEmptyGrid(grid)
       return
     }
 
@@ -724,44 +857,58 @@ export function mountGalleryPage(host, opts) {
           it.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(src || it.relativePath || '')
         const media = isVideo
           ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
-          : `<img src="${escapeHtml(src)}" alt="" loading="lazy" />`
-        const meta = escapeHtml(it.name || it.mode || it.model || it.ratio || it.relativePath || '素材')
+          : `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" />`
+        const modelRaw = it.model ? String(it.model).replace(/^.*\//, '').slice(0, 14) : ''
+        const caption = cardCaption(it)
+        const snip = caption.includes(' · ') && modelRaw
+          ? caption.slice(caption.indexOf(' · ') + 3)
+          : caption
+        const metaInner = modelRaw
+          ? `<span data-ws-gallery-card-model title="${escapeHtml(String(it.model || ''))}">${escapeHtml(modelRaw)}</span><span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(snip)}</span>`
+          : `<span data-ws-gallery-card-snip title="${escapeHtml(caption)}">${escapeHtml(caption)}</span>`
         return `<article data-ws-gallery-card data-id="${escapeHtml(it.id)}" role="listitem" ${selected ? 'data-selected' : ''}>
           ${media}
-          <div data-ws-gallery-card-meta>${meta}</div>
+          <div data-ws-gallery-card-meta>${metaInner}</div>
         </article>`
       })
       .join('')
 
-    // Broken src → remove the card entirely (keep count = visible thumbs)
+    // Broken / zero-size media → remove the card entirely (never leave a white grid slot)
     grid.querySelectorAll('[data-ws-gallery-card] img, [data-ws-gallery-card] video').forEach((el) => {
-      el.addEventListener(
-        'error',
-        () => {
-          const card = el.closest('[data-ws-gallery-card]')
-          const id = card?.getAttribute('data-id')
-          card?.remove()
-          if (id) {
-            const hit = state.items.find((x) => x.id === id)
-            if (hit) {
-              hit.displayUrl = ''
-              if (usableDisplaySrc(hit.url) === el.getAttribute('src')) hit.url = ''
-            }
-          }
-          if (!grid.querySelector('[data-ws-gallery-card]')) {
-            const seats = state.paths
-              ? `本地座位：${escapeHtml(state.paths.gallery)} · ${escapeHtml(state.paths.history)}`
-              : ''
-            grid.innerHTML = `<div data-ws-gallery-empty role="status">${EMPTY_HINT}${
-              seats ? `<div style="margin-top:8px;font-size:11px;opacity:.85;">${seats}</div>` : ''
-            }</div>`
-          }
-          syncCountLabel()
-        },
-        { once: true },
-      )
+      const onFail = () => dropBrokenCard(el, grid)
+      el.addEventListener('error', onFail, { once: true })
+      if (el instanceof HTMLImageElement) {
+        el.addEventListener(
+          'load',
+          () => {
+            if (mediaLooksBroken(el)) onFail()
+          },
+          { once: true },
+        )
+        // Already complete from cache
+        if (el.complete && mediaLooksBroken(el)) onFail()
+      } else if (el instanceof HTMLVideoElement) {
+        el.addEventListener(
+          'loadedmetadata',
+          () => {
+            if (mediaLooksBroken(el)) onFail()
+          },
+          { once: true },
+        )
+      }
     })
+    // Post-paint reconcile: count label = actual visible media cards
     syncCountLabel()
+    setStatus(friendlyGalleryStatus(grid.querySelectorAll('[data-ws-gallery-card]').length))
+    // Second-pass settle after lazy decode (drop any late zero-size thumbs)
+    requestAnimationFrame(() => {
+      grid.querySelectorAll('[data-ws-gallery-card] img, [data-ws-gallery-card] video').forEach((el) => {
+        if (mediaLooksBroken(el)) dropBrokenCard(el, grid)
+      })
+      syncCountLabel()
+      const n = grid.querySelectorAll('[data-ws-gallery-card]').length
+      setStatus(friendlyGalleryStatus(n))
+    })
   }
 
   const paintViewSort = () => {
@@ -830,10 +977,11 @@ export function mountGalleryPage(host, opts) {
     paintTags()
     paintGrid()
     paintViewSort()
-    const seatHint = `${paths.gallery} · ${paths.history}`
-    const visible = state.items.filter(itemHasDisplayableThumb).length
-    if (!visible) setStatus(`本地座位 ${seatHint}（暂无媒体）`)
-    else setStatus(`已读 ${visible} 项 · ${seatHint}`)
+    // Friendly footer only — never echo media/gallery · media/history paths
+    const visible = state.items.filter(
+      (it) => itemHasDisplayableThumb(it) && !looksLikeUiScreenshot(it),
+    ).length
+    setStatus(friendlyGalleryStatus(visible))
   }
 
   const addFromDetail = async (detail) => {
@@ -1085,6 +1233,18 @@ export function mountGalleryPage(host, opts) {
   const setPage = (tab) => {
     const name = String(tab || IMAGE_PAGE)
     host.setAttribute('data-ws-top-page', name)
+    // Workstation page open (incl. 画廊) → stamp studio-open so host New Session stays quiet
+    if (
+      name === GALLERY_PAGE ||
+      name === IMAGE_PAGE ||
+      name === VIDEO_PAGE ||
+      name === CANVAS_PAGE
+    ) {
+      try {
+        document.documentElement.setAttribute('data-dsh-ws-studio-open', '')
+        document.body?.setAttribute('data-dsh-ws-studio-open', '')
+      } catch (_) {}
+    }
     if (name === GALLERY_PAGE) reload()
   }
 
