@@ -12,6 +12,7 @@ import {
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
 export const CTA_RPC_PROBE = 'probe'
+export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 
 /**
  * Map studio CTA detail → mediaProxy.generate request (no prompt rewrite).
@@ -82,9 +83,24 @@ function sizeFromRatio(ratio, clarity) {
 
 /**
  * @param {{ generate: (req: any) => Promise<any>, mediaConfigured?: boolean }} mediaProxy
+ * @param {{ getDataDir?: () => string, dataDir?: string }} [opts]
  */
-export function createCtaRpcHandler(mediaProxy) {
+export function createCtaRpcHandler(mediaProxy, opts = {}) {
   return async (endpoint, payload, signal) => {
+    if (endpoint === CTA_RPC_STORAGE_PATHS) {
+      const dataDir = String(
+        (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) || '',
+      )
+      return {
+        ok: true,
+        value: {
+          dataDir,
+          generated: 'media/generated',
+          gallery: 'media/gallery',
+          history: 'media/history',
+        },
+      }
+    }
     if (endpoint === CTA_RPC_PROBE) {
       try {
         if (typeof mediaProxy?.detectModels !== 'function') {
@@ -231,15 +247,16 @@ export function createCtaRpcHandler(mediaProxy) {
  *
  * @param {any} ctx Cordis context with connection + webServer
  * @param {{ generate: Function, mediaConfigured?: boolean }} mediaProxy
+ * @param {{ getDataDir?: () => string, dataDir?: string }} [opts]
  */
-export function attachCtaRpc(ctx, mediaProxy) {
+export function attachCtaRpc(ctx, mediaProxy, opts = {}) {
   if (!ctx?.webServer?.register) {
     throw new Error('[dsh-image-workstation] webServer.register unavailable')
   }
   if (!ctx?.connection?.requestRejection) {
     throw new Error('[dsh-image-workstation] connection.requestRejection unavailable')
   }
-  const rpcHandler = createCtaRpcHandler(mediaProxy)
+  const rpcHandler = createCtaRpcHandler(mediaProxy, opts)
   const route = {
     kind: 'prefix',
     path: CTA_RPC_CHANNEL,

@@ -25,6 +25,11 @@ export function WorkstationSettingsCard(props) {
   const [provider, setProvider] = useState('openai-images')
   const [allowAgent, setAllowAgent] = useState(true)
   const [keyConfigured, setKeyConfigured] = useState(false)
+  const [videoBaseUrl, setVideoBaseUrl] = useState('')
+  const [videoApiKeyDraft, setVideoApiKeyDraft] = useState('')
+  const [videoProvider, setVideoProvider] = useState('video.async')
+  const [videoDefaultModel, setVideoDefaultModel] = useState('')
+  const [videoKeyConfigured, setVideoKeyConfigured] = useState(false)
   const [revision, setRevision] = useState(undefined)
   const [status, setStatus] = useState('')
   const [models, setModels] = useState([])
@@ -40,6 +45,9 @@ export function WorkstationSettingsCard(props) {
       setBaseUrl(String(v.mediaBaseUrl || ''))
       setProvider(['anthropic-compat','gptimg','openai-images'].includes(v.mediaProvider) ? v.mediaProvider : 'anthropic-compat')
       setAllowAgent(v.allowAgentImageGeneration !== false)
+      setVideoBaseUrl(String(v.videoBaseUrl || ''))
+      setVideoProvider(String(v.videoProvider || '').trim() || 'video.async')
+      setVideoDefaultModel(String(v.videoDefaultModel || ''))
       const secrets = snap.secrets || {}
       const secretMeta = secrets.mediaApiKey
       const keySet =
@@ -47,6 +55,15 @@ export function WorkstationSettingsCard(props) {
         secretMeta?.set === true ||
         (typeof secretMeta === 'object' && secretMeta != null && 'set' in secretMeta && secretMeta.set)
       setKeyConfigured(Boolean(keySet))
+      const videoSecretMeta = secrets.videoApiKey
+      const videoKeySet =
+        videoSecretMeta === true ||
+        videoSecretMeta?.set === true ||
+        (typeof videoSecretMeta === 'object' &&
+          videoSecretMeta != null &&
+          'set' in videoSecretMeta &&
+          videoSecretMeta.set)
+      setVideoKeyConfigured(Boolean(videoKeySet))
       setRevision(snap.revision)
     }
   }, [scope])
@@ -70,9 +87,15 @@ export function WorkstationSettingsCard(props) {
         { op: 'set', path: ['mediaBaseUrl'], value: baseUrl.trim() },
         { op: 'set', path: ['mediaProvider'], value: provider },
         { op: 'set', path: ['allowAgentImageGeneration'], value: allowAgent },
+        { op: 'set', path: ['videoBaseUrl'], value: videoBaseUrl.trim() },
+        { op: 'set', path: ['videoProvider'], value: videoProvider.trim() || 'video.async' },
+        { op: 'set', path: ['videoDefaultModel'], value: videoDefaultModel.trim() },
       ]
       if (apiKeyDraft.trim()) {
         ops.push({ op: 'set', path: ['mediaApiKey'], value: apiKeyDraft.trim() })
+      }
+      if (videoApiKeyDraft.trim()) {
+        ops.push({ op: 'set', path: ['videoApiKey'], value: videoApiKeyDraft.trim() })
       }
       if (typeof scope.mutate === 'function') {
         await scope.mutate(ops, revision)
@@ -80,8 +103,10 @@ export function WorkstationSettingsCard(props) {
         for (const op of ops) await scope.set(op.path[0], op.value)
       }
       setApiKeyDraft('')
+      setVideoApiKeyDraft('')
       if (apiKeyDraft.trim()) setKeyConfigured(true)
-      setStatus('Saved (key stored on host only)')
+      if (videoApiKeyDraft.trim()) setVideoKeyConfigured(true)
+      setStatus('Saved (keys stored on host only)')
       pull()
     } catch (e) {
       setStatus(`Save failed: ${e?.message || e}`)
@@ -223,7 +248,7 @@ export function WorkstationSettingsCard(props) {
             style: {
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: 'min(44vh, 340px)',
+              maxHeight: 'min(52vh, 420px)',
             },
           },
           h(
@@ -305,6 +330,81 @@ export function WorkstationSettingsCard(props) {
                 disabled: busy,
               }),
               h('span', { style: { color: fg } }, 'Allow agent'),
+            ),
+            h(
+              'div',
+              {
+                style: {
+                  margin: '4px 0 8px',
+                  paddingTop: 8,
+                  borderTop: border,
+                  color: fgSecondary,
+                  fontWeight: 650,
+                  fontSize: 12,
+                },
+              },
+              'Video',
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Video API base URL'),
+              h('input', {
+                style: inputStyle,
+                value: videoBaseUrl,
+                placeholder: 'Video base URL (video.async)',
+                onChange: (e) => setVideoBaseUrl(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h(
+                'span',
+                { style: { display: 'flex', justifyContent: 'space-between' } },
+                h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Video API key'),
+                h(
+                  'span',
+                  { style: { color: fgMuted, fontSize: 11 } },
+                  videoKeyConfigured ? 'Configured' : 'Not configured',
+                ),
+              ),
+              h('input', {
+                style: inputStyle,
+                type: 'password',
+                autoComplete: 'new-password',
+                value: videoApiKeyDraft,
+                placeholder: videoKeyConfigured
+                  ? 'Leave blank to keep stored key'
+                  : 'Paste key, then Save',
+                onChange: (e) => setVideoApiKeyDraft(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Video provider'),
+              h('input', {
+                style: inputStyle,
+                value: videoProvider,
+                placeholder: 'video.async',
+                onChange: (e) => setVideoProvider(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Video model'),
+              h('input', {
+                style: inputStyle,
+                value: videoDefaultModel,
+                placeholder: 'e.g. grok-imagine-video',
+                onChange: (e) => setVideoDefaultModel(e.target.value),
+                disabled: busy,
+              }),
             ),
             status ? h('p', { style: { margin: '0 0 6px', fontSize: 11, color: fgMuted } }, status) : null,
             models.length

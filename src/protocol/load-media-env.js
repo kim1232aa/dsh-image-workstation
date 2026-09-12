@@ -1,6 +1,6 @@
 /**
  * Load host-only media env from $DSH_HOME/media.env (or MEDIA_ENV_PATH).
- * Supports multiple channels. Never log token values.
+ * Supports multiple channels + video.async fields. Never log token values.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -14,6 +14,19 @@ import path from 'node:path'
  *   defaultModel: string,
  *   label: string,
  * }} MediaChannel
+ */
+
+/**
+ * @typedef {{
+ *   baseUrl: string,
+ *   token: string,
+ *   defaultModel: string,
+ *   submitPath: string,
+ *   pollPath: string,
+ *   pollIntervalMs: number,
+ *   pollTimeoutMs: number,
+ *   provider: string,
+ * }} VideoEnv
  */
 
 function parseEnvFile(file) {
@@ -32,6 +45,47 @@ function parseEnvFile(file) {
 }
 
 /**
+ * @param {Record<string, string>} map
+ * @returns {VideoEnv}
+ */
+export function resolveVideoEnvFromMap(map = {}) {
+  const interval = Number(map.VIDEO_POLL_INTERVAL_MS)
+  const timeout = Number(map.VIDEO_POLL_TIMEOUT_MS)
+  return {
+    baseUrl: String(map.VIDEO_BASE_URL || '').trim(),
+    token: String(map.VIDEO_API_KEY || ''),
+    defaultModel: String(map.VIDEO_DEFAULT_MODEL || '').trim(),
+    submitPath: String(map.VIDEO_SUBMIT_PATH || '').trim(),
+    pollPath: String(map.VIDEO_POLL_PATH || '').trim(),
+    pollIntervalMs: Number.isFinite(interval) && interval > 0 ? interval : 2000,
+    pollTimeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 600_000,
+    provider: String(map.VIDEO_PROVIDER || '').trim() || 'video.async',
+  }
+}
+
+/**
+ * Standalone video env loader (same media.env file as images).
+ * @returns {VideoEnv & { source: string }}
+ */
+export function loadVideoEnv() {
+  const home = process.env.DSH_HOME || path.join(process.env.HOME || '/tmp', '.dsh')
+  const file = process.env.MEDIA_ENV_PATH || path.join(home, 'media.env')
+  /** @type {Record<string, string>} */
+  const map = { ...process.env }
+  let source = 'process.env'
+  try {
+    const fromFile = parseEnvFile(file)
+    if (Object.keys(fromFile).length) {
+      Object.assign(map, fromFile)
+      source = file
+    }
+  } catch {
+    /* missing file ok */
+  }
+  return { ...resolveVideoEnvFromMap(map), source }
+}
+
+/**
  * @returns {{
  *   channels: MediaChannel[],
  *   activeId: string,
@@ -40,6 +94,7 @@ function parseEnvFile(file) {
  *   provider: string,
  *   defaultModel: string,
  *   source: string,
+ *   video: VideoEnv,
  * }}
  */
 export function loadMediaEnv() {
@@ -92,6 +147,8 @@ export function loadMediaEnv() {
     })
   }
 
+  const video = resolveVideoEnvFromMap(map)
+
   // Prefer explicit MEDIA_ACTIVE_CHANNEL; else primary; else first
   const want = map.MEDIA_ACTIVE_CHANNEL || 'primary'
   let active = channels.find((c) => c.id === want) || channels.find((c) => c.id === 'primary') || channels[0]
@@ -106,6 +163,7 @@ export function loadMediaEnv() {
       provider: 'unknown',
       defaultModel: map.MEDIA_IMAGE_MODEL || 'gpt-image-2',
       source,
+      video,
     }
   }
 
@@ -117,11 +175,13 @@ export function loadMediaEnv() {
     provider: active.provider,
     defaultModel: active.defaultModel,
     source,
+    video,
   }
 }
 
 /** Safe summary for logs / provide bag — never includes token */
 export function mediaEnvSummary(env = loadMediaEnv()) {
+  const video = env.video || {}
   return {
     baseUrlSet: Boolean(env.baseUrl),
     tokenSet: Boolean(env.token),
@@ -138,6 +198,12 @@ export function mediaEnvSummary(env = loadMediaEnv()) {
           defaultModel: c.defaultModel,
         }))
       : [],
+    video: {
+      baseUrlSet: Boolean(video.baseUrl),
+      tokenSet: Boolean(video.token),
+      defaultModel: video.defaultModel || '',
+      provider: video.provider || 'video.async',
+    },
     source: env.source === 'process.env' ? 'process.env' : 'file',
   }
 }

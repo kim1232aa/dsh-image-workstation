@@ -116,3 +116,20 @@ console.log('OK verify-cta-rpc')
 console.log('- mapGenerateRequest ratio/clarity/count')
 console.log('- handler spies mediaProxy.generate (no upstream)')
 console.log('- result shape for studio paint; error scrubbed')
+
+// storage.paths — client-safe dirs, no secrets
+const pathsHandler = createCtaRpcHandler(
+  { mediaConfigured: false },
+  { dataDir: '/tmp/dsh-ws-data' },
+)
+const paths = await pathsHandler('storage.paths', {})
+if (!paths.ok) fail(`storage.paths ${JSON.stringify(paths)}`)
+if (paths.value?.generated !== 'media/generated') fail('generated path')
+if (paths.value?.gallery !== 'media/gallery') fail('gallery path')
+if (paths.value?.history !== 'media/history') fail('history path')
+if (paths.value?.dataDir !== '/tmp/dsh-ws-data') fail('dataDir')
+const pathsWire = JSON.stringify(paths)
+if (/sk-|Bearer\s+\S+/i.test(pathsWire)) fail('secret-like in storage.paths')
+console.log('- storage.paths returns client-safe media dirs')
+
+console.log('OK verify-cta-rpc (extended)')

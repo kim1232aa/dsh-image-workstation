@@ -55,6 +55,7 @@ Ten docs/03 零、红线 passed @ `be91e70`. Not full 03. Only UI CTA generate c
 |---|---|
 | `video.async` generate | **stub** (`VIDEO_STUB_NOT_WIRED`) — built-in, no nested plugin pack |
 | `video.async` poll/cancel | stub shape only |
-| Settings draft fields | `videoBaseUrl` / `videoApiKey`(host) / `videoProvider` / `videoDefaultModel` / poll interval·timeout — **not** on settings card UI yet |
+| Settings card fields | `videoBaseUrl` / `videoApiKey`(host) / `videoProvider` / `videoDefaultModel` on **Video** section; poll interval·timeout config-only |
+| `resolveVideoCfg` / `resolveMediaBag().video` | settings first, else media.env `VIDEO_*` → host-proxy `mediaEnv.video` (stub still not paid-live) |
 
 Rules when live later: verbatim result URLs; same queue/history concepts as image; no Nova JSON plugin packs.

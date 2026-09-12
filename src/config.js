@@ -10,11 +10,17 @@ export { SETTINGS_NAMESPACE } from './shared/ns.js'
  *   agentImageModels: string[],
  *   mediaBaseUrl: string,
  *   mediaApiKey: string,
- *   mediaProvider: 'openai-images' | 'anthropic-compat',
+ *   mediaProvider: 'openai-images' | 'anthropic-compat' | 'gptimg',
+ *   videoBaseUrl: string,
+ *   videoApiKey: string,
+ *   videoProvider: string,
+ *   videoDefaultModel: string,
+ *   videoPollIntervalMs: number,
+ *   videoPollTimeoutMs: number,
  * }} WorkstationConfig
  */
 
-/** Cordis Config schema — secret role redacts mediaApiKey on the wire. */
+/** Cordis Config schema — secret role redacts mediaApiKey / videoApiKey on the wire. */
 export const Config = Schema.object({
   skillDir: Schema.string()
     .default('')
@@ -36,11 +42,31 @@ export const Config = Schema.object({
     .default('')
     .description('生图 API 密钥（仅宿主；设置页只显示 Configured / Not configured）。'),
   mediaProvider: Schema.union([
-    Schema.const('openai-images'),
     Schema.const('anthropic-compat'),
+    Schema.const('openai-images'),
+    Schema.const('gptimg'),
   ])
-    .default('openai-images')
-    .description('渠道协议：openai-images | anthropic-compat'),
+    .default('anthropic-compat')
+    .description('渠道协议：anthropic-compat | openai-images | gptimg'),
+  videoBaseUrl: Schema.string()
+    .default('')
+    .description('视频渠道 API Base URL（built-in video.async；stub 时不打付费 upstream）。'),
+  videoApiKey: Schema.string()
+    .role('secret')
+    .default('')
+    .description('视频渠道密钥（仅宿主；设置页只显示 Configured / Not configured）。'),
+  videoProvider: Schema.string()
+    .default('video.async')
+    .description('视频协议：默认 video.async（built-in，非嵌套插件包）。'),
+  videoDefaultModel: Schema.string()
+    .default('')
+    .description('默认视频模型 id（如 grok-imagine-video）。'),
+  videoPollIntervalMs: Schema.number()
+    .default(2000)
+    .description('视频任务轮询间隔（ms）；设置卡不展示。'),
+  videoPollTimeoutMs: Schema.number()
+    .default(600000)
+    .description('视频任务轮询超时（ms）；设置卡不展示。'),
 })
 
 /**
@@ -54,8 +80,12 @@ export function resolveConfig(config = {}) {
   const agentImageModels = Array.isArray(config.agentImageModels)
     ? config.agentImageModels.map((m) => String(m || '').trim()).filter(Boolean)
     : []
-  const provider =
-    config.mediaProvider === 'anthropic-compat' ? 'anthropic-compat' : 'openai-images'
+  let provider = 'anthropic-compat'
+  if (config.mediaProvider === 'gptimg') provider = 'gptimg'
+  else if (config.mediaProvider === 'openai-images') provider = 'openai-images'
+  else if (config.mediaProvider === 'anthropic-compat') provider = 'anthropic-compat'
+  const pollInterval = Number(config.videoPollIntervalMs)
+  const pollTimeout = Number(config.videoPollTimeoutMs)
   return {
     skillDir: config.skillDir || `${dataDir}/skills`,
     dataDir,
@@ -64,5 +94,11 @@ export function resolveConfig(config = {}) {
     mediaBaseUrl: String(config.mediaBaseUrl || '').trim(),
     mediaApiKey: String(config.mediaApiKey || ''),
     mediaProvider: provider,
+    videoBaseUrl: String(config.videoBaseUrl || '').trim(),
+    videoApiKey: String(config.videoApiKey || ''),
+    videoProvider: String(config.videoProvider || '').trim() || 'video.async',
+    videoDefaultModel: String(config.videoDefaultModel || '').trim(),
+    videoPollIntervalMs: Number.isFinite(pollInterval) && pollInterval > 0 ? pollInterval : 2000,
+    videoPollTimeoutMs: Number.isFinite(pollTimeout) && pollTimeout > 0 ? pollTimeout : 600000,
   }
 }

@@ -37,3 +37,10 @@ If generate needs accounts / model keys, check host logs and default model (`gpt
 ## Dev helper: removed
 
 `DEMO_LOCAL` / `demo-local-results` / `paintDemoLocalResults` / `?wsDemoResults` / apple fixtures (`802bb6e4`) were deleted (`fcfe98d`). Do **not** revive them. Layout/results shots must use a real CTA generate (or prior real CTA outputs), never apple/robot fixtures.
+
+## storage.paths
+
+Lightweight probe: `rpc.call('/dsh-ws', 'storage.paths', {})` →
+`{ ok:true, value:{ dataDir, generated:'media/generated', gallery:'media/gallery', history:'media/history' } }`
+(client-safe paths; no secrets). Host mkdir on apply under `{dataDir}/media/{generated,gallery,history}`.
+

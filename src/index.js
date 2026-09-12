@@ -88,6 +88,9 @@ export function apply(ctx, config) {
     describeChannels: () => runtime.proxy.describeChannels(),
     status: (id) => runtime.proxy.status(id),
     cancel: (id) => runtime.proxy.cancel(id),
+    videoGenerate: (req) => runtime.proxy.videoGenerate(req),
+    videoStatus: (id) => runtime.proxy.videoStatus(id),
+    videoCancel: (id) => runtime.proxy.videoCancel(id),
   }
 
   const listSkills = () => discoverSkills(runtime.resolved.skillDir)
