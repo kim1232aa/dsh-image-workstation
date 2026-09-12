@@ -1080,6 +1080,18 @@ export function createStudioHost(opts = {}) {
   }
 
 
+  const readLivePrompt = () => {
+    const el = host?.querySelector('[data-ws-prompt]')
+    if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+      const v = String(el.value || '').trim()
+      if (v) {
+        state.prompt = el.value
+        return v
+      }
+    }
+    return String(state.prompt || '').trim()
+  }
+
   /** Prefer state; fall back to select DOM (selectedIndex / selectedOptions). */
   const readSkillId = () => {
     const sel = host?.querySelector('[data-ws-param="skill"]')
@@ -2329,8 +2341,8 @@ export function createStudioHost(opts = {}) {
                 action,
                 skillId: skillId || '',
                 autoMatch: !skillId,
-                prompt: state.prompt,
-                planText: ta instanceof HTMLTextAreaElement ? ta.value : '',
+                prompt: readLivePrompt(),
+                planText: ta instanceof HTMLTextAreaElement ? String(ta.value || '') : '',
                 skillPlan: state.skillPlan,
                 mode: state.mode,
                 refImageIds: (state.refImages || []).map((r) => r.id).filter(Boolean),

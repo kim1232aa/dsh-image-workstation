@@ -13,4 +13,4 @@
 | mediaProxy | **untouched** |
 | suggest | `/dsh-ws-skill` suggest + Agent `suggest_skill`/`list_skills`；永不锁出图 |
 | auto-match | 想方案时可按提示词智能匹配并填入下拉；仍可不选直接出图 |
-| 想方案 | 可不选手选：`suggest`→自动填入口再 `plan`；DOM/state 不同步时以 select 为准 |
+| 想方案 | 可不选手选：本地 `suggest-core` + RPC；读 DOM 提示词；空提示另提示 |

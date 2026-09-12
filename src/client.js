@@ -3,6 +3,7 @@
  * Owns sidebar「生图」hang point; CTA event → Connection RPC → paint.
  */
 import { TOP_TABS, COLUMNS, CTA, SKILL_ENTRIES } from './ui/labels.js'
+import { suggestSkillsFromTheme } from './skills/suggest-core.js'
 import { studioTree, defaultStudioState } from './ui/studio-stub.js'
 import { mountSidebarEntry } from './client/sidebar-entry.js'
 import { createStudioHost } from './client/studio-host.js'
@@ -801,22 +802,36 @@ export function apply(ctx, _config) {
       studio.setStatus?.('连接不可用，无法想方案')
       return
     }
-    const brief = String(detail.prompt || detail.planText || '').trim()
+    const brief = String(detail.prompt || detail.planText || '').trim() // live DOM prompt preferred from studio
     try {
       // Smart match when user did not pick a skill (or DOM/state desynced)
       if (!skillId) {
         studio.setStatus?.('按提示词智能匹配 Skill…')
-        const sug = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_SUGGEST, {
-          theme: brief || detail.prompt || '',
-          prompt: brief || detail.prompt || '',
-        })
-        const topLabel = sug?.ok && sug.value?.top?.label ? String(sug.value.top.label) : ''
+        const theme = [brief, detail.prompt, detail.planText].filter(Boolean).join('\n')
+        // Local match first (no RPC lag / empty-state issues); RPC optional enrich
+        let topLabel = suggestSkillsFromTheme(theme).top?.label || ''
+        if (!topLabel) {
+          try {
+            const sug = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_SUGGEST, {
+              theme,
+              prompt: theme,
+              brief: theme,
+            })
+            topLabel = sug?.ok && sug.value?.top?.label ? String(sug.value.top.label) : ''
+          } catch (_) {
+            /* local already tried */
+          }
+        }
         if (topLabel) {
           studio.applyMatchedSkill?.(topLabel)
           skillId = topLabel
           studio.setStatus?.(`已智能匹配「${topLabel}」，想方案中…`)
         } else {
-          studio.setStatus?.('未匹配到 Skill — 可不选直接出图，或手选后再想方案')
+          studio.setStatus?.(
+            theme
+              ? '未匹配到 Skill — 可不选直接出图，或手选后再想方案'
+              : '请先在提示词里写画面（如「生命感人像」），再点想方案；也可手选 Skill',
+          )
           return
         }
       } else {
