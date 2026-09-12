@@ -100,9 +100,31 @@ html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-acti
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"],
 html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][aria-current="true"],
 html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][aria-current="true"],
-html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="Session"][aria-current="true"] {
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="Session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="SessionRow"][class*="selected"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][class*="selected"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][class*="selected"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][class*="selected"],
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"],
+body[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
   color: inherit !important;
-  opacity: 0.85;
+  font-weight: inherit !important;
+  opacity: 1;
+}
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::before,
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][class*="selected"]::before,
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="sessionRow"][class*="selected"]::before,
+body[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="sessionRow"][class*="selected"]::before {
+  opacity: 0 !important;
+  background: transparent !important;
+  content: none !important;
+  width: 0 !important;
 }
 `
 
@@ -171,7 +193,7 @@ export function mountSidebarEntry(opts) {
   const clearHostSessionChrome = (scope) => {
     const root = scope instanceof HTMLElement ? scope : sidebarColumn() || document
     const nodes = root.querySelectorAll(
-      '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected],button[data-dsh-part="new-session"],button[class*="newSession"]',
+      '[aria-current="true"],[aria-current="page"],[aria-selected="true"],[data-active],[data-selected],button[data-dsh-part="new-session"],button[class*="newSession"],[class*="sessionRow"],[class*="SessionRow"],[class*="sessionItem"],[class*="SessionItem"]',
     )
     for (const el of nodes) {
       if (!(el instanceof HTMLElement)) continue
@@ -205,6 +227,14 @@ export function mountSidebarEntry(opts) {
         if (/session|Session|workspace|Workspace|newSession/i.test(cls) || looksNewSession) {
           el.removeAttribute('data-active')
           el.removeAttribute('data-selected')
+        }
+        // Host uses hashed CSS modules like YDXeBa_sessionRow YDXeBa_selected
+        if (/sessionRow|SessionRow|sessionItem|SessionItem/i.test(cls) && /selected|Selected|active|Active/i.test(cls)) {
+          const next = String(el.className || '')
+            .split(/\s+/)
+            .filter((t) => t && !/selected|Selected|active|Active|current|Current/i.test(t))
+            .join(' ')
+          if (next !== el.className) el.className = next
         }
         if (/selected|active|current|session|newSession/i.test(cls) || looksNewSession) {
           el.style.setProperty('background', 'transparent', 'important')
