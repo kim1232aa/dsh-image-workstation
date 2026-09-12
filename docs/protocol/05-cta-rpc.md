@@ -19,3 +19,6 @@ URLs verbatim. Errors scrubbed (no token).
 
 ## media.env
 `loadMediaEnv` prefers GPTIMG/OPENAI when set (`provider=openai-images`). Summary only on bag.
+
+## 图生图
+mode=`图生图` + `refImages[0].url` (data URL) → `mediaProxy.edit` → `POST /v1/images/edits`.

@@ -39,6 +39,15 @@ export function mapGenerateRequest(detail, signal) {
   if (detail?.negativePrompt != null) req.negativePrompt = String(detail.negativePrompt)
   if (detail?.skillId != null) req.skillId = detail.skillId
   if (detail?.mode != null) req.mode = detail.mode
+  if (Array.isArray(detail?.refImages)) {
+    req.refImages = detail.refImages
+      .map((r) => ({
+        id: r?.id != null ? String(r.id) : undefined,
+        url: r?.url != null ? String(r.url) : r?.dataUrl != null ? String(r.dataUrl) : undefined,
+        name: r?.name != null ? String(r.name) : undefined,
+      }))
+      .filter((r) => r.url)
+  }
   return req
 }
 
@@ -113,6 +122,18 @@ export function createCtaRpcHandler(mediaProxy) {
       }
     }
     const detail = payload && typeof payload === 'object' ? payload : {}
+    const mode = String(detail.mode || '')
+    const refs = Array.isArray(detail.refImages) ? detail.refImages : []
+    if ((mode === '图生图' || mode === 'i2i') && !refs.some((r) => r && (r.url || r.dataUrl))) {
+      return {
+        ok: false,
+        error: {
+          code: 'REF_REQUIRED',
+          message: '图生图需要至少一张参考图',
+          details: {},
+        },
+      }
+    }
     if (!String(detail.prompt || '').trim()) {
       return {
         ok: false,
@@ -151,10 +172,12 @@ export function createCtaRpcHandler(mediaProxy) {
         size: req.size,
         aspect_ratio: req.aspect_ratio,
         resolution: req.resolution,
+        mode: req.mode,
         ...(req.model ? { model: req.model } : {}),
         ...(req.negativePrompt != null && String(req.negativePrompt).trim()
           ? { negativePrompt: String(req.negativePrompt) }
           : {}),
+        ...(Array.isArray(req.refImages) && req.refImages.length ? { refImages: req.refImages } : {}),
         signal: req.signal,
       })
       const results = Array.isArray(out?.results)

@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { listPhase1Adapters } from './adapters.js'
 import { CREDENTIAL_LANES } from './types.js'
-import { openaiImagesGenerate } from './openai-images.js'
+import { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
 import { DEFAULT_IMAGE_MODEL, isMediaModelId } from './defaults.js'
 
 const NOT_WIRED = (seat) => {
@@ -29,13 +29,12 @@ export function createHostProxy(resolved, mediaEnv = null) {
   const _baseUrl = mediaEnv?.baseUrl || ''
   const liveGenerate = baseUrlSet && tokenSet
 
-  return {
+  const proxy = {
     lanes: CREDENTIAL_LANES,
     adapters: adapters.map((a) => a.kind),
     /** Honest coverage — do not treat as matrix Pass */
-    liveSeats: liveGenerate ? ['openai.images.generate'] : [],
+    liveSeats: liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : [],
     stubSeats: [
-      'openai.images.edit',
       'async.task_id',
       'grok.imagine',
       'gemini.image',
@@ -58,6 +57,29 @@ export function createHostProxy(resolved, mediaEnv = null) {
      */
     async generate(req) {
       if (!liveGenerate) throw NOT_WIRED('media.generate')
+      const mode = String(req.mode || '')
+      const refs = Array.isArray(req.refImages) ? req.refImages : []
+      const firstRef =
+        req.image ||
+        (refs[0] && (refs[0].url || refs[0].dataUrl || refs[0].path)) ||
+        null
+      const wantsEdit = mode === '图生图' || mode === 'i2i' || mode === 'edit'
+      if (wantsEdit) {
+        if (!firstRef) {
+          const err = new Error('图生图需要参考图（refImages）')
+          err.code = 'REF_REQUIRED'
+          throw err
+        }
+        return proxy.edit({
+          prompt: req.prompt,
+          image: String(firstRef),
+          mask: req.mask,
+          size: req.size,
+          n: req.n,
+          model: req.model,
+          signal: req.signal,
+        })
+      }
       const jobId = randomUUID()
       const ac = new AbortController()
       const job = {
@@ -124,8 +146,67 @@ export function createHostProxy(resolved, mediaEnv = null) {
       }
     },
 
-    async edit(_req) {
-      throw NOT_WIRED('media.edit')
+    /**
+     * @param {{ prompt: string, image: string, mask?: string, size?: string, n?: number, model?: string, signal?: AbortSignal }} req
+     */
+    async edit(req) {
+      if (!liveGenerate) throw NOT_WIRED('media.edit')
+      const jobId = randomUUID()
+      const ac = new AbortController()
+      const job = { jobId, kind: /** @type {'image'} */ ('image'), phase: 'submitted', abort: ac }
+      jobs.set(jobId, job)
+      const onOuterAbort = () => {
+        try {
+          ac.abort()
+        } catch {
+          /* ignore */
+        }
+      }
+      if (req.signal) {
+        if (req.signal.aborted) onOuterAbort()
+        else req.signal.addEventListener('abort', onOuterAbort, { once: true })
+      }
+      try {
+        const results = await openaiImagesEdit(
+          { baseUrl: _baseUrl, token: _token },
+          {
+            prompt: req.prompt,
+            image: req.image,
+            mask: req.mask,
+            size: req.size || '1024x1024',
+            n: req.n || 1,
+            model: req.model || DEFAULT_IMAGE_MODEL,
+          },
+          { dataDir: resolved.dataDir, signal: ac.signal },
+        )
+        if (job.phase === 'cancelled') {
+          const err = new Error('cancelled')
+          err.code = 'CANCELLED'
+          err.jobId = jobId
+          throw err
+        }
+        job.phase = 'done'
+        job.results = results
+        job.abort = undefined
+        return { jobId, phase: job.phase, results }
+      } catch (e) {
+        if (job.phase === 'cancelled' || e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
+          job.phase = 'cancelled'
+          const err = new Error('cancelled')
+          err.code = 'CANCELLED'
+          err.jobId = jobId
+          throw err
+        }
+        job.phase = 'failed'
+        const msg = String(e?.message || e)
+        job.error = _token && _token.length >= 8 ? msg.split(_token).join('[redacted]') : msg
+        const err = new Error(job.error)
+        err.code = e?.code || 'EDIT_FAILED'
+        err.jobId = jobId
+        throw err
+      } finally {
+        if (req.signal) req.signal.removeEventListener('abort', onOuterAbort)
+      }
     },
 
     async status(jobId) {
@@ -208,11 +289,12 @@ export function createHostProxy(resolved, mediaEnv = null) {
           protocol: 'openai.images',
           provider: mediaEnv?.provider || 'unknown',
           defaultModel: DEFAULT_IMAGE_MODEL,
-          liveSeats: liveGenerate ? ['openai.images.generate'] : [],
+          liveSeats: liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : [],
         },
       ]
     },
   }
+  return proxy
 }
 
 /**
