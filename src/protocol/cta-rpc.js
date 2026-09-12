@@ -239,7 +239,15 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
       ensureMediaSeats(dataDir)
       const paths = storagePathsOf(dataDir)
       if (endpoint === CTA_RPC_STORAGE_PATHS) {
-        return { ok: true, value: paths }
+        return {
+          ok: true,
+          value: {
+            ...paths,
+            mediaConfigured: Boolean(mediaProxy?.mediaConfigured),
+            videoConfigured: Boolean(mediaProxy?.videoConfigured),
+            liveSeats: Array.isArray(mediaProxy?.liveSeats) ? mediaProxy.liveSeats : [],
+          },
+        }
       }
       // storage.list — Visio seats + Nova-shaped gallery index.json
       const seatGallery = listMediaSeat(dataDir, paths.gallery)

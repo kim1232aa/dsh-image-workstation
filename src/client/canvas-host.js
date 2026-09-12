@@ -15,6 +15,7 @@ import {
   COUNTS,
   PROMPT_FIELDS,
   MODE_TABS,
+  CTA,
 } from '../ui/labels.js'
 
 export const CANVAS_PAGE = '无限画布'
@@ -23,7 +24,7 @@ export const VIDEO_PAGE = '视频生成'
 
 const DEFAULT_PROJECT_NAME = '未命名项目'
 const EDGE_HINT = '文本→配置＝提示词；图片→配置＝参考图（第一张＝图生图底图）'
-const ADD_NODE_HINT = '双击空白或点「添加」建节点；选配置后底部发送真出图'
+const ADD_NODE_HINT = '双击空白或点「添加」建节点；选配置后底部「开始生成」真出图'
 const MODE_TXT = MODE_TABS[0]
 const MODE_IMG = MODE_TABS[1]
 /** Studio default — empty 「选择模型」 must not block or POST blank modelId */
@@ -219,9 +220,13 @@ export function canvasHostStyles() {
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-img-stub] {
   aspect-ratio:1; border-radius:8px; border:1px dashed var(--dsw-alias-border-l3);
-  background: var(--dsw-alias-bg-module-platform);
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
   display:flex; align-items:center; justify-content:center;
   color: var(--dsw-alias-label-tertiary); font-size:11px; text-align:center; padding:8px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-img-stub][data-empty] {
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
+  color: var(--dsw-alias-label-tertiary);
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-img] {
   width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px;
@@ -245,7 +250,7 @@ export function canvasHostStyles() {
   position:absolute; left:10px; bottom:10px; z-index:3;
   width:120px; height:80px; border-radius:8px;
   border:1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-base); opacity:.92;
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent)); opacity:.92;
   pointer-events:none; overflow:hidden;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-minimap] [data-ws-mm-dot] {
@@ -270,8 +275,12 @@ export function canvasHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-canvas-generator][data-open] {
   display:flex;
 }
-[data-dsh-ws-studio-host] [data-ws-canvas-send]:hover {
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:hover:not([disabled]) {
   background: var(--dsw-alias-button-primary-hover);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-send][disabled],
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:disabled {
+  opacity:.45; cursor:not-allowed; filter:grayscale(.3); pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:active { filter:brightness(.96); }
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:focus-visible {
@@ -321,7 +330,7 @@ export function defaultCanvasState() {
         x: 360,
         y: 100,
         prompt: '',
-        modelId: '',
+        modelId: DEFAULT_CANVAS_MODEL,
         ratio: RATIOS[0],
         count: COUNTS[0],
         clarity: CLARITY[0],
@@ -403,12 +412,12 @@ export function buildCanvasPageHtml(T, css, state) {
     </div>
     <div>
       <div style="${css.paramLabel};margin-bottom:4px;">${PROMPT_FIELDS.prompt}</div>
-      <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词或连文本节点后点发送" style="width:100%;min-height:52px;padding:6px 8px;border:1px solid ${T.border2};border-radius:8px;background:${T.input};color:${T.fg};font:inherit;font-size:12px;"></textarea>
+      <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词或连文本节点后点开始生成" style="width:100%;min-height:52px;padding:6px 8px;border:1px solid ${T.border2};border-radius:8px;background:${T.input};color:${T.fg};font:inherit;font-size:12px;"></textarea>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="${css.paramLabel}">${PARAM_LABELS.model}</span>
-        <input data-ws-canvas-param-model placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;width:10rem;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;" />
+        <input data-ws-canvas-param-model value="${escapeHtml(state.nodes.find((n) => n.type === 'genConfig')?.modelId || DEFAULT_CANVAS_MODEL)}" placeholder="${escapeHtml(DEFAULT_CANVAS_MODEL)}" style="padding:0 10px;height:28px;border-radius:14px;width:10rem;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;" />
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="${css.paramLabel}">${PARAM_LABELS.ratio}</span>
@@ -426,8 +435,8 @@ export function buildCanvasPageHtml(T, css, state) {
     <div data-ws-canvas-node-tools-slot style="display:flex;flex-wrap:wrap;gap:4px;">
       ${nodeTools}
     </div>
-    <button type="button" data-ws-canvas-send style="${css.cta}">${CANVAS_CHROME.send}</button>
-    <p data-ws-canvas-status class="note">拖节点 · 端口连线 · ${CANVAS_CHROME.send} → 真 /dsh-ws/generate（失败如实报错）</p>
+    <button type="button" data-ws-canvas-send style="${css.cta}">${CTA}</button>
+    <p data-ws-canvas-status class="note">拖节点 · 端口连线 · ${CTA} → 真 /dsh-ws/generate（失败如实报错）</p>
   </div>
 </div>
 `
@@ -582,7 +591,10 @@ export function mountCanvasPage(host, opts) {
         ta.value = selected.prompt || ''
       }
       const model = page.querySelector('[data-ws-canvas-param-model]')
-      if (model instanceof HTMLInputElement) model.value = selected.modelId || ''
+      if (model instanceof HTMLInputElement) {
+        if (!String(selected.modelId || '').trim()) selected.modelId = DEFAULT_CANVAS_MODEL
+        model.value = selected.modelId || DEFAULT_CANVAS_MODEL
+      }
       page.querySelectorAll('[data-ws-canvas-param][data-value]').forEach((btn) => {
         const param = btn.getAttribute('data-ws-canvas-param')
         const val = btn.getAttribute('data-value')
@@ -612,9 +624,9 @@ export function mountCanvasPage(host, opts) {
           } else if (generating) {
             body = `<div data-ws-canvas-img-stub data-generating>出图中…</div>`
           } else if (err) {
-            body = `<div data-ws-canvas-img-stub>${escapeHtml(err.slice(0, 120))}</div>`
+            body = `<div data-ws-canvas-img-stub data-empty>${escapeHtml(err.slice(0, 120)) || '出图失败'}</div>`
           } else {
-            body = `<div data-ws-canvas-img-stub>拖入 / 粘贴图片<br/>或等待生成结果</div>`
+            body = `<div data-ws-canvas-img-stub data-empty>空节点 · 拖入 / 粘贴图片<br/>或点「${CTA}」出图</div>`
           }
           body += `<div data-ws-canvas-node-tools>
               ${Object.values(CANVAS_NODE_TOOLS)
@@ -748,7 +760,7 @@ export function mountCanvasPage(host, opts) {
             state.edges.push({ id: uid('e'), from: state.connectFrom, to: nodeId })
           }
           state.connectFrom = null
-          setStatus('已添加连线（本地壳，无协议）')
+          setStatus('已添加连线（本地壳）')
           paintEdges()
         }
       })
@@ -777,7 +789,7 @@ export function mountCanvasPage(host, opts) {
         x: baseX,
         y: baseY,
         prompt: '',
-        modelId: '',
+        modelId: DEFAULT_CANVAS_MODEL,
         ratio: RATIOS[0],
         count: COUNTS[0],
         clarity: CLARITY[0],
@@ -1019,10 +1031,25 @@ export function mountCanvasPage(host, opts) {
   // 发送 — Nova collect → client callCtaRpc(/dsh-ws/generate); never fake success
   let generateBusy = false
   const sendBtn = page.querySelector('[data-ws-canvas-send]')
-  if (sendBtn instanceof HTMLButtonElement) {
-    sendBtn.disabled = false
-    sendBtn.removeAttribute('disabled')
+  const syncCanvasCtaEnabled = () => {
+    if (!(sendBtn instanceof HTMLButtonElement)) return
+    const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
+    const composer = ta instanceof HTMLTextAreaElement ? String(ta.value || '').trim() : ''
+    const cfg = resolveActiveConfig() || state.nodes.find((n) => n.type === 'genConfig')
+    const linked = cfg
+      ? upstreamResourceNodes(state, cfg.id)
+          .filter((n) => n.type === 'text')
+          .map((n) => String(n.text || '').trim())
+          .filter(Boolean)
+      : []
+    const hasPrompt = !!(composer || String(cfg?.prompt || '').trim() || linked.length)
+    const disable = generateBusy || !hasPrompt
+    sendBtn.disabled = disable
+    if (disable) sendBtn.setAttribute('disabled', '')
+    else sendBtn.removeAttribute('disabled')
   }
+  syncCanvasCtaEnabled()
+  page.querySelector('[data-ws-canvas-gen-prompt]')?.addEventListener('input', () => syncCanvasCtaEnabled())
 
   const placeResultNodes = (cfg, count) => {
     const ids = []
@@ -1076,12 +1103,13 @@ export function mountCanvasPage(host, opts) {
       const urls = rawResults.map(pickCanvasResultUrl).filter(Boolean)
       if (!urls.length) {
         generateBusy = false
-        if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+        syncCanvasCtaEnabled()
         markPlaceholderError(resultNodeIds, '生成完成但无可用图片 URL')
         setStatus('生成完成但无可用图片 URL')
         paintNodes()
         return
       }
+      let landed = 0
       urls.forEach((url, i) => {
         let node = resultNodeIds[i] ? state.nodes.find((n) => n.id === resultNodeIds[i]) : null
         if (!node) {
@@ -1098,9 +1126,16 @@ export function mountCanvasPage(host, opts) {
           state.nodes.push(node)
           if (cfg) state.edges.push({ id: uid('e'), from: cfg.id, to: id })
         }
-        node.src = url
-        node.status = 'success'
-        node.error = undefined
+        // Only count real image URLs — empty stubs / link-only must not claim 「已出图」
+        if (url) {
+          node.src = url
+          node.status = 'success'
+          node.error = undefined
+          landed += 1
+        } else if (node && node.type === 'image' && !node.src) {
+          node.status = 'error'
+          node.error = '未返回对应图片'
+        }
       })
       for (let i = urls.length; i < resultNodeIds.length; i += 1) {
         const node = state.nodes.find((n) => n.id === resultNodeIds[i])
@@ -1110,15 +1145,44 @@ export function mountCanvasPage(host, opts) {
         }
       }
       generateBusy = false
-      if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
-      setStatus(`已出图 ${urls.length} 张`)
+      syncCanvasCtaEnabled()
+      if (landed > 0) {
+        setStatus(`已出图 ${landed} 张`)
+        // Notify studio history rail (shared path with 普通生图)
+        const firstUrl = urls.find(Boolean) || ''
+        host.dispatchEvent(
+          new CustomEvent('dsh-ws-history-add', {
+            bubbles: true,
+            composed: true,
+            detail: {
+              source: 'canvas',
+              prompt: String(d.value?.prompt || d.prompt || ''),
+              modelId: String(d.value?.modelId || d.modelId || DEFAULT_CANVAS_MODEL),
+              results: urls.filter(Boolean).map((url) => ({ url, kind: 'image' })),
+              jobId: d.value?.jobId || d.jobId,
+              phase: 'done',
+            },
+          }),
+        )
+        if (firstUrl) {
+          host.dispatchEvent(
+            new CustomEvent('dsh-ws-gallery-add', {
+              bubbles: true,
+              composed: true,
+              detail: { src: firstUrl, prompt: String(d.value?.prompt || ''), source: 'canvas' },
+            }),
+          )
+        }
+      } else {
+        setStatus('生成完成但无可用图片 URL')
+      }
       paintNodes()
       return
     }
     if (phase === 'cancelled') {
       markPlaceholderError(resultNodeIds, '已取消')
       generateBusy = false
-      if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+      syncCanvasCtaEnabled()
       setStatus('客户端已取消；宿主取消未挂')
       paintNodes()
       return
@@ -1126,7 +1190,7 @@ export function mountCanvasPage(host, opts) {
     const msg = String(d.error || '画布出图失败')
     markPlaceholderError(resultNodeIds, msg)
     generateBusy = false
-    if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+    syncCanvasCtaEnabled()
     setStatus(msg)
     paintNodes()
   }
@@ -1168,10 +1232,13 @@ export function mountCanvasPage(host, opts) {
     }
     // 「选择模型」 placeholder alone must not POST blank modelId
     if (!String(detail.modelId || '').trim()) detail.modelId = DEFAULT_CANVAS_MODEL
+    cfg.modelId = detail.modelId
+    const modelInput = page.querySelector('[data-ws-canvas-param-model]')
+    if (modelInput instanceof HTMLInputElement) modelInput.value = detail.modelId
     const resultNodeIds = placeResultNodes(cfg, detail.count)
     detail.resultNodeIds = resultNodeIds
     generateBusy = true
-    if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = true
+    syncCanvasCtaEnabled()
     setStatus(
       detail.mode === MODE_IMG
         ? `图生图提交中…（参考图 ${detail.imageCount}）`

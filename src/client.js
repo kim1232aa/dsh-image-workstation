@@ -361,17 +361,31 @@ export function apply(ctx, _config) {
         ac.signal,
       )
       if (result?.ok) {
+        const value = {
+          ...(result.value || {}),
+          phase: result.value?.phase || 'done',
+          elapsedMs: Date.now() - started,
+          prompt: detail.prompt,
+          modelId: String(detail.modelId || '').trim() || 'grok-imagine-image',
+        }
         emitCanvasResult({
           ok: true,
-          phase: result.value?.phase || 'done',
-          value: {
-            ...(result.value || {}),
-            phase: result.value?.phase || 'done',
-            elapsedMs: Date.now() - started,
-          },
+          phase: value.phase,
+          value,
           resultNodeIds,
           nodeId,
         })
+        // Shared history rail with 普通生图
+        try {
+          studio.ingestHistoryResult?.({
+            source: 'canvas',
+            jobId: value.jobId,
+            prompt: detail.prompt,
+            modelId: value.modelId,
+            results: Array.isArray(value.results) ? value.results : [],
+            phase: 'done',
+          })
+        } catch (_) {}
       } else {
         const msg = formatHostGenerateError(result?.error || {})
         emitCanvasResult({
@@ -593,18 +607,34 @@ export function apply(ctx, _config) {
       labels: { newSession: '新会话', studio: '生图' },
       onNewSession: () => studio.close(),
       onStudio: () => studio.open(),
+      initialSelected: 'new-session',
     })
     const openStudio = studio.open.bind(studio)
     const closeStudio = studio.close.bind(studio)
     studio.open = () => {
       openStudio()
+      // Left 「生图」 = module entry; only highlight when 普通生图 page (avoid dual chrome)
       sidebarEntry.setSelected('studio')
     }
     studio.close = () => {
       closeStudio()
-      sidebarEntry.setSelected('new-session')
+      // Studio closed → neither dual-highlight New Session as active workstation
+      sidebarEntry.setSelected('none')
     }
+    const onTopTab = (ev) => {
+      const d = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+      if (!studio.isOpen?.()) {
+        sidebarEntry.setSelected('none')
+        return
+      }
+      // B/E: top 「视频生成」 etc. → clear left 「生图」 selected highlight (page chrome owns selection)
+      if (d.studioPage) sidebarEntry.setSelected('studio')
+      else sidebarEntry.setSelected('none')
+    }
+    document.addEventListener('dsh-ws-top-tab', onTopTab)
+    disposers.push(() => document.removeEventListener('dsh-ws-top-tab', onTopTab))
     if (studio.isOpen?.()) sidebarEntry.setSelected('studio')
+    else sidebarEntry.setSelected('none')
     disposers.push(() => sidebarEntry.dispose())
     /** Video CTA → /dsh-ws videoGenerate — same pattern as image generate */
     let videoInflight = false
@@ -613,9 +643,9 @@ export function apply(ctx, _config) {
     const onVideoGenerate = async (ev) => {
       const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
       const paintFail = (msg) => {
+        // Video host humanizes codes; avoid double-writing raw VIDEO_NOT_CONFIGURED into studio status
         const status = String(msg || 'VIDEO_NOT_CONFIGURED')
         studio.paintVideoStubFailure?.(status)
-        studio.setStatus?.(status)
       }
       /** Map host error → exact status codes when configured-missing / stub */
       const statusFromError = (error) => {

@@ -27,7 +27,8 @@ const TAB_STYLES = `
   font:inherit; font-weight:400; color:inherit;
 }
 [data-dsh-ws-session-tabs] [data-dsh-ws-tab][data-dsh-ws-tab-current] {
-  font-weight:600; background:transparent;
+  font-weight:600; background: var(--dsw-alias-interactive-bg-hover, transparent);
+  border-radius: 8px;
 }
 `
 
@@ -86,7 +87,7 @@ export function mountSidebarEntry(opts) {
   const paintSelected = (tabs) => {
     if (!(tabs instanceof HTMLElement)) return
     for (const el of tabs.querySelectorAll('[data-dsh-ws-tab]')) {
-      const on = el.dataset.dshWsTab === current
+      const on = !!current && el.dataset.dshWsTab === current
       el.setAttribute('aria-selected', on ? 'true' : 'false')
       if (on) el.setAttribute('data-dsh-ws-tab-current', '')
       else el.removeAttribute('data-dsh-ws-tab-current')
@@ -94,7 +95,9 @@ export function mountSidebarEntry(opts) {
   }
 
   const setSelected = (id) => {
-    current = id === TAB_STUDIO ? TAB_STUDIO : TAB_NEW
+    if (id === TAB_STUDIO) current = TAB_STUDIO
+    else if (id === TAB_NEW) current = TAB_NEW
+    else current = '' // none — avoid dual highlight with top page tabs / host New Session
     if (tabsEl) paintSelected(tabsEl)
   }
 

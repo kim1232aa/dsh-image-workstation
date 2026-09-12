@@ -83,6 +83,9 @@ export const SKILL_ENTRIES = Object.freeze([
 export const PORTRAIT_SUB = Object.freeze(['升级已有照片', '原创人像'])
 export const CASTING_EXTRA = '三视图'
 
+/** Studio/video history rail — local generate jobs (≠ host chat sessions) */
+export const HISTORY_EMPTY = '暂无生图记录'
+
 export const HISTORY_ACTIONS = Object.freeze({
   clear: '清空',
   restore: '恢复',
@@ -118,6 +121,8 @@ export const EMPTY = Object.freeze({
   inspiration: '灵感案例',
   shuffle: '随机',
 })
+
+export const GO_CONFIGURE = '去配置'
 
 export const CHROME = Object.freeze({
   settings: '设置',

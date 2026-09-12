@@ -63,6 +63,12 @@ export function apply(ctx, config) {
     get mediaConfigured() {
       return runtime.proxy.mediaConfigured
     },
+    get videoConfigured() {
+      return runtime.proxy.videoConfigured
+    },
+    get liveSeats() {
+      return runtime.proxy.liveSeats
+    },
     get adapters() {
       return runtime.proxy.adapters
     },

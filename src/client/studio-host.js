@@ -1,7 +1,7 @@
 /**
  * 生图工作台 host — 三栏出图台（历史 | 写+生成 | 生成结果/对话）。
  * 借鉴形态，自写组件。Labels only from ../ui/labels.js.
- * CTA never disabled / never score-gated. No debug watermark.
+ * CTA: empty prompt → truly disabled (not score-gated). No debug watermark.
  */
 import {
   TOP_TABS,
@@ -30,7 +30,7 @@ import { mountUiDesignHost, UI_DESIGN_PAGE } from './ui-design-host.js'
 import { mountTemplateHost, TEMPLATE_PAGE } from './template-host.js'
 import { mountGalleryPage, GALLERY_PAGE } from './gallery-host.js'
 import { mountEcomPage, ECOM_PAGE } from './ecom-host.js'
-import { TOOL_MORE, TOOL_MENU, TOOL_ENTRIES } from '../ui/labels.js'
+import { TOOL_MORE, TOOL_MENU, TOOL_ENTRIES, HISTORY_EMPTY, GO_CONFIGURE } from '../ui/labels.js'
 import {
   savePendingProposal,
   loadPendingProposal,
@@ -79,7 +79,7 @@ const UNWIRED_RESULT_ACTIONS = new Set(['再编辑'])
 const STAGE_LABEL = '生成结果'
 const STAGE_EMPTY_TITLE = '生成后显示在这里'
 const STAGE_EMPTY_HINT = '出图结果会出现在本栏'
-const HISTORY_EMPTY_HINT = '暂无记录'
+const HISTORY_EMPTY_HINT = HISTORY_EMPTY
 
 const DEFAULT_MODEL = 'grok-imagine-image'
 
@@ -269,9 +269,17 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage] {
   /* Right column = result landing. Pack head+grid+actions at TOP (same lesson as CTA). */
-  flex:1 1 auto; min-height:0; max-height:none; display:flex; flex-direction:column;
+  flex:0 1 auto; min-height:0; max-height:none; display:flex; flex-direction:column;
   justify-content:flex-start; gap:8px;
   margin:0; padding:0; overflow:hidden; background:transparent; border:0;
+}
+[data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage][data-has-results],
+[data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage][data-busy] {
+  flex:1 1 auto; min-height:0;
+}
+[data-dsh-ws-studio-host] [data-ws-inspire-wall] {
+  /* Idle: don't stretch a tall white sea — leftover uses muted layer token */
+  justify-content:flex-start;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
   display:flex; align-items:baseline; gap:8px; flex:none;
@@ -359,8 +367,12 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 [data-dsh-ws-studio-host] [data-ws-neg-details]:not([open]) { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-neg-details]:not([open]) [data-ws-clear-negative] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-neg-details][open] > summary { margin-bottom:6px; width:100%; border-bottom-color:transparent; }
-[data-dsh-ws-studio-host] [data-ws-cta]:hover { background: var(--dsw-alias-button-primary-hover); }
-[data-dsh-ws-studio-host] [data-ws-cta]:active { filter:brightness(.96); }
+[data-dsh-ws-studio-host] [data-ws-cta]:hover:not([disabled]) { background: var(--dsw-alias-button-primary-hover); }
+[data-dsh-ws-studio-host] [data-ws-cta]:active:not([disabled]) { filter:brightness(.96); }
+[data-dsh-ws-studio-host] [data-ws-cta][disabled],
+[data-dsh-ws-studio-host] [data-ws-cta]:disabled {
+  opacity:.45; cursor:not-allowed; filter:grayscale(.35); pointer-events:none; box-shadow:none;
+}
 [data-dsh-ws-studio-host] [data-ws-cta]:focus-visible {
   outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:2px;
 }
@@ -476,6 +488,10 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
   cursor:pointer; font:inherit; font-size:12.5px; line-height:1.25; min-height:32px;
 }
+[data-dsh-ws-studio-host] [data-ws-result-actions] > button[data-ws-result-secondary] {
+  background: transparent; border-style:solid; color: var(--dsw-alias-label-secondary);
+  font-weight:400;
+}
 [data-dsh-ws-studio-host] [data-ws-result-actions] button[data-ws-unwired] {
   opacity:.7; border-style:dashed; color: var(--dsw-alias-label-tertiary);
 }
@@ -506,10 +522,11 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   opacity:.75; color: var(--dsw-alias-label-tertiary); border-style:none;
 }
 [data-dsh-ws-studio-host] [data-ws-plan-panel] {
-  display:flex; flex-direction:column; gap:4px; padding:6px 8px;
+  display:none; flex-direction:column; gap:4px; padding:6px 8px;
   background: var(--dsw-alias-bg-module-platform);
   border:1px solid var(--dsw-alias-border-l2); border-radius:8px; flex:none;
 }
+[data-dsh-ws-studio-host] [data-ws-plan-panel][data-visible] { display:flex; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] { display:flex; flex-wrap:wrap; gap:6px; }
 [data-dsh-ws-studio-host] [data-ws-plan-actions] button {
   padding:4px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
@@ -806,6 +823,16 @@ export function createStudioHost(opts = {}) {
     })
     // Stamp top-page for sibling page CSS (video/canvas/gallery/ecom hide image cols).
     host?.setAttribute('data-ws-top-page', name)
+    // Sync host sidebar chrome: module entry stays 「生图」 only when page is 普通生图;
+    // other top tabs clear dual-highlight with left 「生图」.
+    try {
+      document.dispatchEvent(
+        new CustomEvent('dsh-ws-top-tab', {
+          bubbles: true,
+          detail: { tab: name, studioPage: name === IMAGE_PAGE },
+        }),
+      )
+    } catch (_) {}
     const topWired =
       name === VIDEO_PAGE ||
       name === IMAGE_PAGE ||
@@ -1112,8 +1139,13 @@ export function createStudioHost(opts = {}) {
   const paintSkillPlan = () => {
     const panel = host?.querySelector('[data-ws-plan-panel]')
     if (!(panel instanceof HTMLElement)) return
-    // Always show plan panel — smart match does not require pre-selecting a skill
-    panel.setAttribute('data-visible', '')
+    const hasPlan = !!(
+      state.skillPlan ||
+      state.planPhase === 'proposal' ||
+      panel.hasAttribute('data-force-open')
+    )
+    if (hasPlan) panel.setAttribute('data-visible', '')
+    else panel.removeAttribute('data-visible')
     const ta = panel.querySelector('[data-ws-plan-text]')
     if (ta instanceof HTMLTextAreaElement) {
       const planText =
@@ -1169,6 +1201,23 @@ export function createStudioHost(opts = {}) {
     }
     // syncStageWeight defined later in createStudioHost; safe at call-time
     try { syncStageWeight() } catch (_) {}
+    try {
+      const ctaEl = host?.querySelector('[data-ws-cta]')
+      if (ctaEl instanceof HTMLButtonElement) {
+        const busy =
+          !!state.task &&
+          (state.task.status === 'running' ||
+            state.task.status === 'queued' ||
+            state.task.status === 'submitted' ||
+            state.task.status === 'polling' ||
+            state.task.status === 'downloading')
+        const hasPrompt = String(state.prompt || '').trim().length > 0
+        const disable = busy || !hasPrompt
+        ctaEl.disabled = disable
+        if (disable) ctaEl.setAttribute('disabled', '')
+        else ctaEl.removeAttribute('disabled')
+      }
+    } catch (_) {}
   }
 
   const paintResultActions = (show) => {
@@ -1490,6 +1539,7 @@ export function createStudioHost(opts = {}) {
       empty.dataset.wsHistoryEmpty = ''
       empty.style.cssText = `padding:8px 4px;font-size:12px;color:${T.fg3};`
       empty.textContent = HISTORY_EMPTY_HINT
+      empty.title = '本机工作台生图历史（≠ 左侧宿主会话列表）'
       histEl.appendChild(empty)
     }
     syncHistoryChrome()
@@ -1774,6 +1824,7 @@ export function createStudioHost(opts = {}) {
         <!-- LEFT: 历史记录 -->
         <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid ${T.border2};padding:8px;overflow:auto;background:${T.sidebar};display:flex;flex-direction:column;gap:6px;">
           <div style="font-size:13px;font-weight:600;color:${T.fg};">${COLUMNS.history}</div>
+          <div style="font-size:10.5px;color:${T.fg3};line-height:1.3;">本机生图 · 异于左侧会话</div>
           <div data-ws-history-filters hidden>
             <input type="search" placeholder="搜索历史" aria-label="搜索历史" style="width:100%;${css.field};font-size:12px;" />
             <div style="display:flex;gap:6px;margin-top:6px;">
@@ -1879,13 +1930,16 @@ export function createStudioHost(opts = {}) {
               </label>
             </div>
 
+            <div data-ws-plan-launch style="display:flex;align-items:center;gap:8px;flex:none;">
+              <button type="button" data-ws-plan-action="plan" style="${css.pill({ size: '11.5px', fill: T.module })}">${PROMPT_ACTIONS.plan}</button>
+              <span style="font-size:11px;color:${T.fg3};">可选 · 默认收起方案卡</span>
+            </div>
             <div data-ws-plan-panel>
               <div style="${css.paramLabel}">创作方案</div>
-              <textarea data-ws-plan-text rows="2" placeholder="点「想方案」：可选手选，或不选则按提示词智能匹配" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
+              <textarea data-ws-plan-text rows="2" placeholder="点「想方案」生成提案；确认后回填提示词再点「开始生成」" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
               <div data-ws-plan-actions>
-                <button type="button" data-ws-plan-action="plan">${PROMPT_ACTIONS.plan}</button>
                 <button type="button" data-ws-plan-action="replan">${PROMPT_ACTIONS.replan}</button>
-                <button type="button" data-ws-plan-action="accept" data-primary>${PROMPT_ACTIONS.acceptPlan}</button>
+                <button type="button" data-ws-plan-action="accept">${PROMPT_ACTIONS.acceptPlan}</button>
               </div>
             </div>
           </div>
@@ -1926,7 +1980,8 @@ export function createStudioHost(opts = {}) {
             <div data-ws-results hidden></div>
             <div data-ws-result-actions>
               ${RESULT_PRIMARY_ACTIONS.map((a) => {
-                  return `<button type="button" data-ws-result-action="${a}">${a}</button>`
+                  const regen = a === '重新生成'
+                  return `<button type="button" data-ws-result-action="${a}"${regen ? ' data-ws-result-secondary' : ''}>${a}</button>`
                 }).join('')}
               <div data-ws-result-more>
                 <button type="button" data-ws-result-more-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${TOOL_MORE}">${TOOL_MORE} ▾</button>
@@ -1957,6 +2012,7 @@ export function createStudioHost(opts = {}) {
     host.querySelector('[data-ws-prompt]')?.addEventListener('input', (e) => {
       const t = /** @type {HTMLTextAreaElement} */ (e.target)
       state.prompt = t.value
+      try { syncCtaEnabled() } catch (_) {}
     })
     host.querySelector('[data-ws-negative]')?.addEventListener('input', (e) => {
       const t = /** @type {HTMLTextAreaElement} */ (e.target)
@@ -2161,14 +2217,32 @@ export function createStudioHost(opts = {}) {
     document.addEventListener('click', closeToolMore)
 
 
-    // 【必须】CTA never score-locked; never set disabled; no skill required
+    // CTA: empty prompt → truly disabled (score never locks; skill never required)
     const cta = host.querySelector('[data-ws-cta]')
-    if (cta instanceof HTMLButtonElement) {
-      cta.disabled = false
-      cta.removeAttribute('disabled')
+    const syncCtaEnabled = () => {
+      if (!(cta instanceof HTMLButtonElement)) return
+      const busy =
+        !!state.task &&
+        (state.task.status === 'running' ||
+          state.task.status === 'queued' ||
+          state.task.status === 'submitted' ||
+          state.task.status === 'polling' ||
+          state.task.status === 'downloading')
+      const hasPrompt = String(state.prompt || '').trim().length > 0
+      const disable = busy || !hasPrompt
+      cta.disabled = disable
+      if (disable) cta.setAttribute('disabled', '')
+      else cta.removeAttribute('disabled')
+      cta.title = !hasPrompt ? '请先输入提示词' : busy ? '出图中…' : ''
     }
+    syncCtaEnabled()
 
     const dispatchGenerate = (extra = {}) => {
+      if (!String(state.prompt || '').trim()) {
+        setStatus('请先输入提示词')
+        syncCtaEnabled()
+        return
+      }
       // Empty 「选择模型」 → default on send; persist so field shows real modelId after done
       state.modelId = resolveModelId(state.modelId)
       syncFields()
@@ -2200,6 +2274,28 @@ export function createStudioHost(opts = {}) {
     }
 
     cta?.addEventListener('click', () => dispatchGenerate())
+
+    const onHistoryAdd = (ev) => {
+      const d = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+      try {
+        const results = Array.isArray(d.results) ? d.results : d.src ? [{ url: d.src }] : []
+        if (!results.length) return
+        const jobId = String(d.jobId || `${d.source || 'ext'}-${Date.now()}`)
+        mountHistoryItem(jobId, {
+          snapshot: d.snapshot || {
+            prompt: d.prompt || '',
+            modelId: resolveModelId(d.modelId),
+            mode: d.mode || MODE_TABS[0],
+            ratio: d.ratio || RATIOS[0],
+            count: results.length,
+          },
+          value: { jobId, phase: 'done', results, modelId: resolveModelId(d.modelId) },
+          savedAt: Date.now(),
+        })
+      } catch (_) {}
+    }
+    host.addEventListener('dsh-ws-history-add', onHistoryAdd)
+    document.addEventListener('dsh-ws-history-add', onHistoryAdd)
 
     const addRefFromFile = (file) => {
       if (!(file instanceof File) || !file.type.startsWith('image/')) return
@@ -2284,6 +2380,9 @@ export function createStudioHost(opts = {}) {
         if (action === 'plan' || action === 'replan') {
           let skillId = readSkillId()
           applySkillSideEffects?.(skillId)
+          const panel = host.querySelector('[data-ws-plan-panel]')
+          if (panel instanceof HTMLElement) panel.setAttribute('data-force-open', '')
+          state.planPhase = 'proposal'
           paintSkillPlan()
           const ta = host.querySelector('[data-ws-plan-text]')
           if (ta instanceof HTMLTextAreaElement) {
@@ -2652,6 +2751,10 @@ export function createStudioHost(opts = {}) {
         activeHistoryId = null
         hydrateHistoryFromStorage()
       }
+      // Video CTA degrade when VIDEO_* missing
+      if (storagePaths && 'videoConfigured' in storagePaths) {
+        videoApi?.setVideoConfigured?.(!!storagePaths.videoConfigured)
+      }
     },
     /** @param {boolean} on */
     setConnected(on) {
@@ -2709,6 +2812,29 @@ export function createStudioHost(opts = {}) {
      * Accepts phase progress / failed / done payloads.
      * @param {{ jobId?: string, phase?: string, status?: string, progress?: number, elapsedMs?: number, error?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
      */
+    /**
+     * Shared history entry path — canvas/chat completions can land here.
+     * @param {{ jobId?: string, prompt?: string, modelId?: string, results?: any[], phase?: string, source?: string, snapshot?: object }} detail
+     */
+    ingestHistoryResult(detail) {
+      ensure()
+      const d = detail && typeof detail === 'object' ? detail : {}
+      const results = Array.isArray(d.results) ? d.results : []
+      if (!results.length) return
+      const jobId = String(d.jobId || `${d.source || 'ext'}-${Date.now()}`)
+      const snapshot = d.snapshot || {
+        prompt: d.prompt || '',
+        modelId: resolveModelId(d.modelId),
+        mode: d.mode || MODE_TABS[0],
+        ratio: d.ratio || RATIOS[0],
+        count: results.length,
+      }
+      mountHistoryItem(jobId, {
+        snapshot,
+        value: { jobId, phase: d.phase || 'done', results, modelId: snapshot.modelId },
+        savedAt: Date.now(),
+      })
+    },
     paintGenerateResult(value) {
       ensure()
       applyGenerateResult(value)
@@ -2730,10 +2856,12 @@ export function createStudioHost(opts = {}) {
           : plan
       state.skillPlan = card
       state.planPhase = 'proposal'
+      const panel = host?.querySelector('[data-ws-plan-panel]')
+      if (panel instanceof HTMLElement) panel.setAttribute('data-force-open', '')
       const ta = host?.querySelector('[data-ws-plan-text]')
       if (ta instanceof HTMLTextAreaElement) {
         ta.value = formatPlanCard(card)
-        ta.placeholder = '方案可改（Nova 提案卡形）；点「就这样出图」确认出图'
+        ta.placeholder = '方案可改；点「就这样出图」回填提示词，再点「开始生成」'
       }
       paintSkillPlan()
       try {

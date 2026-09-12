@@ -63,9 +63,6 @@ export function renderAgentImageOutput(toolLabel, _args, value) {
   const message = String(value?.message || '').trim()
   const error = String(value?.error || '').trim()
   const images = Array.isArray(value?.images) ? value.images : []
-  const urls = images
-    .map((img) => String(img?.url || '').trim())
-    .filter(Boolean)
 
   const lines = []
   lines.push(
@@ -75,14 +72,22 @@ export function renderAgentImageOutput(toolLabel, _args, value) {
   )
   if (message) lines.push(message)
   if (error) lines.push(`error: ${error}`)
-  if (urls.length === 0) {
+  if (images.length === 0) {
     lines.push('(no image URLs)')
   } else {
-    urls.forEach((url, i) => {
-      const alt = urls.length === 1 ? 'generated' : `generated-${i + 1}`
-      // Verbatim URL — no domain rewrite (docs 01/03 red line).
-      lines.push(`![${alt}](${url})`)
+    images.forEach((img, i) => {
+      const url = String(img?.url || '').trim()
+      const local = String(img?.local_path || img?.localPath || '').trim()
+      const alt = images.length === 1 ? 'generated' : `generated-${i + 1}`
+      // Prefer markdown image / local path as primary chrome.
+      // Do not also dump naked imgen.x.ai URL under the image (Critiquito chat UX).
+      const displaySrc = local || url
+      if (displaySrc) lines.push(`![${alt}](${displaySrc})`)
+      if (local && url && local !== url) lines.push('_(已落盘)_')
     })
+    lines.push('')
+    lines.push('操作：下载 · 加入画布 · 当参考图')
+    lines.push('_在「生图」工作台可下载 / 加入画布 / 当参考图；勿依赖裸 x.ai 链接作为主展示。_')
   }
   return [{ type: 'text', text: lines.join('\n') }]
 }
@@ -310,7 +315,7 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
         'When multiple image models are configured, you MUST ask the user which model to use and pass it as model — do not pick silently. ' +
         'If channels are not configured, tell the user to open Settings → Plugins → dsh-image-workstation (or host media.env). ' +
         'For image-to-image / 图生图 with a reference, use edit_image instead. ' +
-        'On success, return job_id and the image URL(s) verbatim in your reply (include the markdown image lines from the tool result).',
+        'On success, return job_id and include the markdown image lines from the tool result (prefer those lines; do not paste naked imgen.x.ai URLs as primary chrome).',
       parameters: {
         prompt: {
           type: 'string',
@@ -392,7 +397,7 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
         'Skill auto-match must NOT block 图生图 when the user did not name a skill — call this tool whenever the user provides a reference image and wants an edit. ' +
         'When multiple image models are configured, ask which model to use and pass model. ' +
         'If channels are not configured, tell the user to open Settings → Plugins → dsh-image-workstation (or host media.env). ' +
-        'On success, return job_id and the image URL(s) verbatim (include markdown image lines from the tool result).',
+        'On success, return job_id and include the markdown image lines from the tool result (prefer those lines; do not paste naked imgen.x.ai URLs as primary chrome).',
       parameters: {
         prompt: {
           type: 'string',

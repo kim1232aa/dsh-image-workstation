@@ -8,12 +8,15 @@ import {
   RATIOS,
   CLARITY,
   HISTORY_ACTIONS,
+  HISTORY_EMPTY,
   VIDEO_MODE_TABS,
   VIDEO_FRAMES,
   VIDEO_PARAMS,
   VIDEO_CTA,
   VIDEO_RESULT_ACTIONS,
   PROMPT_FIELDS,
+  GO_CONFIGURE,
+  CHROME,
 } from '../ui/labels.js'
 
 export const VIDEO_PAGE = '视频生成'
@@ -27,8 +30,23 @@ const MODE_IMG = VIDEO_MODE_TABS[1]
 
 const STAGE_LABEL = '生成结果'
 const STAGE_EMPTY_HINT = '生成后显示在这里'
-const HISTORY_EMPTY_HINT = '暂无记录'
+const HISTORY_EMPTY_HINT = HISTORY_EMPTY
 const FRAME_HINT = '上传 / 拖拽 / 粘贴'
+const VIDEO_MODEL_EMPTY = '未配置视频模型'
+const VIDEO_CFG_HINT = '请到 设置 → 插件 → dsh-image-workstation 填写视频 Base URL 与 API Key'
+
+/** @param {string} raw */
+function humanizeVideoError(raw) {
+  const s = String(raw || '').trim()
+  if (!s || s === 'VIDEO_NOT_CONFIGURED' || s === 'HOST_PROXY_NOT_WIRED') {
+    return VIDEO_CFG_HINT
+  }
+  if (s === 'VIDEO_STUB_NOT_WIRED') return '视频通道尚未接线'
+  if (s === 'VIDEO_GENERATE_FAILED') return '视频生成失败'
+  if (s === 'VIDEO_GENERATE_TIMEOUT') return '视频生成超时'
+  if (s.startsWith('VIDEO_NOT_CONFIGURED')) return VIDEO_CFG_HINT
+  return s
+}
 
 /** @param {string} s */
 function escapeHtml(s) {
@@ -97,47 +115,43 @@ export function videoHostStyles() {
   background: var(--dsw-alias-bg-mask-3); color: var(--dsw-alias-label-primary-foreground);
   cursor:pointer; font-size:12px; line-height:1; padding:0;
 }
-[data-dsh-ws-studio-host] [data-ws-video-cta]:hover {
-  background: var(--dsw-alias-button-primary-hover);
-}
-[data-dsh-ws-studio-host] [data-ws-video-cta]:active { filter:brightness(.96); }
+[data-dsh-ws-studio-host] [data-ws-video-cta]:active:not([disabled]) { filter:brightness(.96); }
 [data-dsh-ws-studio-host] [data-ws-video-cta]:focus-visible {
   outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:2px;
 }
-/* Idle: stage absorbs leftover (quiet muted fill). Dock+CTA pack as one bottom
-   block — never margin-top:auto on CTA (that IS the white void between params
-   and 「开始生成」). Override studio-host [data-ws-cta-footer] margin-top:auto. */
-[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage] {
-  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:4px;
-  margin:0; padding:8px 12px; overflow:hidden;
-  background: var(--dsw-alias-bg-module-platform);
-  border-bottom:1px solid var(--dsw-alias-border-l2);
-}
-[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-busy] {
-  flex:1.2 1 0; min-height:96px; padding:8px 12px; gap:6px;
-  background: var(--dsw-alias-bg-base);
-}
-[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-has-results] {
-  flex:2.6 1 0; min-height:160px; padding:8px 12px; gap:8px;
-  background: var(--dsw-alias-bg-base);
+/* Form (dock+CTA) on TOP; results stage BELOW — Critiquito B. */
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"] {
+  display:flex; flex-direction:column; justify-content:flex-start;
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-dock],
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-dock] {
-  flex:0 0 auto; display:flex; flex-direction:column; gap:4px;
-  padding:8px 12px 0; background: var(--dsw-alias-bg-base);
+  flex:0 0 auto; display:flex; flex-direction:column; gap:4px; order:1;
+  padding:8px 12px 0; background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-2, transparent));
   border-top:0; max-height:none; overflow:auto; min-height:0;
-}
-[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"]:has([data-ws-video-stage][data-has-results]) [data-ws-dock],
-[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-col="studio"]:has([data-ws-video-stage][data-busy]) [data-ws-dock] {
-  flex:0 0 auto; max-height:40%;
-  border-top:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-cta-footer],
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-cta-footer] {
-  flex:none; margin-top:0; position:sticky; bottom:0; z-index:2;
-  padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
+  flex:none; margin-top:0; order:2; position:relative; z-index:2;
+  padding:6px 12px 10px; background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-2, transparent));
   display:flex; flex-direction:column; gap:4px;
-  border-top:1px solid var(--dsw-alias-border-l2);
+  border-bottom:1px solid var(--dsw-alias-border-l2);
+}
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage] {
+  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:4px; order:3;
+  margin:0; padding:8px 12px; overflow:hidden;
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
+}
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-busy],
+[data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-stage][data-has-results] {
+  flex:1.4 1 0; min-height:120px; padding:8px 12px; gap:6px;
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
+}
+[data-dsh-ws-studio-host] [data-ws-video-cta][disabled],
+[data-dsh-ws-studio-host] [data-ws-video-cta]:disabled {
+  opacity:.4; cursor:not-allowed; filter:grayscale(.4); pointer-events:none; box-shadow:none;
+}
+[data-dsh-ws-studio-host] [data-ws-video-cta]:hover:not([disabled]) {
+  background: var(--dsw-alias-button-primary-hover);
 }
 `
 }
@@ -290,7 +304,7 @@ export function buildVideoPageHtml(T, css, paneWidths, state) {
 
       <div data-ws-model-row>
         <span style="${css.paramLabel}">${VIDEO_PARAMS.model}</span>
-        <input data-ws-video-param="model" placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;flex:0 1 10rem;min-width:5rem;width:10rem;" />
+        <input data-ws-video-param="model" placeholder="${VIDEO_MODEL_EMPTY}" style="padding:0 10px;height:28px;border-radius:14px;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;flex:0 1 10rem;min-width:5rem;width:10rem;" />
       </div>
     </div>
 
@@ -428,6 +442,7 @@ export function mountVideoPage(host, opts) {
   page.querySelector('[data-ws-video-prompt]')?.addEventListener('input', (e) => {
     const t = /** @type {HTMLTextAreaElement} */ (e.target)
     state.prompt = t.value
+    syncVideoCta()
   })
 
   // Param chips
@@ -526,11 +541,27 @@ export function mountVideoPage(host, opts) {
   })
 
   // CTA → client.js → /dsh-ws videoGenerate (never fake success)
+  // Unconfigured: degrade/disable black primary — do not look clickable
+  let videoConfigured = false
   const cta = page.querySelector('[data-ws-video-cta]')
-  if (cta instanceof HTMLButtonElement) {
-    cta.disabled = false
-    cta.removeAttribute('disabled')
+  const modelInput = page.querySelector('[data-ws-video-param="model"]')
+  const syncVideoCta = () => {
+    if (!(cta instanceof HTMLButtonElement)) return
+    const hasPrompt = String(state.prompt || '').trim().length > 0
+    const disable = !videoConfigured || !hasPrompt
+    cta.disabled = disable
+    if (disable) cta.setAttribute('disabled', '')
+    else cta.removeAttribute('disabled')
+    if (!videoConfigured) {
+      cta.title = VIDEO_CFG_HINT
+      if (modelInput instanceof HTMLInputElement && !String(modelInput.value || '').trim()) {
+        modelInput.placeholder = VIDEO_MODEL_EMPTY
+      }
+    } else {
+      cta.title = hasPrompt ? '' : '请先输入提示词'
+    }
   }
+  syncVideoCta()
 
   const clearFail = () => {
     const fail = page.querySelector('[data-ws-video-fail]')
@@ -570,7 +601,13 @@ export function mountVideoPage(host, opts) {
   }
 
   const showStubFailure = (message) => {
-    const msg = message || 'VIDEO_NOT_CONFIGURED'
+    const raw = String(message || 'VIDEO_NOT_CONFIGURED')
+    const notCfg =
+      raw === 'VIDEO_NOT_CONFIGURED' ||
+      raw === 'HOST_PROXY_NOT_WIRED' ||
+      raw.startsWith('VIDEO_NOT_CONFIGURED') ||
+      !videoConfigured
+    const human = humanizeVideoError(raw)
     const stage = page.querySelector('[data-ws-video-stage]')
     const prog = page.querySelector('[data-ws-video-progress]')
     const fail = page.querySelector('[data-ws-video-fail]')
@@ -592,9 +629,26 @@ export function mountVideoPage(host, opts) {
     if (fail instanceof HTMLElement) {
       fail.setAttribute('data-visible', '')
       const reason = fail.querySelector('[data-ws-fail-reason]')
-      if (reason) reason.textContent = `原因：${msg}`
+      if (reason) reason.textContent = `原因：${human}`
+      const retry = fail.querySelector('[data-ws-video-retry]')
+      if (retry instanceof HTMLButtonElement) {
+        if (notCfg) {
+          retry.textContent = GO_CONFIGURE
+          retry.dataset.wsVideoRetryMode = 'configure'
+          retry.hidden = false
+        } else {
+          retry.textContent = '重试'
+          retry.dataset.wsVideoRetryMode = 'retry'
+          retry.hidden = false
+        }
+      }
     }
-    setStatus(msg)
+    // Status: human once — do not also dump raw VIDEO_NOT_CONFIGURED
+    setStatus(human)
+    if (notCfg) {
+      videoConfigured = false
+      syncVideoCta()
+    }
   }
 
   /**
@@ -675,8 +729,13 @@ export function mountVideoPage(host, opts) {
   }
 
   cta?.addEventListener('click', () => {
+    if (!videoConfigured) {
+      showStubFailure('VIDEO_NOT_CONFIGURED')
+      return
+    }
     if (!String(state.prompt || '').trim()) {
-      showStubFailure('请先输入提示词')
+      setStatus('请先输入提示词')
+      syncVideoCta()
       return
     }
     if (state.mode === MODE_IMG && !state.firstFrame?.url) {
@@ -713,6 +772,19 @@ export function mountVideoPage(host, opts) {
   })
 
   page.querySelector('[data-ws-video-retry]')?.addEventListener('click', () => {
+    const retry = page.querySelector('[data-ws-video-retry]')
+    const mode = retry instanceof HTMLElement ? retry.dataset.wsVideoRetryMode : 'retry'
+    if (mode === 'configure') {
+      setStatus(VIDEO_CFG_HINT)
+      try {
+        document.dispatchEvent(new CustomEvent('dsh-ws-open-settings', { bubbles: true, detail: { focus: 'video' } }))
+      } catch (_) {}
+      return
+    }
+    if (!videoConfigured) {
+      showStubFailure('VIDEO_NOT_CONFIGURED')
+      return
+    }
     cta?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   })
 
@@ -759,6 +831,31 @@ export function mountVideoPage(host, opts) {
   // Default: image page
   setPage(IMAGE_PAGE)
 
+  const setVideoConfigured = (on) => {
+    videoConfigured = !!on
+    if (videoConfigured && modelInput instanceof HTMLInputElement) {
+      if (modelInput.placeholder === VIDEO_MODEL_EMPTY) {
+        modelInput.placeholder = '模型 id（可选）'
+      }
+    }
+    syncVideoCta()
+    if (!videoConfigured) {
+      // Soft empty fail strip — don't spam duplicate codes into status
+      const fail = page.querySelector('[data-ws-video-fail]')
+      const reason = fail?.querySelector('[data-ws-fail-reason]')
+      if (fail instanceof HTMLElement && reason) {
+        fail.setAttribute('data-visible', '')
+        reason.textContent = `原因：${VIDEO_CFG_HINT}`
+        const retry = fail.querySelector('[data-ws-video-retry]')
+        if (retry instanceof HTMLButtonElement) {
+          retry.textContent = GO_CONFIGURE
+          retry.dataset.wsVideoRetryMode = 'configure'
+        }
+      }
+      setStatus(VIDEO_CFG_HINT)
+    }
+  }
+
   return {
     state,
     setPage,
@@ -767,6 +864,7 @@ export function mountVideoPage(host, opts) {
     paintVideoResult,
     setVideoProgress,
     setStatus,
+    setVideoConfigured,
     dispose() {
       ;['first', 'last'].forEach((which) => {
         const ref = which === 'first' ? state.firstFrame : state.lastFrame

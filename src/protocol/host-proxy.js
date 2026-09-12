@@ -80,6 +80,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
     ],
     dataDir: resolved.dataDir,
     mediaConfigured: liveGenerate,
+    videoConfigured: videoLive,
     baseUrlSet,
     tokenSet,
     provider: mediaEnv?.provider || 'unknown',
