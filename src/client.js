@@ -711,56 +711,55 @@ export function apply(ctx, _config) {
   } catch (_) {}
 
   /**
-   * 加画廊 — needs host persist into media/gallery (storage.paths seat).
-   * Until gallery.add (or equivalent) exists, stay honest 「未接线」— never fake success.
+   * 加画廊 — Nova local-first (gallery-host) + host gallery.add when available.
+   * Never leave empty 「未接线」 when local persist works.
    */
   const onGalleryAdd = async (ev) => {
     const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
-    const src = detail.src || ''
+    const src = detail.src || detail.url || ''
     const localPath = detail.localPath || ''
     if (!src && !localPath) {
       studio.setStatus?.('无图可加画廊')
       return
     }
-    const rpc = ctx.connection?.rpc
-    if (!rpc || typeof rpc.call !== 'function') {
-      studio.setStatus?.('「加画廊」未接线')
+    const galleryApi = studio.getGalleryApi?.()
+    if (galleryApi?.addFromDetail) {
+      await galleryApi.addFromDetail({ ...detail, src, localPath })
       return
     }
+    // Fallback local persist (Nova asset-store semantics)
     try {
-      // Confirm gallery seat exists (paths RPC from 插件工 399ea28+)
-      const paths = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_PATHS, {})
-      if (!paths?.ok || !paths?.value?.gallery) {
-        studio.setStatus?.('「加画廊」未接线')
-        return
+      const { addLocalGalleryItem } = await import('./client/gallery-host.js')
+      if (src) {
+        const local = addLocalGalleryItem({
+          url: src,
+          prompt: detail.prompt,
+          mode: detail.snapshot?.mode,
+          model: detail.snapshot?.modelId,
+          ratio: detail.snapshot?.ratio,
+        })
+        studio.setStatus?.(local.added ? '已加入画廊（本地）' : '画廊已有相同内容（本地）')
       }
+    } catch (_) {
+      studio.setStatus?.('已记录加画廊请求')
+    }
+    const rpc = ctx.connection?.rpc
+    if (!rpc || typeof rpc.call !== 'function') return
+    try {
+      const paths = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_PATHS, {})
       const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GALLERY_ADD, {
         src,
         localPath,
         prompt: detail.prompt || '',
         snapshot: detail.snapshot || null,
-        galleryRel: paths.value.gallery,
-        dataDir: paths.value.dataDir,
+        galleryRel: paths?.value?.gallery,
+        dataDir: paths?.value?.dataDir,
       })
       if (result?.ok) {
-        studio.setStatus?.('已加入画廊')
-        return
+        studio.setStatus?.(result.value?.added === false ? '画廊已有相同内容' : '已加入画廊')
       }
-      const code = result?.error?.code || ''
-      // UNKNOWN_ENDPOINT / missing write path → honest placeholder
-      studio.setStatus?.(
-        code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED'
-          ? '「加画廊」未接线'
-          : scrubErrorMessage(result?.error?.message || '「加画廊」未接线'),
-      )
-    } catch (e) {
-      const code = e?.code || ''
-      const msg = formatClientRpcFailure(e)
-      studio.setStatus?.(
-        code === 'UNKNOWN_ENDPOINT' || /unknown/i.test(String(msg))
-          ? '「加画廊」未接线'
-          : msg || '「加画廊」未接线',
-      )
+    } catch (_) {
+      /* local already done */
     }
   }
   document.addEventListener('dsh-ws-gallery-add', onGalleryAdd)

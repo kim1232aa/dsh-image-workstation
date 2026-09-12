@@ -35,8 +35,17 @@ export {
 } from './vision-read.js'
 export {
   enhancePrompt,
+  stripReasoning,
   ENHANCE_NOT_CONFIGURED,
+  ENHANCE_SYSTEM_TEXT,
 } from './prompt-enhance.js'
+export {
+  listGallery,
+  appendGallery,
+  removeGallery,
+  updateGalleryTags,
+  sanitizeTags,
+} from './gallery-store.js'
 export {
   gifGenerate,
   ecommerceGenerate,

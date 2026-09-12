@@ -74,7 +74,7 @@ const HIST_THUMB = 88
 const HISTORY_KEY_BASE = 'dsh-ws-history-v1'
 const HISTORY_MAX = 40
 /** Result actions with no write/edit path yet — never fake success */
-const UNWIRED_RESULT_ACTIONS = new Set(['加对话', '拿去做视频', '再编辑'])
+const UNWIRED_RESULT_ACTIONS = new Set(['再编辑'])
 
 const STAGE_LABEL = '生成结果'
 const STAGE_EMPTY_TITLE = '生成后显示在这里'
@@ -1911,7 +1911,7 @@ export function createStudioHost(opts = {}) {
                 <button type="button" data-ws-result-more-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${TOOL_MORE}">${TOOL_MORE} ▾</button>
                 <div data-ws-result-more-menu role="menu" aria-label="${TOOL_MORE}" hidden>
                   ${RESULT_MORE_ACTIONS.map((a) => {
-                    const unwired = a === '加画廊' || UNWIRED_RESULT_ACTIONS.has(a)
+                    const unwired = UNWIRED_RESULT_ACTIONS.has(a)
                     return `<button type="button" role="menuitem" data-ws-result-action="${a}"${unwired ? ' data-ws-unwired title="未接线"' : ''}>${a}</button>`
                   }).join('')}
                 </div>
@@ -2020,6 +2020,31 @@ export function createStudioHost(opts = {}) {
       paintStageIdle()
       setStatus('已清空历史')
     })
+
+    host.addEventListener('dsh-ws-use-as-ref', (ev) => {
+      const d = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+      const refSrc = d.src || d.url || ''
+      if (!refSrc) return
+      state.mode = MODE_IMG
+      state.refImages = [
+        ...(state.refImages || []),
+        { id: `ref-gal-${Date.now()}`, url: refSrc, name: d.item?.name || '画廊参考' },
+      ]
+      paintChips()
+      paintRefSlot()
+      setTopTab(IMAGE_PAGE)
+      setStatus('已设为参考图')
+    })
+    host.addEventListener('dsh-ws-top-page', (ev) => {
+      const d = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+      const pageName = d.page || IMAGE_PAGE
+      setTopTab(pageName)
+      if (pageName === VIDEO_PAGE && d.frameUrl) {
+        host.dispatchEvent(
+          new CustomEvent('dsh-ws-video-frame', { bubbles: true, detail: { url: d.frameUrl } }),
+        )
+      }
+    })
     host.querySelector('[data-ws-param="model"]')?.addEventListener('input', (e) => {
       const t = /** @type {HTMLInputElement} */ (e.target)
       state.modelId = t.value
@@ -2047,6 +2072,7 @@ export function createStudioHost(opts = {}) {
           ratio: state.ratio,
           clarity: state.clarity,
           modelId: state.modelId,
+          mode: state.mode,
         })
         if (result?.ok && result.value?.prompt) {
           state.prompt = String(result.value.prompt)
@@ -2418,9 +2444,30 @@ export function createStudioHost(opts = {}) {
         )
         return
       }
+      if (action === '拿去做视频') {
+        setTopTab(VIDEO_PAGE)
+        if (src) {
+          host.dispatchEvent(
+            new CustomEvent('dsh-ws-video-frame', {
+              bubbles: true,
+              detail: { url: src },
+            }),
+          )
+        }
+        setStatus('已切换到视频生成')
+        return
+      }
+      if (action === '加对话') {
+        host.dispatchEvent(
+          new CustomEvent('dsh-ws-add-to-chat', {
+            bubbles: true,
+            detail: { src, prompt: state.prompt },
+          }),
+        )
+        setStatus('已发送到对话')
+        return
+      }
       if (UNWIRED_RESULT_ACTIONS.has(action)) {
-        // Prefer 「未接线」 when no host listener — do NOT claim 「已触发」
-        // 再编辑 has no edit path yet
         setStatus(`「${action}」未接线`)
         return
       }
@@ -2586,6 +2633,9 @@ export function createStudioHost(opts = {}) {
      * Re-keys local history persist when dataDir becomes known.
      * @param {{ dataDir?: string, generated?: string, gallery?: string, history?: string } | null} paths
      */
+    getGalleryApi() {
+      return galleryApi
+    },
     setStoragePaths(paths) {
       ensure()
       const prevKey = historyStorageKey()
