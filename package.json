@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "dsh \u751f\u56fe\u5de5\u4f5c\u53f0 \u2014 Cordis plugin (rebuild, not a VisioWork/Nova fork)",
+  "description": "dsh 生图工作台 — Cordis plugin (rebuild, not a VisioWork/Nova fork)",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
@@ -31,7 +31,8 @@
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-sidebar",
-        "@deepseek-ai/dsh-client-ui-tool"
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-ui-slots"
       ],
       "platform": "web"
     }
@@ -45,7 +46,7 @@
   },
   "scripts": {
     "check": "node --check src/index.js && node --check src/config.js && node --check lib/client.js",
-    "build:client": "esbuild src/client.js --bundle --format=cjs --platform=browser --outfile=/tmp/ws-client.cjs && node scripts/wrap-client.mjs",
+    "build:client": "esbuild src/client.js --bundle --format=cjs --platform=browser --external:react --external:react/jsx-runtime --external:react-dom --outfile=/tmp/ws-client.cjs && node scripts/wrap-client.mjs",
     "verify": "node scripts/verify-redlines.mjs && node scripts/verify-cta-rpc.mjs && node scripts/verify-agent-tools.mjs",
     "build": "pnpm run build:client && pnpm run check && pnpm run verify"
   },

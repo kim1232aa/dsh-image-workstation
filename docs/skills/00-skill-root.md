@@ -1,6 +1,7 @@
 # Skill root convention
 
-**Product authority: project docs 00–03 only.** Author FANTASY `SKILL.md` is runtime 识货 (read/plan/scripts) — never copy author rules, gates, score thresholds, or copy into the plugin product. Do not rewrite author scripts; call them.
+**Product gates / UI / 红线: docs 00–03 only** (no score lock, no 审查).  
+**Creative body:** GitHub FANTASY `SKILL.md` + poster `scripts/` are the runnable authority when a skill is selected — read/call them in place; do **not** dilute, paraphrase into app code, or dump a dead copy that cannot run. Path must be configurable (`skillDir`); discovery = folders with `SKILL.md`; `三联封面` ≠ `电影海报`.
 
 ## Path
 

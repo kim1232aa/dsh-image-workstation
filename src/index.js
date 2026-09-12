@@ -1,43 +1,134 @@
 import { writeFileSync } from 'node:fs'
-import { Config, resolveConfig } from './config.js'
-import { loadMediaEnv, mediaEnvSummary } from './protocol/load-media-env.js'
+import { Config, resolveConfig, SETTINGS_NAMESPACE } from './config.js'
+import { mediaEnvSummary } from './protocol/load-media-env.js'
+import { resolveMediaBag } from './protocol/resolve-media.js'
 import { createHostProxy } from './protocol/host-proxy.js'
 import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
 import { attachAgentImageTools } from './agent/image-tools.js'
+import {
+  discoverSkills,
+  SKILL_ENTRY_LABELS,
+  ATTRIBUTION,
+  planSkill,
+  editPlan,
+  selfCheckDisplay,
+  stitchTriptych,
+  redoPosterComposite,
+  loadSkillMd,
+  RUNTIME_CAPABILITIES,
+  runPosterValidateAndBuild,
+} from './skills/index.js'
 
 export const name = 'dsh-image-workstation'
-export { Config }
+export { Config, SETTINGS_NAMESPACE }
 
-/** connection for RPC API; webServer mounted via nested inject (caller fiber for handle). */
+/** connection for RPC; webServer via nested inject; settings optional for Plugins card */
 export const inject = ['connection']
 
 /**
- * Host half: media bag + CTA RPC /dsh-ws → mediaProxy.generate
- * + Agent generate_image tool (same mediaProxy path).
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {Record<string, unknown>} [config]
  */
 export function apply(ctx, config) {
-  const resolved = resolveConfig(config)
-  const media = loadMediaEnv()
-  const mediaProxy = createHostProxy(resolved, media)
-  const mediaSummary = mediaEnvSummary(media)
+  /** @type {{ proxy: ReturnType<typeof createHostProxy>, resolved: ReturnType<typeof resolveConfig> }} */
+  const runtime = {
+    resolved: resolveConfig(config),
+    proxy: /** @type {any} */ (null),
+  }
+
+  const rebuild = (cfg) => {
+    runtime.resolved = resolveConfig(cfg)
+    const media = resolveMediaBag(runtime.resolved)
+    runtime.proxy = createHostProxy(runtime.resolved, media)
+    return mediaEnvSummary(media)
+  }
+
+  let mediaSummary = rebuild(config)
+
+  /** Facade so CTA / Agent always hit current proxy after settings onChange */
+  const mediaFacade = {
+    get mediaConfigured() {
+      return runtime.proxy.mediaConfigured
+    },
+    get adapters() {
+      return runtime.proxy.adapters
+    },
+    get live() {
+      return runtime.proxy.live
+    },
+    generate: (req) => runtime.proxy.generate(req),
+    detectModels: (ch) => runtime.proxy.detectModels(ch),
+    describeChannels: () => runtime.proxy.describeChannels(),
+    status: (id) => runtime.proxy.status(id),
+    cancel: (id) => runtime.proxy.cancel(id),
+  }
+
+  const listSkills = () => discoverSkills(runtime.resolved.skillDir)
 
   ctx.provide('dshImageWorkstation', {
-    dataDir: resolved.dataDir,
-    skillDir: resolved.skillDir,
-    mediaEnv: mediaSummary,
-    mediaProxy,
-    allowAgentImageGeneration: resolved.allowAgentImageGeneration,
-    agentImageModels: resolved.agentImageModels,
+    dataDir: runtime.resolved.dataDir,
+    skillDir: runtime.resolved.skillDir,
+    get mediaEnv() {
+      return mediaSummary
+    },
+    mediaProxy: mediaFacade,
+    get allowAgentImageGeneration() {
+      return runtime.resolved.allowAgentImageGeneration
+    },
+    get agentImageModels() {
+      return runtime.resolved.agentImageModels
+    },
+    skillEntryLabels: SKILL_ENTRY_LABELS,
+    skillAttribution: ATTRIBUTION,
+    listSkills,
+    runPosterScripts: (skillFolder, opts) => runPosterValidateAndBuild(skillFolder, opts),
+    loadSkillMd: (folder) => loadSkillMd(folder),
+    planSkill: (req) => planSkill({ ...req, skillDir: runtime.resolved.skillDir }),
+    editPlan,
+    selfCheckDisplay,
+    stitchTriptych,
+    redoPosterComposite: (folder, args) => redoPosterComposite(folder, args),
+    skillRuntimeCapabilities: RUNTIME_CAPABILITIES,
+    settingsNamespace: SETTINGS_NAMESPACE,
   })
 
-  // rpc.handle uses *caller* ctx (Cordis tracker). Mount from a fiber that has webServer.
+  // Settings→Plugins namespace (secret fields redacted on wire)
+  ctx.inject(['settings'], (settingsCtx) => {
+    let getSection = () => config
+    try {
+      settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+        setSource: (get) => {
+          getSection = get
+        },
+        onChange: () => {
+          try {
+            const next = getSection()
+            mediaSummary = rebuild(next && typeof next === 'object' ? next : {})
+            ctx.logger?.info?.(
+              `[dsh-image-workstation] settings changed media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured}`,
+            )
+          } catch (e) {
+            ctx.logger?.error?.(
+              `[dsh-image-workstation] settings onChange failed: ${e?.message || e}`,
+            )
+          }
+        },
+      })
+      ctx.logger?.info?.(
+        `[dsh-image-workstation] settings section installed ns=${SETTINGS_NAMESPACE}`,
+      )
+    } catch (e) {
+      ctx.logger?.error?.(
+        `[dsh-image-workstation] settings.installSection failed: ${e?.message || e}`,
+      )
+    }
+  })
+
   ctx.inject(['webServer'], (webCtx) => {
     let rpcOk = false
     let rpcErr = ''
     try {
-      attachCtaRpc(webCtx, mediaProxy)
+      attachCtaRpc(webCtx, mediaFacade)
       rpcOk = true
     } catch (e) {
       rpcErr = String(e?.stack || e)
@@ -52,10 +143,10 @@ export function apply(ctx, config) {
             rpcOk,
             rpcErr: rpcErr.slice(0, 800),
             channel: CTA_RPC_CHANNEL,
+            settingsNs: SETTINGS_NAMESPACE,
             hasWebServer: Boolean(webCtx.webServer),
             hasConnection: Boolean(webCtx.connection),
-            mediaConfigured: mediaProxy.mediaConfigured,
-            agentTools: 'pending-tools-inject',
+            mediaConfigured: mediaFacade.mediaConfigured,
           },
           null,
           2,
@@ -66,13 +157,12 @@ export function apply(ctx, config) {
     }
   })
 
-  // Agent 对话生图: register generate_image when tools service is present.
-  attachAgentImageTools(ctx, mediaProxy, () => ({
-    allowAgentImageGeneration: resolved.allowAgentImageGeneration,
-    agentImageModels: resolved.agentImageModels,
+  attachAgentImageTools(ctx, mediaFacade, () => ({
+    allowAgentImageGeneration: runtime.resolved.allowAgentImageGeneration,
+    agentImageModels: runtime.resolved.agentImageModels,
   }))
 
   ctx.logger?.info?.(
-    `[dsh-image-workstation] host apply dataDir=${resolved.dataDir} skillDir=${resolved.skillDir || '(unset)'} mediaEnv ${JSON.stringify(mediaSummary)} configured=${mediaProxy.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate agentImage=${resolved.allowAgentImageGeneration}`,
+    `[dsh-image-workstation] host apply dataDir=${runtime.resolved.dataDir} skillDir=${runtime.resolved.skillDir || '(unset)'} media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate|probe settings=${SETTINGS_NAMESPACE} agentImage=${runtime.resolved.allowAgentImageGeneration} skills=${listSkills().length}`,
   )
 }

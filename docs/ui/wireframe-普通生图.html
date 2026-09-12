@@ -2,147 +2,213 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<title>普通生图 · 线框（labels.js 锁死）</title>
+<title>普通生图 · 线框（VisioWork 三栏 · labels.js 锁死）</title>
 <style>
-  :root { --bg:#111; --fg:#eee; --line:#333; --muted:#888; --accent:#3b82f6; --panel:#1a1a1a; }
+  :root {
+    --bg:#0b0d10; --fg:#e8eaed; --line:#1f2430; --muted:#6b7280;
+    --panel:#0f1218; --chip:#1c2333; --border:#2a3140; --soft:#9aa3b2;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; font:13px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  body { margin:0; font:13px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
   .app { display:flex; flex-direction:column; height:100vh; }
-  .top { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--line); align-items:center; }
-  .top button { padding:6px 10px; border:0; border-radius:6px; background:transparent; color:inherit; cursor:default; }
-  .top button[aria-current="true"] { background:#333; }
+  .top { display:flex; gap:4px; padding:8px 14px; border-bottom:1px solid var(--line); align-items:center; background:var(--panel); }
+  .top button { padding:7px 12px; border:0; border-radius:8px; background:transparent; color:var(--soft); cursor:default; font:inherit; }
+  .top button[aria-current="true"] { background:var(--chip); color:#fff; }
   .top .spacer { flex:1; }
+  .top .ghost { padding:6px 12px; border:1px solid var(--border); border-radius:8px; background:transparent; color:#c5cad3; }
   .cols { display:flex; flex:1; min-height:0; }
-  .col { border-right:1px solid var(--line); padding:12px; overflow:auto; }
-  .col:last-child { border-right:0; }
-  .history { width:240px; }
-  .studio { flex:1; display:flex; flex-direction:column; gap:10px; }
-  .chat { width:320px; opacity:.55; }
-  .chat.collapsed { display:none; }
-  h2 { margin:0 0 8px; font-size:13px; }
-  .modes { display:flex; gap:6px; }
-  .modes button { padding:4px 10px; border:1px solid #444; border-radius:6px; background:transparent; color:inherit; }
-  .modes button[aria-current="true"] { background:#333; }
-  label.field { display:flex; flex-direction:column; gap:4px; font-size:12px; }
-  label.field .row { display:flex; align-items:center; gap:8px; }
-  label.field .row button { margin-left:auto; padding:2px 8px; border:0; border-radius:4px; background:#333; color:inherit; font:inherit; }
-  textarea, select { width:100%; padding:8px; border-radius:8px; border:1px solid #444; background:var(--panel); color:inherit; font:inherit; }
-  .params { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
-  .actions { display:flex; flex-wrap:wrap; gap:6px; }
-  .actions button, .skills button { padding:4px 8px; border:1px solid #444; border-radius:6px; background:transparent; color:inherit; font:inherit; }
-  .cta { align-self:flex-start; padding:8px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; }
+  .history { width:260px; flex-shrink:0; border-right:1px solid var(--line); padding:12px; background:#0c0f14; display:flex; flex-direction:column; gap:8px; overflow:auto; }
+  .studio { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg); overflow:auto; padding:14px 16px 16px; gap:10px; }
+  .inspire-wall { width:320px; flex-shrink:0; border-left:1px solid var(--line); padding:12px; background:#0c0f14; display:flex; flex-direction:column; gap:10px; overflow:auto; }
+  .chat { width:320px; flex-shrink:0; border-left:1px solid var(--line); padding:12px; background:#0c0f14; display:none; flex-direction:column; }
+  .chat.open { display:flex; }
+  .inspire-wall.hidden { display:none; }
+  h2 { margin:0; font-size:13px; font-weight:600; }
+  input.search, select.filter, textarea, input.model {
+    width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--border);
+    background:#10141c; color:inherit; font:inherit; font-size:12px;
+  }
+  .filters { display:flex; gap:6px; }
+  .filters select { flex:1; }
+  .ghost-card { border:1px dashed var(--border); border-radius:8px; background:#10141c; padding:6px; opacity:.55; }
+  .ghost-thumb { height:72px; border-radius:4px; background:linear-gradient(180deg,#161b24,#0f1218); margin-bottom:6px; }
+  .ghost-line { height:10px; border-radius:3px; background:var(--chip); }
+  .hist-tip { padding:4px 2px; color:var(--muted); font-size:11px; }
+  .modes { display:flex; gap:8px; }
+  .pill { padding:5px 14px; border:1px solid var(--border); border-radius:999px; background:transparent; color:var(--soft); font:inherit; }
+  .pill[aria-current="true"] { background:var(--chip); color:#fff; border-color:#3a4558; }
+  .prompt-head { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--soft); }
+  .prompt-head .spacer { flex:1; }
+  .inline-btn { padding:3px 8px; border:1px solid var(--border); border-radius:6px; background:transparent; color:#c5cad3; font:inherit; font-size:11px; }
+  .neg-head { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--soft); }
+  .neg-head .clear { margin-left:auto; padding:2px 8px; border:0; border-radius:4px; background:var(--chip); color:#c5cad3; font:inherit; font-size:11px; }
+  .skills { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .skills .chip { padding:3px 8px; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--soft); font:inherit; font-size:11px; }
+  .param-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .param-row .lbl { font-size:11px; color:var(--muted); min-width:2.5em; }
+  .param-row .chip { padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:transparent; color:var(--soft); font:inherit; font-size:12px; }
+  .param-row .chip[aria-current="true"] { background:var(--chip); color:#fff; border-color:#3a4558; }
+  .model-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:#c5cad3; }
+  .cta { width:100%; padding:12px; border:0; border-radius:10px; background:#e8eaed; color:#0b0d10; font:inherit; font-weight:700; font-size:15px; }
   /* 【必须】永不因分数 disabled */
-  .cta[disabled] { outline:2px solid red; } /* visual alarm if Looper regresses */
-  .note { color:var(--muted); font-size:11px; }
-  .empty { display:flex; gap:8px; flex-wrap:wrap; }
-  .card { width:120px; height:80px; border:1px dashed #444; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
-  .score { border:1px dashed #555; border-radius:8px; padding:8px; font-size:12px; }
-  .score .btns { display:flex; gap:6px; margin-top:6px; }
-  .score .btns button { padding:6px 10px; border-radius:6px; border:1px solid #444; background:#222; color:inherit; }
-  .score .btns button.primary { background:var(--accent); border:0; color:#fff; }
-  .hist-item { display:flex; gap:8px; padding:6px 0; border-bottom:1px solid #222; font-size:11px; color:var(--muted); }
-  .thumb { width:40px; height:40px; background:#222; border-radius:4px; }
+  .cta[disabled] { outline:2px solid red; }
+  .note { color:var(--muted); font-size:12px; margin:0; min-height:1.2em; }
+  .stage { max-height:180px; min-height:56px; border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:8px 10px; overflow:auto; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px; }
+  .inspire { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .card { text-align:left; padding:12px; min-height:100px; border:1px dashed var(--border); border-radius:10px; background:#10141c; color:var(--soft); font-size:12px; }
+  .card .tag { font-size:10px; letter-spacing:.04em; opacity:.55; margin-bottom:6px; }
+  .card .txt { color:#c5cad3; }
+  .wall-head { display:flex; align-items:center; gap:8px; }
   .legend { padding:8px 14px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
   code { color:#9cdcfe; }
 </style>
 </head>
 <body>
-<div class="app" data-wireframe="普通生图" data-labels="src/ui/labels.js">
+<!--
+  Structure note (VisioWork-shaped, NOT Nova):
+  Top: TOP_TABS + AI对话 + 关闭
+  Left ~260px 历史记录: search, 全部模型/全部比例, history list with 3 ghost thumb cards when empty (data-ws-history-list)
+  Middle 生图区 config-first: 文生图|图生图 → 提示词+模板库/增强 → 负面词 → Skill chips → 比例/清晰度/张数/细节 → 模型+多模型对比 → FULL WIDTH CTA「开始生成」→ compact status → compact result strip (max-height ~180px) BELOW CTA
+  Right ~320px: default 灵感墙 [data-ws-inspire-wall]; when chat expanded, AI对话 [data-ws-col=chat] instead
+  Empty states Chinese only（生成结果会出现在这里 / 暂无记录）— no English.
+-->
+<div class="app" data-wireframe="普通生图" data-labels="src/ui/labels.js" data-shape="VisioWork-三栏-config-first">
   <header class="top" aria-label="顶栏">
-    <button aria-current="true">普通生图</button>
-    <button>视频生成</button>
-    <button>无限画布</button>
-    <button>画廊</button>
-    <button>电商模式</button>
+    <button aria-current="true" data-ws-top="普通生图">普通生图</button>
+    <button data-ws-top="视频生成">视频生成</button>
+    <button data-ws-top="无限画布">无限画布</button>
+    <button data-ws-top="画廊">画廊</button>
+    <button data-ws-top="电商模式">电商模式</button>
     <span class="spacer"></span>
-    <button type="button" id="chatToggle">AI 对话</button>
-    <button>设置</button>
+    <button type="button" class="ghost" id="chatToggle" data-ws-chat-toggle>AI 对话</button>
+    <button type="button" data-ws-close style="border:0;background:transparent;color:var(--soft);padding:6px 10px;font:inherit;">关闭</button>
   </header>
   <div class="cols">
-    <aside class="col history" aria-label="历史记录">
+    <aside class="history" data-ws-col="history" aria-label="历史记录">
       <h2>历史记录</h2>
-      <input placeholder="关键词 / 模型 / 比例" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #444;background:#1a1a1a;color:inherit;margin-bottom:8px;" />
-      <div class="hist-item"><div class="thumb"></div><div>提示词摘要…<br/>模型 · 文生图</div></div>
-      <div class="hist-item"><div class="thumb"></div><div>…</div></div>
-      <button style="margin-top:8px;padding:4px 8px;border:1px solid #444;border-radius:6px;background:transparent;color:inherit;">清空</button>
+      <input class="search" type="search" placeholder="搜索历史" />
+      <div class="filters">
+        <select class="filter" aria-label="全部模型"><option>全部模型</option></select>
+        <select class="filter" aria-label="全部比例"><option>全部比例</option></select>
+      </div>
+      <div data-ws-history-list style="display:flex;flex-direction:column;gap:8px;">
+        <div class="ghost-card"><div class="ghost-thumb"></div><div class="ghost-line" style="width:70%"></div></div>
+        <div class="ghost-card"><div class="ghost-thumb"></div><div class="ghost-line" style="width:82%"></div></div>
+        <div class="ghost-card"><div class="ghost-thumb"></div><div class="ghost-line" style="width:94%"></div></div>
+        <div class="hist-tip">暂无记录</div>
+      </div>
+      <button type="button" class="inline-btn" style="align-self:flex-start;">清空</button>
     </aside>
-    <section class="col studio" aria-label="生图区">
+
+    <section class="studio" data-ws-col="studio" aria-label="生图区">
       <h2>生图区</h2>
       <div class="modes" role="tablist">
-        <button aria-current="true">文生图</button>
-        <button>图生图</button>
+        <button class="pill" aria-current="true" data-ws-mode="文生图">文生图</button>
+        <button class="pill" data-ws-mode="图生图">图生图</button>
       </div>
-      <label class="field">
-        <span>提示词</span>
-        <textarea rows="3" placeholder="写一句想法即可出图，不必选 Skill"></textarea>
-      </label>
-      <label class="field">
-        <span class="row">负面词 <button type="button">清除负面词</button></span>
-        <textarea rows="2" placeholder="Skill 预填负面词会出现在这里，可改可清"></textarea>
-      </label>
-      <div class="actions">
-        <button>提示词增强</button>
-        <button>模板库</button>
-        <button>创作 Skill</button>
-      </div>
-      <div class="skills" aria-label="创作 Skill 入口">
-        <button>电影三联</button>
-        <button>三联封面</button>
-        <button>电影海报</button>
-        <button>人像</button>
-        <button>摄影</button>
-        <button>角色</button>
-      </div>
-      <div class="params">
-        <label class="field">比例
-          <select>
-            <option>自动</option><option>1:1</option><option>3:4</option><option>4:3</option>
-            <option>9:16</option><option>16:9</option><option>2:3</option><option>3:2</option><option>21:9</option>
-          </select>
-        </label>
-        <label class="field">清晰度
-          <select><option>自动</option><option>1K</option><option>2K</option><option>4K</option></select>
-        </label>
-        <label class="field">张数
-          <select><option>1</option><option>2</option><option>3</option><option>4</option></select>
-        </label>
-        <label class="field">细节
-          <select><option>自动</option></select>
-        </label>
-        <label class="field">模型
-          <select><option>（渠道检测）</option></select>
-        </label>
-      </div>
-      <!-- 主 CTA：disabledByScore=false；无 Skill 也可点 -->
-      <button class="cta" data-ws-cta type="button">开始生成</button>
-      <div class="score" aria-label="自检评分（仅展示）">
-        <div>自检评分示例 72（仅展示，不锁出图）</div>
-        <div class="btns">
-          <button class="primary" type="button">就这样出图</button>
-          <button type="button">重新想一版</button>
-          <button type="button">出图</button>
+
+      <div>
+        <div class="prompt-head">
+          <span>提示词</span>
+          <span class="spacer"></span>
+          <button type="button" class="inline-btn" data-ws-action="templates">模板库</button>
+          <button type="button" class="inline-btn" data-ws-action="enhance">提示词增强</button>
         </div>
+        <textarea data-ws-prompt rows="3" placeholder="写一句想法即可出图，不必选 Skill"></textarea>
       </div>
-      <div class="empty">
-        <div class="card">灵感案例</div>
-        <div class="card">灵感案例</div>
-        <button style="padding:4px 8px;border:1px solid #444;border-radius:6px;background:transparent;color:inherit;">随机</button>
+
+      <div>
+        <div class="neg-head">
+          <span>负面词</span>
+          <button type="button" class="clear" data-ws-clear-negative>清除负面词</button>
+        </div>
+        <textarea data-ws-negative rows="1" placeholder="Skill 预填负面词会出现在这里，可改可清"></textarea>
       </div>
-      <p class="note">线框 · 标签锁死 labels.js · 双 CTA 永不因分数 disabled · 三联封面 ≠ 电影海报</p>
+
+      <div class="skills" aria-label="创作 Skill 入口">
+        <button type="button" class="inline-btn" data-ws-action="skill">创作 Skill</button>
+        <button type="button" class="chip" data-ws-skill="电影三联">电影三联</button>
+        <button type="button" class="chip" data-ws-skill="三联封面">三联封面</button>
+        <button type="button" class="chip" data-ws-skill="电影海报">电影海报</button>
+        <button type="button" class="chip" data-ws-skill="人像">人像</button>
+        <button type="button" class="chip" data-ws-skill="摄影">摄影</button>
+        <button type="button" class="chip" data-ws-skill="角色">角色</button>
+      </div>
+
+      <div class="param-row">
+        <span class="lbl">比例</span>
+        <button class="chip" aria-current="true" data-ws-param="ratio">自动</button>
+        <button class="chip" data-ws-param="ratio">1:1</button>
+        <button class="chip" data-ws-param="ratio">3:4</button>
+        <button class="chip" data-ws-param="ratio">4:3</button>
+        <button class="chip" data-ws-param="ratio">9:16</button>
+        <button class="chip" data-ws-param="ratio">16:9</button>
+        <button class="chip" data-ws-param="ratio">2:3</button>
+        <button class="chip" data-ws-param="ratio">3:2</button>
+        <button class="chip" data-ws-param="ratio">21:9</button>
+      </div>
+      <div class="param-row">
+        <span class="lbl">清晰度</span>
+        <button class="chip" aria-current="true" data-ws-param="clarity">自动</button>
+        <button class="chip" data-ws-param="clarity">1K</button>
+        <button class="chip" data-ws-param="clarity">2K</button>
+        <button class="chip" data-ws-param="clarity">4K</button>
+      </div>
+      <div class="param-row">
+        <span class="lbl">张数</span>
+        <button class="chip" aria-current="true" data-ws-param="count">1</button>
+        <button class="chip" data-ws-param="count">2</button>
+        <button class="chip" data-ws-param="count">3</button>
+        <button class="chip" data-ws-param="count">4</button>
+        <span class="lbl" style="margin-left:8px;">细节</span>
+        <button class="chip" aria-current="true" data-ws-param="detail">自动</button>
+        <button class="chip" data-ws-param="detail">标准</button>
+        <button class="chip" data-ws-param="detail">高清</button>
+      </div>
+      <div class="model-row">
+        <span class="lbl" style="font-size:11px;color:var(--muted);">模型</span>
+        <input class="model" data-ws-param="model" placeholder="未配置渠道" style="width:12rem;" />
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" data-ws-compare /> 多模型对比
+        </label>
+      </div>
+
+      <!-- 主 CTA：disabledByScore=false；全宽白底重钮 -->
+      <button class="cta" data-ws-cta type="button">开始生成</button>
+      <p class="note" data-ws-status></p>
+      <div class="stage" data-ws-stage>
+        <div data-ws-results>生成结果会出现在这里</div>
+      </div>
     </section>
-    <aside class="col chat collapsed" id="chat" aria-label="AI 对话">
+
+    <aside class="inspire-wall" id="inspireWall" data-ws-inspire-wall aria-label="灵感案例">
+      <div class="wall-head">
+        <h2>灵感案例</h2>
+        <span style="flex:1"></span>
+        <button type="button" class="inline-btn" data-ws-empty="shuffle">随机</button>
+      </div>
+      <div class="inspire" data-ws-inspire-grid>
+        <div class="card" data-ws-empty="inspiration"><div class="tag">灵感案例</div><div class="txt">雨夜霓虹街道</div></div>
+        <div class="card" data-ws-empty="inspiration"><div class="tag">灵感案例</div><div class="txt">山间云海日出</div></div>
+        <div class="card" data-ws-empty="inspiration"><div class="tag">灵感案例</div><div class="txt">21:9 走廊对峙镜头</div></div>
+        <div class="card" data-ws-empty="inspiration"><div class="tag">灵感案例</div><div class="txt">自然光窗边人像</div></div>
+      </div>
+    </aside>
+    <aside class="chat" id="chat" data-ws-col="chat" aria-label="AI 对话">
       <h2>AI 对话</h2>
-      <p class="note">默认收起；点顶栏「AI 对话」展开</p>
+      <p class="note">默认收起；点顶栏「AI 对话」展开（替换灵感墙）</p>
     </aside>
   </div>
   <footer class="legend">
-    Source: <code>src/ui/labels.js</code> · Checklist: <code>docs/ui/02-looper-普通生图-diff.md</code>
-    · Superdesign 未登录，本线框为精确标签对齐稿（非生成审美稿）
+    Source: <code>src/ui/labels.js</code> · Shape: VisioWork dark 三栏 config-first · CTA full-width · 灵感墙右栏 · Checklist: <code>docs/ui/02-looper-普通生图-diff.md</code>
   </footer>
 </div>
 <script>
   document.getElementById('chatToggle').onclick = () => {
-    document.getElementById('chat').classList.toggle('collapsed');
+    const chat = document.getElementById('chat');
+    const wall = document.getElementById('inspireWall');
+    const open = chat.classList.toggle('open');
+    wall.classList.toggle('hidden', open);
   };
 </script>
 </body>

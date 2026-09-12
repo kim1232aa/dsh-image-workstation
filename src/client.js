@@ -6,6 +6,7 @@ import { TOP_TABS, COLUMNS, CTA, SKILL_ENTRIES } from './ui/labels.js'
 import { studioTree, defaultStudioState } from './ui/studio-stub.js'
 import { mountSidebarEntry } from './client/sidebar-entry.js'
 import { createStudioHost } from './client/studio-host.js'
+import { mountSettingsCard } from './client/settings-card.js'
 import {
   CLIENT_GENERATE_TIMEOUT_MS,
   formatClientRpcFailure,
@@ -16,7 +17,7 @@ import {
 export const name = 'dsh-image-workstation/client'
 export { TOP_TABS, COLUMNS, CTA, SKILL_ENTRIES, studioTree, defaultStudioState }
 
-export const inject = ['slots', 'locale', 'connection', 'sessions', 'conversation']
+export const inject = ['slots', 'locale', 'connection', 'sessions', 'conversation', 'settingsScope']
 
 /** Plugin-owned Connection RPC channel (host registers via connection.rpc.handle). */
 export const CTA_RPC_CHANNEL = '/dsh-ws'
@@ -89,6 +90,12 @@ export function apply(ctx, _config) {
       clearTimeout(timer)
       inflight = false
     }
+  }
+
+  try {
+    mountSettingsCard(ctx)
+  } catch (error) {
+    console.warn('[dsh-image-workstation] settings card mount failed:', error)
   }
 
   try {

@@ -10,6 +10,7 @@ import {
 
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
+export const CTA_RPC_PROBE = 'probe'
 
 /**
  * Map studio CTA detail → mediaProxy.generate request (no prompt rewrite).
@@ -74,6 +75,33 @@ function sizeFromRatio(ratio, clarity) {
  */
 export function createCtaRpcHandler(mediaProxy) {
   return async (endpoint, payload, signal) => {
+    if (endpoint === CTA_RPC_PROBE) {
+      try {
+        if (typeof mediaProxy?.detectModels !== 'function') {
+          return {
+            ok: false,
+            error: { code: 'HOST_PROXY_NOT_WIRED', message: 'detectModels not available', details: {} },
+          }
+        }
+        const out = await mediaProxy.detectModels(payload || {})
+        return {
+          ok: true,
+          value: {
+            models: Array.isArray(out?.models) ? out.models.slice(0, 200) : [],
+            count: Number(out?.count) || 0,
+          },
+        }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'DETECT_FAILED',
+            message: scrubMessage(e?.message || e),
+            details: {},
+          },
+        }
+      }
+    }
     if (endpoint !== CTA_RPC_GENERATE) {
       return {
         ok: false,
@@ -124,6 +152,9 @@ export function createCtaRpcHandler(mediaProxy) {
         aspect_ratio: req.aspect_ratio,
         resolution: req.resolution,
         ...(req.model ? { model: req.model } : {}),
+        ...(req.negativePrompt != null && String(req.negativePrompt).trim()
+          ? { negativePrompt: String(req.negativePrompt) }
+          : {}),
         signal: req.signal,
       })
       const results = Array.isArray(out?.results)
