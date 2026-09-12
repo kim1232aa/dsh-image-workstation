@@ -27,7 +27,7 @@ mode=`图生图` + `refImages[0].url` (data URL) → `mediaProxy.edit` → `POST
 
 **Preferred for Critiquito results shot** — real generate, not demo:
 
-1. Set 张数=`1`, prompt simple (e.g. `一只红苹果` or other short prompt)
+1. Set 张数=`1`, prompt a real-scene brief (e.g. wet dusk street / shopkeeper — **never** apples, fruit still-lifes, or robots)
 2. Click 「开始生成」
 3. Wait for host RPC → `paintGenerateResult` on the right column
 4. Expect: empty hint gone, thumb count matches 张数, no 「非本次 CTA」 / demo disclaimer, RESULT_ACTIONS packed under the grid

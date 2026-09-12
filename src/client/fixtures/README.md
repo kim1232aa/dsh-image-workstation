@@ -1,9 +1,7 @@
 # Real-gen fixtures (screenshot only)
 
-Resized copies of prior `mediaProxy.generate` outputs from:
+**【必须】** Never use apples, fruit still-lifes, or robots (Nguyen HARD STOP).
 
-- `$DSH_HOME/dsh-image-workstation/media/generated/802bb6e4-3b57-4789-8334-8009390c8e31.jpg` → `real-gen-01.jpg`
-- `$DSH_HOME/dsh-image-workstation/media/generated/4c00ed44-79e9-47cb-ae7f-fbb0e1cf8eea.jpg` → `real-gen-02.jpg`
+Use resized copies of compliant prior CTA outputs from `$DSH_HOME/dsh-image-workstation/media/generated/` (e.g. rain-street). Do **not** reference `802bb6e4-…` (红苹果).
 
-Used by `demo-local-results.js` + `?wsDemoResults=1` / `__dshWsPaintDemoResults()`.
-Not stock photos. Not a fake CTA success.
+Demo paint ≠ CTA success / 红线 1.
