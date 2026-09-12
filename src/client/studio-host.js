@@ -1035,9 +1035,7 @@ export function createStudioHost(opts = {}) {
         : typeof plan === 'object' && plan.prompt != null && String(plan.prompt).trim()
           ? String(plan.prompt)
           : typeof plan === 'object' && Array.isArray(plan.prompts)
-            ? plan.prompts.map((p) => p.prompt).filter(Boolean).join('
-
-')
+            ? plan.prompts.map((p) => p.prompt).filter(Boolean).join('\n\n')
             : typeof plan === 'string'
               ? plan
               : ''
@@ -1652,6 +1650,7 @@ export function createStudioHost(opts = {}) {
           img.src = src
           img.alt = '生成结果'
           img.dataset.wsResult = ''
+          if (r?.localPath) img.dataset.wsLocalPath = String(r.localPath)
           img.addEventListener('error', () => {
             // Fixture / URL failed — skip card (no near-black inspireFallbackSvg)
             card.remove()
@@ -2398,12 +2397,19 @@ export function createStudioHost(opts = {}) {
         return
       }
       if (action === '加画廊') {
-        // Ask client to persist via /dsh-ws when gallery write RPC exists; else honest 未接线
+        const selectedCard =
+          host.querySelector('[data-ws-inspire-wall] [data-ws-results] [data-ws-result-card][data-selected] img[data-ws-result]') ||
+          selectedImg
+        const localPath =
+          selectedCard instanceof HTMLElement
+            ? selectedCard.getAttribute('data-ws-local-path') || ''
+            : ''
         host.dispatchEvent(
           new CustomEvent('dsh-ws-gallery-add', {
             bubbles: true,
             detail: {
               src,
+              localPath,
               prompt: state.prompt,
               snapshot: captureParamSnapshot(),
               storagePaths,

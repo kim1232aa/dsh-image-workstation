@@ -16,6 +16,7 @@ import {
   CTA_RPC_GIF_GENERATE,
   CTA_RPC_ECOM_GENERATE,
 } from './gif-ecom.js'
+import { CTA_RPC_CANVAS_GENERATE, canvasGenerate } from './canvas-generate.js'
 import {
   appendGallery,
   listGallery,
@@ -35,6 +36,7 @@ export const CTA_RPC_REVERSE_PROMPT = 'reversePrompt'
 export const CTA_RPC_ENHANCE_PROMPT = 'enhancePrompt'
 export const CTA_RPC_VIDEO_GENERATE = 'videoGenerate'
 export { CTA_RPC_GIF_GENERATE, CTA_RPC_ECOM_GENERATE }
+export { CTA_RPC_CANVAS_GENERATE }
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 export const CTA_RPC_STORAGE_LIST = 'storage.list'
 export const CTA_RPC_GALLERY_ADD = 'gallery.add'
@@ -519,10 +521,105 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
       }
     }
 
-    // GIF / ecommerce stubs
+    // GIF / ecommerce (GIF live-when-configured; ecom stub)
     {
-      const stub = await handleGifEcomRpc(endpoint, payload && typeof payload === 'object' ? payload : {})
-      if (stub) return stub
+      const seat = await handleGifEcomRpc(
+        endpoint,
+        payload && typeof payload === 'object' ? payload : {},
+        mediaProxy,
+      )
+      if (seat) return seat
+    }
+
+    // Canvas — same generate/edit payload as studio CTA
+    if (endpoint === CTA_RPC_CANVAS_GENERATE) {
+      const detail = payload && typeof payload === 'object' ? payload : {}
+      if (!String(detail.prompt || '').trim()) {
+        return {
+          ok: false,
+          error: { code: 'PROMPT_REQUIRED', message: 'prompt required', details: {} },
+        }
+      }
+      const mode = String(detail.mode || '')
+      const refs = Array.isArray(detail.refImages) ? detail.refImages : []
+      if ((mode === '图生图' || mode === 'i2i') && !refs.some((r) => r && (r.url || r.dataUrl))) {
+        return {
+          ok: false,
+          error: {
+            code: 'REF_REQUIRED',
+            message: '图生图需要至少一张参考图',
+            details: {},
+          },
+        }
+      }
+      const timeoutMs = mode === '图生图' || mode === 'i2i' ? HOST_EDIT_TIMEOUT_MS : HOST_GENERATE_TIMEOUT_MS
+      const timeoutAc = new AbortController()
+      const timer = setTimeout(() => {
+        const te = new Error(
+          `host canvasGenerate timed out after ${Math.round(timeoutMs / 1000)}s waiting for upstream`,
+        )
+        te.code = 'GENERATE_TIMEOUT'
+        timeoutAc.abort(te)
+      }, timeoutMs)
+      try {
+        const fused = anySignal(signal, timeoutAc.signal)
+        const req = mapGenerateRequest(detail, fused)
+        const out = await canvasGenerate(
+          {
+            prompt: req.prompt,
+            n: req.n,
+            size: req.size,
+            aspect_ratio: req.aspect_ratio,
+            resolution: req.resolution,
+            mode: req.mode,
+            ...(req.model ? { model: req.model } : {}),
+            ...(req.negativePrompt != null && String(req.negativePrompt).trim()
+              ? { negativePrompt: String(req.negativePrompt) }
+              : {}),
+            ...(Array.isArray(req.refImages) && req.refImages.length ? { refImages: req.refImages } : {}),
+            signal: req.signal,
+          },
+          mediaProxy,
+        )
+        const results = Array.isArray(out?.results)
+          ? out.results.map((r) => ({
+              kind: r.kind || 'image',
+              url: r.url,
+              ...(r.localPath ? { localPath: r.localPath } : {}),
+              ...(r.mime ? { mime: r.mime } : {}),
+            }))
+          : []
+        return {
+          ok: true,
+          value: {
+            jobId: out.jobId,
+            phase: out.phase || 'done',
+            results,
+            seat: 'canvas.generate',
+          },
+        }
+      } catch (e) {
+        const timeoutHit =
+          timeoutAc.signal.aborted && timeoutAc.signal.reason?.code === 'GENERATE_TIMEOUT'
+        const reasonCode = e?.code || timeoutAc.signal.reason?.code || signal?.reason?.code
+        const code = timeoutHit
+          ? 'GENERATE_TIMEOUT'
+          : reasonCode || (e?.name === 'AbortError' ? 'GENERATE_ABORTED' : 'GENERATE_FAILED')
+        return {
+          ok: false,
+          error: {
+            code,
+            message: scrubMessage(
+              timeoutHit
+                ? timeoutAc.signal.reason?.message || e?.message || e
+                : e?.message || e,
+            ),
+            details: {},
+          },
+        }
+      } finally {
+        clearTimeout(timer)
+      }
     }
 
     if (endpoint !== CTA_RPC_GENERATE) {
