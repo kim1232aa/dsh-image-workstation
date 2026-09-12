@@ -2566,6 +2566,16 @@ export function createStudioHost(opts = {}) {
       ensure()
       videoApi?.showStubFailure?.(message || 'VIDEO_NOT_CONFIGURED')
     },
+    /** GIF stub failure — exact GIF_STUB_NOT_WIRED (no fake success; CTA stays enabled) */
+    paintGifStubFailure(message) {
+      ensure()
+      gifApi?.showStubFailure?.(message || 'GIF_STUB_NOT_WIRED')
+    },
+    /** Ecommerce stub failure — exact ECOM_STUB_NOT_WIRED */
+    paintEcomStubFailure(message) {
+      ensure()
+      ecomApi?.showStubFailure?.(message || 'ECOM_STUB_NOT_WIRED')
+    },
     /** Live video.async results */
     paintVideoResult(value) {
       ensure()
