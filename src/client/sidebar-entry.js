@@ -96,6 +96,14 @@ html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][data-acti
   opacity: 0 !important;
   background: transparent !important;
 }
+/* Host session list row literally titled New Session — quiet while workstation open */
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [data-pane="sidebar"] [class*="Session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="session"][aria-current="true"],
+html[data-dsh-ws-studio-open] [class*="sidebarCol"] [class*="Session"][aria-current="true"] {
+  color: inherit !important;
+  opacity: 0.85;
+}
 `
 
 function sidebarColumn() {

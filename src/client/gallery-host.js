@@ -135,6 +135,23 @@ export function looksLikeUiScreenshot(it) {
   // Ultra-wide chrome-like ratios (browser window), only when name/path also smells like UI
   const ratio = String(it.ratio || '')
   if ((ratio === '21:9' || ratio === '16:9') && /ui|chrome|sidebar|settings|harness|工作台/i.test(blob)) return true
+  // Known smoke / desktop dump pixel sizes when no creative prompt
+  const w = Number(it.width || it.w || 0)
+  const h = Number(it.height || it.h || 0)
+  if (w && h) {
+    const ar = w / h
+    const noCreative = !String(it.prompt || '').trim() && !String(it.model || '').trim()
+    const commonUi =
+      (w === 1280 && h === 720) ||
+      (w === 1440 && h === 900) ||
+      (w === 1920 && h === 1080) ||
+      (w === 1440 && h === 960) ||
+      (w === 1280 && h === 800)
+    // Common desktop dump sizes without creative metadata → UI shot
+    if (noCreative && commonUi) return true
+    // Wide chrome + path/name smell
+    if (noCreative && ar >= 1.7 && /ui|ref|smoke|screenshot|harness|sidebar|settings|工作台|截图/i.test(blob)) return true
+  }
   return false
 }
 
@@ -445,12 +462,62 @@ export function collectLocalMediaItems(diskItems = []) {
   const gallery = readLocalGalleryItems()
   const history = readLocalHistoryItems()
   const merged = [...gallery, ...diskItems, ...history]
-  const seen = new Set()
-  const out = []
+  const byKey = new Map()
+  const richer = (a, b) => {
+    // Prefer entry with prompt/model/name that is not a bare filename
+    const score = (x) => {
+      let s = 0
+      if (x?.prompt) s += 4
+      if (x?.model) s += 3
+      if (x?.mode) s += 1
+      const n = String(x?.name || '')
+      if (n && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(n) && !/^media\//i.test(n)) s += 2
+      if (x?.displayUrl || usableDisplaySrc(x?.url)) s += 1
+      if (x?.seat === 'gallery') s += 1
+      return s
+    }
+    return score(b) > score(a) ? { ...a, ...b, ...pickDisplay(a, b) } : { ...b, ...a, ...pickDisplay(a, b) }
+  }
+  const pickDisplay = (a, b) => {
+    const displayUrl = a?.displayUrl || b?.displayUrl
+    const url = usableDisplaySrc(a?.url) ? a.url : usableDisplaySrc(b?.url) ? b.url : a?.url || b?.url
+    return {
+      displayUrl: displayUrl || undefined,
+      url: url || '',
+      prompt: a?.prompt || b?.prompt,
+      model: a?.model || b?.model,
+      mode: a?.mode || b?.mode,
+      name: a?.name && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(String(a.name)) ? a.name : b?.name && !/\.(png|jpe?g|webp|gif|mp4)$/i.test(String(b.name)) ? b.name : a?.name || b?.name,
+    }
+  }
   for (const it of merged) {
-    const key = it.hash || it.id || it.url || it.localPath || it.relativePath || ''
-    if (!key || seen.has(key)) continue
-    seen.add(key)
+    const key = it.hash || it.relativePath || it.localPath || it.id || it.url || ''
+    if (!key) continue
+    // Also collide on basename for generated UUID files across seats
+    const basenames = []
+    if (it.relativePath) basenames.push(String(it.relativePath))
+    if (it.localPath) basenames.push(String(it.localPath).split(/[/\\]/).pop())
+    const keys = [key, ...basenames.filter(Boolean)]
+    let placed = false
+    for (const k of keys) {
+      if (byKey.has(k)) {
+        const mergedItem = richer(byKey.get(k), it)
+        byKey.set(k, mergedItem)
+        // keep primary key slot updated
+        byKey.set(key, mergedItem)
+        placed = true
+        break
+      }
+    }
+    if (!placed) byKey.set(key, it)
+  }
+  // Unique by object identity of final values
+  const out = []
+  const seenObj = new Set()
+  for (const it of byKey.values()) {
+    const id = it.id || it.relativePath || it.url
+    if (!id || seenObj.has(id)) continue
+    seenObj.add(id)
     out.push(it)
   }
   return out
@@ -506,7 +573,7 @@ export function galleryHostStyles() {
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-grid] {
   flex:1; min-height:0; overflow:auto;
-  display:grid; gap:10px; align-content:start;
+  display:grid; gap:10px; align-content:start; align-items:start;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-grid][data-view="grid"] {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -517,19 +584,20 @@ export function galleryHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-gallery-card] {
   border:1px solid var(--dsw-alias-border-l2); border-radius:10px; overflow:hidden;
   background: var(--dsw-alias-bg-module-platform); cursor:pointer;
-  display:flex; flex-direction:column; min-width:0;
+  display:flex; flex-direction:column; min-width:0; align-self:start; height:auto;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card][data-selected] {
   outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:1px;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] img,
 [data-dsh-ws-studio-host] [data-ws-gallery-card] video {
-  width:100%; aspect-ratio:1; object-fit:cover; display:block; background: var(--dsw-alias-bg-layer-1);
+  width:100%; aspect-ratio:1; object-fit:cover; display:block; flex:none;
+  background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-meta] {
   padding:5px 8px 6px; font-size:11px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  display:flex; align-items:center; gap:5px; min-width:0; line-height:1.35;
+  display:flex; align-items:center; gap:5px; min-width:0; line-height:1.35; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-card] [data-ws-gallery-card-model] {
   flex:none; max-width:42%; padding:0 5px; height:16px; line-height:16px;
@@ -878,15 +946,30 @@ export function mountGalleryPage(host, opts) {
       const onFail = () => dropBrokenCard(el, grid)
       el.addEventListener('error', onFail, { once: true })
       if (el instanceof HTMLImageElement) {
-        el.addEventListener(
-          'load',
-          () => {
-            if (mediaLooksBroken(el)) onFail()
-          },
-          { once: true },
-        )
+        const checkUiAspect = () => {
+          if (mediaLooksBroken(el)) return onFail()
+          const w = el.naturalWidth || 0
+          const h = el.naturalHeight || 0
+          if (!w || !h) return
+          const card = el.closest('[data-ws-gallery-card]')
+          const id = card?.getAttribute('data-id')
+          const hit = id ? state.items.find((x) => x.id === id) : null
+          if (hit) {
+            hit.width = w
+            hit.height = h
+            if (looksLikeUiScreenshot(hit)) return onFail()
+          } else {
+            const commonUi =
+              (w === 1280 && h === 720) ||
+              (w === 1440 && h === 900) ||
+              (w === 1920 && h === 1080) ||
+              (w === 1440 && h === 960)
+            if (commonUi) return onFail()
+          }
+        }
+        el.addEventListener('load', checkUiAspect, { once: true })
         // Already complete from cache
-        if (el.complete && mediaLooksBroken(el)) onFail()
+        if (el.complete) checkUiAspect()
       } else if (el instanceof HTMLVideoElement) {
         el.addEventListener(
           'loadedmetadata',
