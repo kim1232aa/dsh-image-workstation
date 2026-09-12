@@ -4,3 +4,5 @@ export { createHostProxy, attachHostProxy } from './host-proxy.js'
 export { loadMediaEnv, mediaEnvSummary } from './load-media-env.js'
 export { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
 export { DEFAULT_IMAGE_MODEL, isMediaModelId } from './defaults.js'
+
+export { createVideoAsyncAdapter, VIDEO_PROTOCOL, VIDEO_CHANNEL_FIELDS, createStubVideoJob } from './video-async.js'

@@ -8,6 +8,7 @@ import { listPhase1Adapters } from './adapters.js'
 import { CREDENTIAL_LANES } from './types.js'
 import { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
 import { DEFAULT_IMAGE_MODEL, isMediaModelId } from './defaults.js'
+import { createVideoAsyncAdapter } from './video-async.js'
 
 const NOT_WIRED = (seat) => {
   const err = new Error(`[dsh-image-workstation] host proxy seat "${seat}" not wired`)
@@ -28,6 +29,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
   const _token = mediaEnv?.token || ''
   const _baseUrl = mediaEnv?.baseUrl || ''
   const liveGenerate = baseUrlSet && tokenSet
+  const videoAdapter = createVideoAsyncAdapter(resolved, mediaEnv?.video || null)
 
   const proxy = {
     lanes: CREDENTIAL_LANES,
@@ -49,7 +51,8 @@ export function createHostProxy(resolved, mediaEnv = null) {
     baseUrlSet,
     tokenSet,
     provider: mediaEnv?.provider || 'unknown',
-    defaultModel: DEFAULT_IMAGE_MODEL,
+    activeId: mediaEnv?.activeId || '',
+    defaultModel: mediaEnv?.defaultModel || DEFAULT_IMAGE_MODEL,
     live: liveGenerate,
 
     /**
@@ -109,7 +112,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
             prompt: req.prompt,
             size: req.size,
             n: req.n || 1,
-            model: req.model || DEFAULT_IMAGE_MODEL,
+            model: req.model || mediaEnv?.defaultModel || DEFAULT_IMAGE_MODEL,
             quality: req.quality,
             aspect_ratio: req.aspect_ratio || '1:1',
             resolution: req.resolution || '1k',
@@ -175,7 +178,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
             mask: req.mask,
             size: req.size || '1024x1024',
             n: req.n || 1,
-            model: req.model || DEFAULT_IMAGE_MODEL,
+            model: req.model || mediaEnv?.defaultModel || DEFAULT_IMAGE_MODEL,
           },
           { dataDir: resolved.dataDir, signal: ac.signal },
         )
@@ -280,17 +283,48 @@ export function createHostProxy(resolved, mediaEnv = null) {
       throw err
     },
 
+    video: videoAdapter,
+    async videoGenerate(req) {
+      return videoAdapter.generate(req)
+    },
+    async videoStatus(jobId) {
+      return videoAdapter.status(jobId)
+    },
+    async videoCancel(jobId) {
+      return videoAdapter.cancel(jobId)
+    },
+
     describeChannels() {
+      const liveSeats = liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : []
+      const fromEnv = Array.isArray(mediaEnv?.channels) ? mediaEnv.channels : []
+      if (fromEnv.length) {
+        return [
+          ...fromEnv.map((c) => ({
+            id: c.id,
+            lane: 'images',
+            label: c.label,
+            configured: Boolean(c.baseUrl && c.token),
+            protocol: 'openai.images',
+            provider: c.provider,
+            defaultModel: c.defaultModel,
+            active: c.id === (mediaEnv?.activeId || ''),
+            liveSeats,
+          })),
+          videoAdapter.describe(),
+        ]
+      }
       return [
         {
-          id: 'media.env',
+          id: mediaEnv?.activeId || 'media.env',
           lane: 'images',
           configured: liveGenerate,
           protocol: 'openai.images',
           provider: mediaEnv?.provider || 'unknown',
-          defaultModel: DEFAULT_IMAGE_MODEL,
-          liveSeats: liveGenerate ? ['openai.images.generate', 'openai.images.edit'] : [],
+          defaultModel: mediaEnv?.defaultModel || DEFAULT_IMAGE_MODEL,
+          active: true,
+          liveSeats,
         },
+        videoAdapter.describe(),
       ]
     },
   }

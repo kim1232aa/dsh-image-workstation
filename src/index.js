@@ -57,6 +57,7 @@ export function apply(ctx, config) {
       return runtime.proxy.live
     },
     generate: (req) => runtime.proxy.generate(req),
+    edit: (req) => runtime.proxy.edit(req),
     detectModels: (ch) => runtime.proxy.detectModels(ch),
     describeChannels: () => runtime.proxy.describeChannels(),
     status: (id) => runtime.proxy.status(id),

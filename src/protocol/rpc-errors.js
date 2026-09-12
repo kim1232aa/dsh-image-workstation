@@ -5,6 +5,8 @@
 
 /** Host-side generate deadline — return ok:false before browser drops the fetch. */
 export const HOST_GENERATE_TIMEOUT_MS = 120_000
+/** 图生图 multipart can be slower */
+export const HOST_EDIT_TIMEOUT_MS = 180_000
 
 /** Client abort slightly after host so host scrubbed error wins when possible. */
 export const CLIENT_GENERATE_TIMEOUT_MS = 130_000

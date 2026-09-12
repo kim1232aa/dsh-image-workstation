@@ -47,3 +47,14 @@ Summary never includes tokens.
 ## Acceptance
 
 Ten docs/03 零、红线 passed @ `be91e70`. Not full 03. Only UI CTA generate counts for 红线 1 (no script / direct upstream).
+
+
+## Video (built-in skeleton)
+
+| Seat | Status |
+|---|---|
+| `video.async` generate | **stub** (`VIDEO_STUB_NOT_WIRED`) — built-in, no nested plugin pack |
+| `video.async` poll/cancel | stub shape only |
+| Settings draft fields | `videoBaseUrl` / `videoApiKey`(host) / `videoProvider` / `videoDefaultModel` / poll interval·timeout — **not** on settings card UI yet |
+
+Rules when live later: verbatim result URLs; same queue/history concepts as image; no Nova JSON plugin packs.

@@ -5,6 +5,7 @@
 import {
   scrubErrorMessage as scrubMessage,
   HOST_GENERATE_TIMEOUT_MS,
+  HOST_EDIT_TIMEOUT_MS,
   anySignal,
 } from './rpc-errors.js'
 
@@ -154,14 +155,16 @@ export function createCtaRpcHandler(mediaProxy) {
         },
       }
     }
+    const isEdit = mode === '图生图' || mode === 'i2i'
+    const timeoutMs = isEdit ? HOST_EDIT_TIMEOUT_MS : HOST_GENERATE_TIMEOUT_MS
     const timeoutAc = new AbortController()
     const timer = setTimeout(() => {
       const te = new Error(
-        `host generate timed out after ${Math.round(HOST_GENERATE_TIMEOUT_MS / 1000)}s waiting for upstream`,
+        `host generate timed out after ${Math.round(timeoutMs / 1000)}s waiting for upstream`,
       )
       te.code = 'GENERATE_TIMEOUT'
       timeoutAc.abort(te)
-    }, HOST_GENERATE_TIMEOUT_MS)
+    }, timeoutMs)
     try {
       const fused = anySignal(signal, timeoutAc.signal)
       const req = mapGenerateRequest(detail, fused)

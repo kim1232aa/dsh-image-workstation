@@ -9,3 +9,7 @@ media.env
 # local smoke screenshots
 .smoke-*.png
 .venv/
+
+# gate/UI smoke evidence
+docs/gate-*.png
+/tmp/

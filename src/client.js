@@ -153,10 +153,52 @@ export function apply(ctx, _config) {
         onStudio: () => studio.open(),
       }),
     )
+    /** Video CTA → host videoGenerate stub → honest 「视频通道未接」 (never fake success) */
+    const onVideoGenerate = async (ev) => {
+      const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+      const FAIL = '视频通道未接'
+      const paintFail = (msg) => {
+        studio.paintVideoStubFailure?.(msg || FAIL)
+        studio.setStatus?.(msg || FAIL)
+      }
+      const rpc = ctx.connection?.rpc
+      if (!rpc || typeof rpc.call !== 'function') {
+        paintFail(FAIL)
+        return
+      }
+      try {
+        const result = await rpc.call(CTA_RPC_CHANNEL, 'videoGenerate', {
+          prompt: detail.prompt,
+          mode: detail.mode,
+          duration: detail.duration,
+          clarity: detail.clarity,
+          ratio: detail.ratio,
+          modelId: detail.modelId,
+          firstFrame: detail.firstFrame,
+          lastFrame: detail.lastFrame,
+        })
+        if (result?.ok && Array.isArray(result?.value?.results) && result.value.results.length) {
+          // Live path not expected yet — if it ever returns real results, paint later
+          studio.setStatus?.('视频结果未接 UI')
+          return
+        }
+        const code = result?.error?.code || ''
+        const msg =
+          code === 'VIDEO_STUB_NOT_WIRED' || code === 'UNKNOWN_ENDPOINT' || !result?.ok
+            ? FAIL
+            : scrubErrorMessage(result?.error?.message || FAIL)
+        paintFail(msg)
+      } catch (e) {
+        const code = e?.code || ''
+        paintFail(code === 'VIDEO_STUB_NOT_WIRED' ? FAIL : FAIL)
+      }
+    }
     document.addEventListener('dsh-ws-generate', onGenerate)
     document.addEventListener('dsh-ws-cancel', onCancel)
+    document.addEventListener('dsh-ws-video-generate', onVideoGenerate)
     disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
     disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
+    disposers.push(() => document.removeEventListener('dsh-ws-video-generate', onVideoGenerate))
     disposers.push(() => studio.dispose())
   } catch (error) {
     console.warn('[dsh-image-workstation] sidebar/CTA mount failed:', error)

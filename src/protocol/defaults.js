@@ -1,5 +1,5 @@
 /** Single source for image model default (studio + host). Override: MEDIA_IMAGE_MODEL */
-export const DEFAULT_IMAGE_MODEL = process.env.MEDIA_IMAGE_MODEL || 'gpt-image-2'
+export const DEFAULT_IMAGE_MODEL = process.env.MEDIA_IMAGE_MODEL || 'grok-imagine-image'
 
 /**
  * Keep image/video media models; drop chat / embedding / audio / moderation.

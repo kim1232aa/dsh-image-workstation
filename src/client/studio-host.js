@@ -250,11 +250,8 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-stage-samples] {
-  display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:minmax(0,1.7fr) minmax(0,1fr);
-  gap:8px; flex:1; min-height:0; align-content:stretch;
-}
-[data-dsh-ws-studio-host] [data-ws-stage-samples] [data-ws-stage-tile]:first-child {
-  grid-column:1 / -1;
+  /* Idle path never paints sample tiles — keep out of flex flow */
+  display:none; flex:none; min-height:0;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-samples][hidden],
 [data-dsh-ws-studio-host] [data-ws-results][hidden] { display:none !important; }
@@ -310,15 +307,16 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-param="model"]::placeholder { color: var(--dsw-alias-label-tertiary); opacity:1; }
 [data-dsh-ws-studio-host] [data-ws-param="model"] { color: var(--dsw-alias-label-primary); }
 [data-dsh-ws-studio-host] [data-ws-dock] {
-  /* Empty stage: dock + CTA own primary visual weight */
-  flex:1 1 auto; display:flex; flex-direction:column; gap:4px;
+  /* Pack to natural height — do not grow a white void above CTA */
+  flex:0 0 auto; display:flex; flex-direction:column; gap:4px;
   padding:8px 12px 0; background: var(--dsw-alias-bg-base);
   border-top:0;
   max-height:none; overflow:auto; min-height:0;
 }
 [data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-has-results]) [data-ws-dock],
 [data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-busy]) [data-ws-dock] {
-  flex:0 1 auto; max-height:40%;
+  /* Results/busy: stage takes flex growth; dock stays compact */
+  flex:0 0 auto; max-height:40%;
   border-top:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-empty] {
@@ -344,7 +342,7 @@ const HOST_STYLES = `
   flex:1 1 8rem; min-width:0; max-width:14rem;
 }
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
-  flex:none; position:sticky; bottom:0; z-index:2;
+  flex:none; margin-top:auto; position:sticky; bottom:0; z-index:2;
   padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
   display:flex; flex-direction:column; gap:4px;
   border-top:1px solid var(--dsw-alias-border-l2);
@@ -1346,7 +1344,7 @@ export function createStudioHost() {
               <div data-ws-fail-reason>原因：出图失败</div>
               <button type="button" data-ws-retry style="align-self:flex-start;${css.pill({ pad: '4px 12px', size: '12px', fill: T.active, color: T.fg })}">${RESULT_ACTIONS[1]}</button>
             </div>
-            <div data-ws-stage-samples></div>
+            <div data-ws-stage-samples hidden></div>
             <div data-ws-results hidden></div>
             <div data-ws-result-actions>
               ${RESULT_ACTIONS.filter((a) => a !== '取消' && a !== '重试')

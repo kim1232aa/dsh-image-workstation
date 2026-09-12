@@ -22,7 +22,7 @@ function scrub(text, token) {
  * @param {{ size?: string, aspect_ratio?: string, resolution?: string, quality?: string, model?: string }} req
  */
 function buildBody(req) {
-  const model = req.model || (typeof process !== 'undefined' && process.env?.MEDIA_IMAGE_MODEL) || 'gpt-image-2'
+  const model = req.model || (typeof process !== 'undefined' && process.env?.MEDIA_IMAGE_MODEL) || 'grok-imagine-image'
   const body = {
     model,
     prompt: req.prompt,
@@ -210,6 +210,29 @@ function materializeImage(dataUrlOrPath) {
  *   image/mask: data URL, file://, or absolute path
  * @param {{ dataDir: string, signal?: AbortSignal }} opts
  */
+
+/**
+ * Downscale very large refs before multipart upload (keeps CTA under timeout).
+ * Uses sharp if present; else returns original.
+ * @param {{ buf: Buffer, filename: string, contentType: string }} img
+ */
+async function maybeDownscale(img) {
+  const maxBytes = 1_500_000
+  const maxEdge = 1536
+  if (img.buf.length <= maxBytes) return img
+  try {
+    const sharp = (await import('sharp')).default
+    const out = await sharp(img.buf)
+      .rotate()
+      .resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer()
+    return { buf: out, filename: 'ref.jpg', contentType: 'image/jpeg' }
+  } catch {
+    return img
+  }
+}
+
 export async function openaiImagesEdit(cred, req, opts) {
   const base = String(cred.baseUrl || '').replace(/\/+$/, '')
   if (!base || !cred.token) {
@@ -228,13 +251,14 @@ export async function openaiImagesEdit(cred, req, opts) {
     throw err
   }
 
-  const img = materializeImage(req.image)
+  let img = materializeImage(req.image)
+  img = await maybeDownscale(img)
   const form = new FormData()
   form.append('image', new Blob([img.buf], { type: img.contentType }), img.filename)
   form.append('prompt', String(req.prompt))
   form.append('n', String(Math.min(Math.max(Number(req.n) || 1, 1), 4)))
   if (req.size) form.append('size', String(req.size))
-  const model = req.model || (typeof process !== 'undefined' && process.env?.MEDIA_IMAGE_MODEL) || 'gpt-image-2'
+  const model = req.model || (typeof process !== 'undefined' && process.env?.MEDIA_IMAGE_MODEL) || 'grok-imagine-image'
   form.append('model', model)
   form.append('response_format', 'url')
   if (req.mask) {

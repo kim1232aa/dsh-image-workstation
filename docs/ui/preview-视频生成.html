@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>视频生成 · preview（video-host DOM 镜像）</title>
+<style>
+  :root {
+    --dsw-alias-bg-base: #fff;
+    --dsw-alias-bg-layer-1: #fff;
+    --dsw-alias-bg-module-platform: #f5f6f7;
+    --dsw-specific-sidebar-fill: #f5f6f7;
+    --dsw-specific-input-major: #fff;
+    --dsw-alias-label-primary: #0f1115;
+    --dsw-alias-label-secondary: #61666b;
+    --dsw-alias-label-tertiary: #81858c;
+    --dsw-alias-border-l1: rgba(0,0,0,.06);
+    --dsw-alias-border-l2: rgba(0,0,0,.1);
+    --dsw-alias-border-l3: rgba(0,0,0,.14);
+    --dsw-alias-border-l4: rgba(0,0,0,.18);
+    --dsw-alias-button-primary-fill: #0f1115;
+    --dsw-alias-button-primary-hover: #2a2e36;
+    --dsw-alias-label-primary-foreground: #fff;
+    --dsw-alias-interactive-bg-active: rgba(0,0,0,.06);
+    --dsw-alias-state-business-primary: #4176e6;
+    --dsw-alias-state-error-primary: #c43c3c;
+    --dsh-content-font-size: 13px;
+  }
+  body { margin:0; font: var(--dsh-content-font-size)/1.4 system-ui,sans-serif; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
+  [data-dsh-ws-studio-host] { display:flex; flex-direction:column; height:100vh; background: var(--dsw-alias-bg-base); }
+  [data-ws-page="image"] { display:none !important; }
+  [data-ws-page="video"] { display:flex; flex:1; min-height:0; width:100%; }
+  [data-ws-video-cols] { display:flex; flex:1; min-height:0; width:100%; }
+  [data-ws-video-history] { width:264px; flex-shrink:0; border-right:1px solid var(--dsw-alias-border-l2); padding:8px; overflow:auto; background: var(--dsw-specific-sidebar-fill); display:flex; flex-direction:column; gap:6px; }
+  [data-ws-video-studio] { flex:1; min-width:0; display:flex; flex-direction:column; background: var(--dsw-alias-bg-base); }
+  [data-ws-video-stage] { flex:0 0 auto; min-height:0; padding:5px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); display:flex; flex-direction:column; gap:4px; }
+  [data-ws-stage-head] { display:flex; align-items:baseline; gap:8px; }
+  [data-ws-stage-head] strong { font-size:12px; font-weight:600; color: var(--dsw-alias-label-secondary); }
+  [data-ws-video-stage-empty-hint] { font-size:11.5px; color: var(--dsw-alias-label-tertiary); }
+  [data-ws-dock] { flex:1 1 auto; padding:8px 12px 0; display:flex; flex-direction:column; gap:6px; overflow:auto; min-height:0; }
+  [data-ws-cta-footer] { flex:none; padding:6px 12px 10px; border-top:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-video-cta] { width:100%; min-height:40px; border:0; border-radius:9px; background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); font-weight:700; cursor:pointer; }
+  [data-ws-frame-slots] { display:none; flex-direction:column; gap:6px; }
+  [data-ws-frame-slots][data-visible] { display:flex; }
+  [data-ws-frame-row] { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  [data-ws-frame-slot] { display:flex; flex-direction:column; gap:6px; padding:8px 10px; background: var(--dsw-alias-bg-module-platform); border:1px dashed var(--dsw-alias-border-l3); border-radius:10px; }
+  [data-ws-frame-drop] { min-height:72px; border-radius:8px; border:1px dashed var(--dsw-alias-border-l3); background: var(--dsw-specific-input-major); display:flex; align-items:center; justify-content:center; color: var(--dsw-alias-label-secondary); font-size:12px; }
+  [data-ws-progress], [data-ws-fail], [data-ws-result-actions] { display:none; margin:0; padding:8px; border-radius:10px; border:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-module-platform); }
+  [data-ws-fail] { border-color: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-state-error-primary); font-size:12px; }
+  [data-ws-progress][data-visible], [data-ws-fail][data-visible], [data-ws-result-actions][data-visible] { display:block; }
+  [data-ws-chips] { display:flex; flex-wrap:wrap; gap:4px; }
+  [data-ws-chips] button { padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; background:transparent; color: var(--dsw-alias-label-secondary); font:inherit; font-size:11.5px; cursor:pointer; }
+  [data-ws-chips] button[aria-current="true"] { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l4); }
+  [data-ws-param-group] { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin-bottom:4px; }
+  [data-ws-param-group] > span { font-size:11px; font-weight:600; color: var(--dsw-alias-label-secondary); }
+  header[data-ws-top-bar] { display:flex; gap:8px; padding:4px 10px; border-bottom:1px solid var(--dsw-alias-border-l1); align-items:center; }
+  [data-ws-top-seg] { display:inline-flex; gap:1px; padding:2px; border-radius:8px; background: var(--dsw-alias-bg-module-platform); border:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-top-seg] button { padding:3px 9px; border:0; border-radius:6px; background:transparent; color: var(--dsw-alias-label-tertiary); font:inherit; font-size:11.5px; cursor:pointer; }
+  [data-ws-top-seg] button[aria-current="true"] { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); font-weight:600; }
+  [data-ws-conn-status] { padding:0 8px; height:22px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; display:inline-flex; align-items:center; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); font-size:11px; }
+  .mode-btn { padding:4px 12px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; background:transparent; color: var(--dsw-alias-label-secondary); font:inherit; font-size:12px; cursor:pointer; }
+  .mode-btn[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l4); }
+  .note { color: var(--dsw-alias-label-tertiary); font-size:11px; margin:4px 0 0; }
+  button { font:inherit; cursor:pointer; }
+  textarea, input:not([type="file"]) { background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary); border:1px solid var(--dsw-alias-border-l2); border-radius:8px; font:inherit; }
+</style>
+</head>
+<body>
+<!-- Mirror of key DOM from src/client/video-host.js — top tab 视频生成 selected -->
+<div data-dsh-ws-studio-host data-ws-top-page="视频生成" role="main" aria-label="生图">
+  <header data-ws-top-bar>
+    <div data-ws-top-seg role="tablist" aria-label="工作台模式">
+      <button type="button" data-ws-top="普通生图" aria-current="false">普通生图</button>
+      <button type="button" data-ws-top="视频生成" aria-current="true" data-active>视频生成</button>
+      <button type="button" data-ws-top="无限画布" aria-current="false">无限画布</button>
+      <button type="button" data-ws-top="画廊" aria-current="false">画廊</button>
+      <button type="button" data-ws-top="电商模式" aria-current="false">电商模式</button>
+    </div>
+    <span style="flex:1"></span>
+    <span data-ws-conn-status title="已连接">已连接</span>
+    <button type="button" data-ws-chat-toggle>AI 对话</button>
+  </header>
+
+  <div data-ws-page="image" data-ws-cols><!-- image studio hidden when video tab --></div>
+
+  <div data-ws-page="video" data-ws-video-cols role="region" aria-label="视频生成">
+    <aside data-ws-col="history" data-ws-video-history>
+      <div style="font-size:13px;font-weight:600;">历史记录</div>
+      <div data-ws-video-history-list>
+        <div data-ws-history-empty style="padding:8px 4px;font-size:12px;color:var(--dsw-alias-label-tertiary);">暂无记录</div>
+      </div>
+      <button type="button" data-ws-video-history-clear>清空</button>
+    </aside>
+    <div data-ws-pane-drag="video-history" style="width:5px;"></div>
+    <section data-ws-col="studio" data-ws-video-studio>
+      <div data-ws-video-stage>
+        <div data-ws-stage-head>
+          <strong>生成结果</strong>
+          <span data-ws-video-stage-empty-hint>生成后显示在这里</span>
+        </div>
+        <div data-ws-progress data-ws-video-progress>
+          <div data-ws-progress-meta>
+            <span data-ws-progress-label>等待宿主进度</span>
+            <span data-ws-progress-elapsed>耗时 0s</span>
+            <button type="button" data-ws-video-cancel>取消</button>
+          </div>
+        </div>
+        <div data-ws-fail data-ws-video-fail>
+          <div data-ws-fail-reason>原因：视频通道未接</div>
+          <button type="button" data-ws-video-retry>重试</button>
+        </div>
+        <div data-ws-video-results hidden></div>
+        <div data-ws-result-actions data-ws-video-result-actions>
+          <button type="button" data-ws-video-result-action="播放">播放</button>
+          <button type="button" data-ws-video-result-action="下载">下载</button>
+          <button type="button" data-ws-video-result-action="加画廊">加画廊</button>
+          <button type="button" data-ws-video-result-action="抽帧">抽帧</button>
+          <button type="button" data-ws-video-result-action="重新生成">重新生成</button>
+        </div>
+      </div>
+      <div data-ws-dock data-ws-video-dock>
+        <div role="tablist" aria-label="视频模式" style="display:flex;gap:6px;">
+          <button type="button" class="mode-btn" data-ws-video-mode="文生视频" aria-pressed="true">文生视频</button>
+          <button type="button" class="mode-btn" data-ws-video-mode="图生视频" aria-pressed="false">图生视频</button>
+        </div>
+        <div data-ws-frame-slots aria-label="帧图">
+          <div data-ws-frame-row>
+            <div data-ws-frame-slot data-frame="first">
+              <div><strong style="font-size:11px;">首帧图</strong> <span style="font-size:11px;color:var(--dsw-alias-label-tertiary);">上传 / 拖拽 / 粘贴</span></div>
+              <div data-ws-frame-drop="first">点击、拖入或 Ctrl+V 粘贴</div>
+            </div>
+            <div data-ws-frame-slot data-frame="last">
+              <div><strong style="font-size:11px;">尾帧图</strong> <span style="font-size:11px;color:var(--dsw-alias-label-tertiary);">可选</span></div>
+              <div data-ws-frame-drop="last">点击、拖入或 Ctrl+V 粘贴</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);margin-bottom:4px;">提示词</div>
+          <textarea data-ws-video-prompt rows="2" placeholder="描述你想生成的视频" style="width:100%;min-height:56px;padding:6px 8px;"></textarea>
+        </div>
+        <div data-ws-param-row data-ws-video-params>
+          <div data-ws-param-group>
+            <span>时长</span>
+            <div data-ws-chips>
+              <button type="button" aria-current="true">5秒</button>
+              <button type="button" aria-current="false">10秒</button>
+            </div>
+          </div>
+          <div data-ws-param-group>
+            <span>清晰度</span>
+            <div data-ws-chips>
+              <button type="button" aria-current="true">自动</button>
+              <button type="button">1K</button>
+              <button type="button">2K</button>
+              <button type="button">4K</button>
+            </div>
+          </div>
+          <div data-ws-param-group>
+            <span>比例</span>
+            <div data-ws-chips>
+              <button type="button">自动</button>
+              <button type="button">1:1</button>
+              <button type="button">3:4</button>
+              <button type="button">4:3</button>
+              <button type="button">9:16</button>
+              <button type="button" aria-current="true">16:9</button>
+              <button type="button">2:3</button>
+              <button type="button">3:2</button>
+              <button type="button">21:9</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);">模型</span>
+          <input data-ws-video-param="model" placeholder="选择模型" style="padding:0 10px;height:28px;border-radius:14px;width:10rem;" />
+        </div>
+      </div>
+      <div data-ws-cta-footer data-ws-video-cta-footer>
+        <button type="button" data-ws-video-cta>开始生成</button>
+        <p class="note" data-ws-video-status>CTA → video.async stub → 「视频通道未接」（无假成功）· 无白海 stage</p>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+  // Preview-only: toggle 图生视频 frame slots; CTA shows honest fail
+  document.querySelectorAll('[data-ws-video-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-ws-video-mode]').forEach((b) => {
+        b.setAttribute('aria-pressed', b === btn ? 'true' : 'false')
+      })
+      const slots = document.querySelector('[data-ws-frame-slots]')
+      if (btn.getAttribute('data-ws-video-mode') === '图生视频') slots.setAttribute('data-visible', '')
+      else slots.removeAttribute('data-visible')
+    })
+  })
+  document.querySelector('[data-ws-video-cta]')?.addEventListener('click', () => {
+    const fail = document.querySelector('[data-ws-video-fail]')
+    const hint = document.querySelector('[data-ws-video-stage-empty-hint]')
+    const status = document.querySelector('[data-ws-video-status]')
+    fail?.setAttribute('data-visible', '')
+    if (hint) hint.hidden = true
+    if (status) status.textContent = '视频通道未接'
+  })
+</script>
+</body>
+</html>
