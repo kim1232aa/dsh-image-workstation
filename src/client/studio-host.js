@@ -110,7 +110,7 @@ const css = {
   select:
     `padding:4px 8px;border-radius:6px;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;min-height:28px;`,
   chip: (on) =>
-    `padding:2px 8px;border:1px solid ${on ? T.border4 : T.border2};border-radius:999px;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg2};cursor:pointer;font:inherit;font-size:11.5px;line-height:1.2;`,
+    `padding:1px 6px;border:1px solid ${on ? T.border4 : T.border2};border-radius:999px;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg2};cursor:pointer;font:inherit;font-size:11px;line-height:1.25;white-space:nowrap;`,
   histAction:
     `padding:2px 8px;border:1px solid ${T.border2};border-radius:6px;background:transparent;color:${T.fg2};cursor:pointer;font:inherit;font-size:11px;`,
   /** 出图台 dock 内区块 — 借鉴形态，自写组件 */
@@ -201,11 +201,12 @@ const HOST_STYLES = `
   flex:none; min-width:2.2em;
 }
 [data-dsh-ws-studio-host] [data-ws-chips] {
-  display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1; min-width:0;
+  display:flex; flex-wrap:wrap; gap:3px 4px; align-items:center; flex:1; min-width:0;
 }
 [data-dsh-ws-studio-host] [data-ws-chips] [data-ws-param][data-value] {
-  padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
-  background:transparent; color: var(--dsw-alias-label-secondary); cursor:pointer; font:inherit; font-size:11.5px; line-height:1.2;
+  padding:1px 6px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  background:transparent; color: var(--dsw-alias-label-secondary); cursor:pointer; font:inherit; font-size:11px; line-height:1.25;
+  white-space:nowrap; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-chips] [data-ws-param][data-value][aria-current="true"] {
   background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary);
@@ -219,8 +220,9 @@ const HOST_STYLES = `
 }
 [data-dsh-ws-studio-host] [data-ws-conn-status] {
   padding:0; height:auto; border:0; border-radius:0;
-  background:transparent; color: var(--dsw-alias-label-tertiary);
-  font:inherit; font-size:10.5px; display:inline-flex; align-items:center; flex:none;
+  background:transparent; color: var(--dsw-alias-label-dimmed);
+  font:inherit; font-size:10px; display:inline-flex; align-items:center; flex:none;
+  opacity:.7;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage] {
   /* Right column = result landing (fills column). Center has no stage. */
@@ -448,29 +450,46 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
 [data-dsh-ws-studio-host] [data-ws-top-bar] {
   display:flex; gap:8px; padding:0 10px; align-items:center; flex-shrink:0;
-  min-height:22px; height:22px;
+  min-height:20px; height:20px;
   background:transparent; border-bottom:0;
 }
-[data-dsh-ws-studio-host] [data-ws-top-seg] {
-  display:inline-flex; align-items:center; gap:2px; flex:none;
-  padding:0; border-radius:0;
-  background:transparent; border:0;
+[data-dsh-ws-studio-host] [data-ws-mode-switch] {
+  position:relative; display:inline-flex; align-items:center; flex:none;
 }
-[data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top] {
-  padding:2px 5px 3px; border:0; border-bottom:1px solid transparent;
-  border-radius:0; font:inherit; font-size:11px; line-height:1.25; font-weight:400;
-  cursor:pointer; background:transparent; color: var(--dsw-alias-label-tertiary);
-}
-[data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][aria-current="true"],
-[data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][data-active] {
-  background:transparent; color: var(--dsw-alias-label-secondary); font-weight:500;
-  border-bottom-color: var(--dsw-alias-label-secondary);
-}
-[data-dsh-ws-studio-host] [data-ws-chat-toggle] {
-  padding:1px 4px; border:0; border-radius:0; background:transparent;
+[data-dsh-ws-studio-host] [data-ws-mode-toggle] {
+  padding:0 2px; border:0; border-radius:0; background:transparent;
   color: var(--dsw-alias-label-tertiary); cursor:pointer;
-  font:inherit; font-size:10.5px; line-height:1.25;
+  font:inherit; font-size:10.5px; line-height:1.25; font-weight:400;
 }
+[data-dsh-ws-studio-host] [data-ws-mode-toggle]:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+[data-dsh-ws-studio-host] [data-ws-mode-current] {
+  color: var(--dsw-alias-label-dimmed);
+}
+[data-dsh-ws-studio-host] [data-ws-mode-menu] {
+  position:absolute; top:100%; left:0; z-index:50; margin-top:2px;
+  min-width:7.5rem; padding:4px; display:flex; flex-direction:column; gap:2px;
+  background: var(--dsw-alias-bg-module-platform);
+  border:1px solid var(--dsw-alias-border-l2);
+  border-radius:8px; box-shadow: var(--dsw-elevation-panel);
+}
+[data-dsh-ws-studio-host] [data-ws-mode-menu][hidden] { display:none !important; }
+[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top] {
+  padding:4px 8px; border:0; border-radius:6px; text-align:left;
+  background:transparent; color: var(--dsw-alias-label-secondary);
+  cursor:pointer; font:inherit; font-size:11.5px; line-height:1.3;
+}
+[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top]:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top][aria-current="true"],
+[data-dsh-ws-studio-host] [data-ws-mode-menu] [data-ws-top][data-active] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary); font-weight:500;
+}
+[data-dsh-ws-studio-host] [data-ws-history-filters][hidden] { display:none !important; }
+[data-dsh-ws-studio-host] [data-ws-history-clear][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] textarea,
 [data-dsh-ws-studio-host] input:not([type="checkbox"]):not([type="file"]),
 [data-dsh-ws-studio-host] select {
@@ -634,18 +653,48 @@ export function createStudioHost() {
   let progressStartedAt = 0
 
   const paintChat = () => {
+    // Studio no longer exposes 「AI 对话」 — host chat covers that. Keep results wall.
+    state.chatCollapsed = true
     const chat = host?.querySelector('[data-ws-col="chat"]')
     const wall = host?.querySelector('[data-ws-inspire-wall]')
-    const toggle = host?.querySelector('[data-ws-chat-toggle]')
-    if (!toggle) return
-    if (state.chatCollapsed) {
-      if (chat) chat.style.display = 'none'
-      if (wall) wall.style.display = 'flex'
-      toggle.textContent = CHROME.expandChat
+    if (chat) chat.style.display = 'none'
+    if (wall) wall.style.display = 'flex'
+  }
+
+  const syncHistoryChrome = () => {
+    const histEl = host?.querySelector('[data-ws-history-list]')
+    const filters = host?.querySelector('[data-ws-history-filters]')
+    const clearBtn = host?.querySelector('[data-ws-history-clear]')
+    const hasItems = !!(histEl && histEl.querySelector('[data-ws-history-item]'))
+    if (filters instanceof HTMLElement) filters.hidden = !hasItems
+    if (clearBtn instanceof HTMLElement) {
+      clearBtn.hidden = !hasItems
+      clearBtn.disabled = !hasItems
+    }
+  }
+
+  const setTopTab = (tab) => {
+    const name = tab || IMAGE_PAGE
+    state.topTab = name
+    const cur = host?.querySelector('[data-ws-mode-current]')
+    if (cur) cur.textContent = ` · ${name}`
+    host?.querySelectorAll('[data-ws-mode-menu] [data-ws-top]').forEach((b) => {
+      const on = b.getAttribute('data-ws-top') === name
+      if (b instanceof HTMLElement) {
+        b.setAttribute('aria-current', on ? 'true' : 'false')
+        if (on) b.setAttribute('data-active', '')
+        else b.removeAttribute('data-active')
+      }
+    })
+    const menu = host?.querySelector('[data-ws-mode-menu]')
+    const toggle = host?.querySelector('[data-ws-mode-toggle]')
+    if (menu instanceof HTMLElement) menu.hidden = true
+    if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
+    if (name === VIDEO_PAGE || name === IMAGE_PAGE) {
+      videoApi?.setPage(name)
+      setStatus(name === VIDEO_PAGE ? '视频生成' : '普通生图')
     } else {
-      if (chat) chat.style.display = 'flex'
-      if (wall) wall.style.display = 'none'
-      toggle.textContent = '收起对话'
+      setStatus(`「${name}」未接线`)
     }
   }
 
@@ -996,20 +1045,23 @@ export function createStudioHost() {
     syncStageWeight()
   }
 
-  /** True empty history only — no ghost placeholder rows */
+  /** True empty history only — no ghost placeholder rows; demote filters when empty */
   const paintHistoryEmpty = () => {
     const histEl = host?.querySelector('[data-ws-history-list]')
     if (!histEl) return
     if (histEl.querySelector('[data-ws-history-item]')) {
       histEl.querySelector('[data-ws-history-empty]')?.remove()
+      syncHistoryChrome()
       return
     }
-    if (histEl.querySelector('[data-ws-history-empty]')) return
-    const empty = document.createElement('div')
-    empty.dataset.wsHistoryEmpty = ''
-    empty.style.cssText = `padding:8px 4px;font-size:12px;color:${T.fg3};`
-    empty.textContent = HISTORY_EMPTY_HINT
-    histEl.appendChild(empty)
+    if (!histEl.querySelector('[data-ws-history-empty]')) {
+      const empty = document.createElement('div')
+      empty.dataset.wsHistoryEmpty = ''
+      empty.style.cssText = `padding:8px 4px;font-size:12px;color:${T.fg3};`
+      empty.textContent = HISTORY_EMPTY_HINT
+      histEl.appendChild(empty)
+    }
+    syncHistoryChrome()
   }
 
   /**
@@ -1269,6 +1321,7 @@ export function createStudioHost() {
         })
         histEl.insertBefore(item, histEl.firstChild)
         markHistoryActive(jobId)
+        syncHistoryChrome()
       }
     }
     setStatus(
@@ -1312,31 +1365,37 @@ export function createStudioHost() {
     frame.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;width:100%;'
     frame.innerHTML = `
       <header data-ws-top-bar>
-        <div data-ws-top-seg role="tablist" aria-label="工作台模式">
-          ${TOP_TABS.map(
-            (t, i) =>
-              `<button type="button" data-ws-top="${t}" role="tab" aria-current="${i === 0 ? 'true' : 'false'}" ${i === 0 ? 'data-active' : ''} style="${css.topTab(i === 0)}">${t}</button>`,
-          ).join('')}
+        <div data-ws-mode-switch>
+          <button type="button" data-ws-mode-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="切换模块">
+            切换模块<span data-ws-mode-current> · ${TOP_TABS[0]}</span>
+          </button>
+          <div data-ws-mode-menu role="listbox" aria-label="工作台模块" hidden>
+            ${TOP_TABS.map(
+              (t, i) =>
+                `<button type="button" data-ws-top="${t}" role="option" aria-current="${i === 0 ? 'true' : 'false'}" ${i === 0 ? 'data-active' : ''}>${t}</button>`,
+            ).join('')}
+          </div>
         </div>
         <span style="flex:1"></span>
         <span data-ws-conn-status title="${CHROME.connected}">${CHROME.connected}</span>
-        <button type="button" data-ws-chat-toggle>${CHROME.expandChat}</button>
       </header>
       <div data-ws-cols>
         <!-- LEFT: 历史记录 -->
         <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid ${T.border2};padding:8px;overflow:auto;background:${T.sidebar};display:flex;flex-direction:column;gap:6px;">
           <div style="font-size:13px;font-weight:600;color:${T.fg};">${COLUMNS.history}</div>
-          <input type="search" placeholder="搜索历史" aria-label="搜索历史" style="width:100%;${css.field};font-size:12px;" />
-          <div style="display:flex;gap:6px;">
-            <select aria-label="全部模型" style="flex:1;${css.select}">
-              <option>全部模型</option>
-            </select>
-            <select aria-label="全部比例" style="flex:1;${css.select}">
-              <option>全部比例</option>
-            </select>
+          <div data-ws-history-filters hidden>
+            <input type="search" placeholder="搜索历史" aria-label="搜索历史" style="width:100%;${css.field};font-size:12px;" />
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <select aria-label="全部模型" style="flex:1;${css.select}">
+                <option>全部模型</option>
+              </select>
+              <select aria-label="全部比例" style="flex:1;${css.select}">
+                <option>全部比例</option>
+              </select>
+            </div>
           </div>
           <div data-ws-history-list style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;"></div>
-          <button type="button" data-ws-history-clear style="align-self:flex-start;${css.pill({ color: T.fg3 })}">${HISTORY_ACTIONS.clear}</button>
+          <button type="button" data-ws-history-clear hidden disabled style="align-self:flex-start;${css.pill({ color: T.fg3 })}">${HISTORY_ACTIONS.clear}</button>
         </aside>
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
@@ -1492,31 +1551,31 @@ export function createStudioHost() {
     `
     host.appendChild(frame)
 
-    host.querySelector('[data-ws-chat-toggle]')?.addEventListener('click', () => {
-      state.chatCollapsed = !state.chatCollapsed
-      paintChat()
+    host.querySelector('[data-ws-mode-toggle]')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const menu = host.querySelector('[data-ws-mode-menu]')
+      const toggle = host.querySelector('[data-ws-mode-toggle]')
+      if (!(menu instanceof HTMLElement) || !(toggle instanceof HTMLElement)) return
+      const open = menu.hidden
+      menu.hidden = !open
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
     })
-    host.querySelectorAll('[data-ws-top]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const tab = btn.getAttribute('data-ws-top') || IMAGE_PAGE
-        host.querySelectorAll('[data-ws-top]').forEach((b) => {
-          const on = b === btn
-          if (b instanceof HTMLElement) {
-            b.style.cssText = css.topTab(on)
-            b.setAttribute('aria-current', on ? 'true' : 'false')
-            if (on) b.setAttribute('data-active', '')
-            else b.removeAttribute('data-active')
-          }
-        })
-        if (tab === VIDEO_PAGE || tab === IMAGE_PAGE) {
-          videoApi?.setPage(tab)
-          state.topTab = tab
-          setStatus(tab === VIDEO_PAGE ? '视频生成' : '普通生图')
-        } else {
-          setStatus(`「${tab}」未接线`)
-        }
+    host.querySelectorAll('[data-ws-mode-menu] [data-ws-top]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        setTopTab(btn.getAttribute('data-ws-top') || IMAGE_PAGE)
       })
     })
+    const closeModeMenu = (e) => {
+      const sw = host?.querySelector('[data-ws-mode-switch]')
+      if (!(sw instanceof HTMLElement)) return
+      if (e.target instanceof Node && sw.contains(e.target)) return
+      const menu = host.querySelector('[data-ws-mode-menu]')
+      const toggle = host.querySelector('[data-ws-mode-toggle]')
+      if (menu instanceof HTMLElement) menu.hidden = true
+      if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
+    }
+    document.addEventListener('click', closeModeMenu)
     host.querySelector('[data-ws-prompt]')?.addEventListener('input', (e) => {
       const t = /** @type {HTMLTextAreaElement} */ (e.target)
       state.prompt = t.value
