@@ -225,16 +225,19 @@ const HOST_STYLES = `
   font:inherit; font-size:11px; display:inline-flex; align-items:center; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-stage] {
-  /* Empty default: compact strip — no white-sea flex void */
-  flex:0 0 auto; min-height:0; display:flex; flex-direction:column; gap:4px;
-  margin:0; padding:5px 12px; overflow:hidden;
-  background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l2);
+  /* Idle: absorb leftover column height as quiet muted empty (VisioWork-shaped).
+     NEVER leave spacer between dock params and CTA — stage takes the void. */
+  flex:1 1 0; min-height:72px; display:flex; flex-direction:column; gap:4px;
+  margin:0; padding:8px 12px; overflow:hidden;
+  background: var(--dsw-alias-bg-module-platform); border-bottom:1px solid var(--dsw-alias-border-l2);
 }
 [data-dsh-ws-studio-host] [data-ws-stage][data-has-results] {
   flex:2.6 1 0; min-height:160px; padding:8px 12px; gap:8px;
+  background: var(--dsw-alias-bg-base);
 }
 [data-dsh-ws-studio-host] [data-ws-stage][data-busy] {
   flex:1.2 1 0; min-height:96px; padding:8px 12px; gap:6px;
+  background: var(--dsw-alias-bg-base);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
   display:flex; align-items:baseline; gap:8px; flex:none;
@@ -308,8 +311,8 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-param="model"]::placeholder { color: var(--dsw-alias-label-tertiary); opacity:1; }
 [data-dsh-ws-studio-host] [data-ws-param="model"] { color: var(--dsw-alias-label-primary); }
 [data-dsh-ws-studio-host] [data-ws-dock] {
-  /* Pack to natural height — do not grow a white void above CTA.
-     CTA uses margin-top:auto on [data-ws-cta-footer] to sit at column bottom. */
+  /* Pack to natural height — continuous with [data-ws-cta-footer] (gap 0 / small).
+     NEVER margin-top:auto / flex-grow between dock params and CTA. */
   flex:0 0 auto; display:flex; flex-direction:column; gap:4px;
   padding:8px 12px 0; background: var(--dsw-alias-bg-base);
   border-top:0;
@@ -344,7 +347,8 @@ const HOST_STYLES = `
   flex:1 1 8rem; min-width:0; max-width:14rem;
 }
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
-  flex:none; margin-top:auto; position:sticky; bottom:0; z-index:2;
+  /* Pack directly under dock — no margin-top:auto (that created the param–CTA white void). */
+  flex:0 0 auto; margin-top:0; position:relative; z-index:2;
   padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
   display:flex; flex-direction:column; gap:4px;
   border-top:1px solid var(--dsw-alias-border-l2);

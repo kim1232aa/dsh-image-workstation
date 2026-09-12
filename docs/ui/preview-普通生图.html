@@ -28,8 +28,8 @@
   [data-ws-cols] { display:flex; flex:1; min-height:0; }
   [data-ws-col="history"] { width:264px; border-right:1px solid var(--dsw-alias-border-l2); padding:8px; overflow:auto; background: var(--dsw-specific-sidebar-fill); }
   [data-ws-col="studio"] { flex:1; min-width:0; display:flex; flex-direction:column; background: var(--dsw-alias-bg-base); }
-  /* Empty stage = compact strip (no white-sea) */
-  [data-ws-stage] { flex:0 0 auto; min-height:0; padding:5px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); display:flex; flex-direction:column; gap:4px; }
+  /* Idle stage absorbs leftover height — quiet muted empty (no param–CTA void) */
+  [data-ws-stage] { flex:1 1 0; min-height:72px; padding:8px 12px; border-bottom:1px solid var(--dsw-alias-border-l2); display:flex; flex-direction:column; gap:4px; background: var(--dsw-alias-bg-module-platform); }
   [data-ws-stage][data-has-results] { flex:2.6 1 0; min-height:160px; padding:8px 12px; }
   [data-ws-stage][data-busy] { flex:1.2 1 0; min-height:96px; padding:8px 12px; }
   [data-ws-stage-head] { display:flex; align-items:baseline; gap:8px; }
@@ -53,7 +53,7 @@
   [data-ws-progress][data-visible], [data-ws-fail][data-visible], [data-ws-result-actions][data-visible], [data-ws-plan-panel][data-visible] { display:block; }
   [data-ws-conn-status] { padding:0 8px; height:22px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px; display:inline-flex; align-items:center; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); font-size:11px; }
   [data-ws-cta] { width:100%; min-height:40px; border:0; border-radius:9px; background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); font-weight:700; cursor:pointer; }
-  [data-ws-cta-footer] { flex:none; margin-top:auto; padding:6px 12px 10px; border-top:1px solid var(--dsw-alias-border-l2); }
+  [data-ws-cta-footer] { flex:0 0 auto; margin-top:0; padding:6px 12px 10px; border-top:1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base); }
   header[data-ws-top-bar] { display:flex; gap:8px; padding:4px 10px; border-bottom:1px solid var(--dsw-alias-border-l1); align-items:center; background: var(--dsw-alias-bg-base); }
   [data-ws-top-seg] { display:inline-flex; gap:1px; padding:2px; border-radius:8px; background: var(--dsw-alias-bg-module-platform); border:1px solid var(--dsw-alias-border-l2); }
   [data-ws-top-seg] button { padding:3px 9px; border:0; border-radius:6px; background:transparent; color: var(--dsw-alias-label-tertiary); font:inherit; font-size:11.5px; cursor:pointer; }
@@ -129,7 +129,7 @@
       </div>
       <div data-ws-cta-footer>
         <button type="button" data-ws-cta>开始生成</button>
-        <p class="note">Empty stage collapsed · dock/CTA primary · quieter top-seg · solid inspire empty</p>
+        <p class="note">Stage flex:1 quiet fill · dock+CTA packed · no param–button void</p>
       </div>
     </section>
     <div data-ws-pane-drag="chat"></div>
