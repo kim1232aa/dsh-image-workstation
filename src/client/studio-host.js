@@ -30,7 +30,7 @@ import { mountUiDesignHost, UI_DESIGN_PAGE } from './ui-design-host.js'
 import { mountTemplateHost, TEMPLATE_PAGE } from './template-host.js'
 import { mountGalleryPage, GALLERY_PAGE } from './gallery-host.js'
 import { mountEcomPage, ECOM_PAGE } from './ecom-host.js'
-import { TOOL_MORE, TOOL_ENTRIES } from '../ui/labels.js'
+import { TOOL_MORE, TOOL_MENU, TOOL_ENTRIES } from '../ui/labels.js'
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
 /** Soft photo-noise fallback for broken real images only (not fake content) */
@@ -1720,8 +1720,8 @@ export function createStudioHost(opts = {}) {
         </div>
         <span style="flex:1"></span>
         <div data-ws-tool-more>
-          <button type="button" data-ws-tool-more-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="${TOOL_MORE}">${TOOL_MORE} ▾</button>
-          <div data-ws-tool-more-menu role="listbox" aria-label="${TOOL_MORE}" hidden>
+          <button type="button" data-ws-tool-more-toggle aria-expanded="false" aria-haspopup="listbox" aria-label="${TOOL_MENU}">${TOOL_MENU} ▾</button>
+          <div data-ws-tool-more-menu role="listbox" aria-label="${TOOL_MENU}" hidden>
             ${TOOL_ENTRIES.map((t) => `<button type="button" data-ws-tool="${t}" role="option">${t}</button>`).join('')}
           </div>
         </div>

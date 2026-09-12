@@ -335,4 +335,5 @@ export const TEMPLATE_LABELS = Object.freeze({
 /* ─── 次要工具入口 ─── */
 
 export const TOOL_MORE = '更多'
+export const TOOL_MENU = '工具'
 export const TOOL_ENTRIES = Object.freeze(['反推提示词', 'GIF', 'UI 设计'])
