@@ -22,6 +22,7 @@ import {
   RESULT_ACTIONS,
 } from '../ui/labels.js'
 import { defaultStudioState } from '../ui/studio-stub.js'
+import { mountVideoPage, VIDEO_PAGE, IMAGE_PAGE } from './video-host.js'
 
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
@@ -621,6 +622,8 @@ function mountStudioHostEl(hostEl) {
 export function createStudioHost() {
   let host
   let open = false
+  /** @type {ReturnType<typeof mountVideoPage> | null} */
+  let videoApi = null
   /** @type {ReturnType<typeof defaultStudioState> & { compareModels?: boolean, refImages?: Array<{ id: string, url: string, name?: string }>, task?: any }} */
   let state = defaultStudioState()
   /** @type {string | null} */
@@ -1484,6 +1487,7 @@ export function createStudioHost() {
     })
     host.querySelectorAll('[data-ws-top]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-ws-top') || IMAGE_PAGE
         host.querySelectorAll('[data-ws-top]').forEach((b) => {
           const on = b === btn
           if (b instanceof HTMLElement) {
@@ -1493,6 +1497,13 @@ export function createStudioHost() {
             else b.removeAttribute('data-active')
           }
         })
+        if (tab === VIDEO_PAGE || tab === IMAGE_PAGE) {
+          videoApi?.setPage(tab)
+          state.topTab = tab
+          setStatus(tab === VIDEO_PAGE ? '视频生成' : '普通生图')
+        } else {
+          setStatus(`「${tab}」未接线`)
+        }
       })
     })
     host.querySelector('[data-ws-prompt]')?.addEventListener('input', (e) => {
@@ -1833,6 +1844,9 @@ export function createStudioHost() {
     })
 
     mountStudioHostEl(host)
+    videoApi?.dispose?.()
+    videoApi = mountVideoPage(host, { T, css, paneWidths: state.paneWidths })
+    videoApi.setPage(state.topTab === VIDEO_PAGE ? VIDEO_PAGE : IMAGE_PAGE)
     paintChat()
     syncFields()
     paintInspiration()
@@ -1880,6 +1894,11 @@ export function createStudioHost() {
     getHostEl() {
       return host
     },
+    /** Honest video stub failure — never invent success */
+    paintVideoStubFailure(message) {
+      ensure()
+      videoApi?.showStubFailure?.(message || '视频通道未接')
+    },
     /**
      * Progress UI: 进度 · 耗时 · 取消
      * @param {{ progress?: number, elapsedMs?: number, phase?: string, status?: string, error?: string, id?: string }} value
@@ -1899,6 +1918,8 @@ export function createStudioHost() {
     },
     dispose() {
       stopProgressClock()
+      videoApi?.dispose?.()
+      videoApi = null
       host?.remove()
       host = undefined
       open = false
