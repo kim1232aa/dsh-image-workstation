@@ -766,6 +766,8 @@ export function createStudioHost(opts = {}) {
   let ecomApi = null
   /** @type {ReturnType<typeof defaultStudioState> & { compareModels?: boolean, refImages?: Array<{ id: string, url: string, name?: string }>, task?: any }} */
   let state = defaultStudioState()
+  // Dock model field must show a real id on first paint (not empty 「选择模型」)
+  state.modelId = resolveModelId(state.modelId)
   /** @type {string | null} */
   let activeHistoryId = null
   /** @type {Map<string, { snapshot: Record<string, unknown>, value: any, savedAt?: number }>} */
@@ -1713,6 +1715,7 @@ export function createStudioHost(opts = {}) {
   const ensure = () => {
     if (host) return host
     state = defaultStudioState()
+    state.modelId = resolveModelId(state.modelId)
     state.compareModels = false
     state.refImages = Array.isArray(state.refImages) ? state.refImages : []
     state.skillPlan = state.skillPlan ?? null

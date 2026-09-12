@@ -30,7 +30,7 @@ export const defaultStudioState = () => ({
   clarity: CLARITY[0],
   count: COUNTS[0],
   detail: '自动',
-  modelId: '',
+  modelId: 'grok-imagine-image',
   refImages: [], // 图生图参考
   skillId: null, // null = 普通生图，不挡 CTA
   skillPlan: null,
