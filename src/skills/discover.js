@@ -54,6 +54,16 @@ export const TRIPTYCH_COVER = Object.freeze({
   defaultAspect: '3:4',
 })
 
+
+export const LABEL_TO_SKILL_ID = Object.freeze({
+  '电影三联': 'cinema-triptych',
+  '三联封面': 'triptych-cover',
+  '电影海报': 'movie-poster',
+  '人像': 'portrait',
+  '摄影': 'photography',
+  '角色': 'casting',
+})
+
 export const ATTRIBUTION = 'GitHub: dacnay816y62-hub · FANTASY 梵想美学'
 
 /**

@@ -22,6 +22,8 @@ export const inject = ['slots', 'locale', 'connection', 'sessions', 'conversatio
 /** Plugin-owned Connection RPC channel (host registers via connection.rpc.handle). */
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
+export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
+export const SKILL_RPC_PLAN = 'plan'
 
 /**
  * @param {any} ctx
@@ -197,6 +199,43 @@ export function apply(ctx, _config) {
     document.addEventListener('dsh-ws-cancel', onCancel)
     document.addEventListener('dsh-ws-video-generate', onVideoGenerate)
     disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
+
+
+  /**
+   * dsh-ws-plan → /dsh-ws-skill plan → paintSkillPlanResult
+   * Does not touch mediaProxy / generate path.
+   */
+  const onPlan = async (ev) => {
+    const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+    const skillId = detail.skillId
+    if (!skillId) {
+      studio.setStatus?.('请先选择创作 Skill')
+      return
+    }
+    const rpc = ctx.connection?.rpc
+    if (!rpc || typeof rpc.call !== 'function') {
+      studio.setStatus?.('连接不可用，无法想方案')
+      return
+    }
+    studio.setStatus?.('想方案中…')
+    try {
+      const result = await rpc.call(SKILL_RPC_CHANNEL, SKILL_RPC_PLAN, {
+        skillId,
+        brief: detail.prompt || '',
+        prompt: detail.prompt || '',
+      })
+      if (result?.ok) {
+        studio.paintSkillPlanResult?.(result.value)
+      } else {
+        const msg = scrubErrorMessage(result?.error?.message || '想方案失败')
+        studio.setStatus?.(msg)
+      }
+    } catch (e) {
+      studio.setStatus?.(formatClientRpcFailure(e))
+    }
+  }
+  document.addEventListener('dsh-ws-plan', onPlan)
+  disposers.push(() => document.removeEventListener('dsh-ws-plan', onPlan))
     disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
     disposers.push(() => document.removeEventListener('dsh-ws-video-generate', onVideoGenerate))
     disposers.push(() => studio.dispose())

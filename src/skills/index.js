@@ -2,6 +2,7 @@ export {
   discoverSkills,
   KNOWN_FOLDERS,
   SKILL_ENTRY_LABELS,
+  LABEL_TO_SKILL_ID,
   TRIPTYCH_COVER,
   ATTRIBUTION,
 } from './discover.js'

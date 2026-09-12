@@ -803,6 +803,67 @@ export function createStudioHost() {
     if (hint) hint.textContent = refs.length ? `已选 ${refs.length} 张参考图` : '上传 / 拖拽 / 粘贴参考图'
   }
 
+
+  const formatPlanCard = (plan) => {
+    if (!plan || typeof plan === 'string') return String(plan || '')
+    const lines = []
+    if (plan.label || plan.skillId) lines.push(`【${plan.label || plan.skillId}】`)
+    if (plan.rationale) lines.push(String(plan.rationale))
+    if (Array.isArray(plan.prompts)) {
+      for (const pr of plan.prompts) {
+        lines.push(`— ${pr.label || '镜头'}（${pr.aspect || ''}）`)
+        lines.push(String(pr.prompt || ''))
+      }
+    }
+    if (plan.score) {
+      lines.push(`自检 ${plan.score.total ?? ''}（仅展示，不锁出图）`)
+      if (Array.isArray(plan.score.notes)) lines.push(...plan.score.notes.map((n) => `· ${n}`))
+    }
+    lines.push('disabledByScore: false')
+    return lines.filter(Boolean).join('\n')
+  }
+
+  const applySkillPlanToFields = (plan) => {
+    if (!plan) return
+    const fillPrompt =
+      typeof plan === 'object' && plan.fillPrompt != null
+        ? String(plan.fillPrompt)
+        : typeof plan === 'object' && Array.isArray(plan.prompts)
+          ? plan.prompts.map((p) => p.prompt).filter(Boolean).join('\n\n')
+          : typeof plan === 'string'
+            ? plan
+            : ''
+    if (fillPrompt) {
+      state.prompt = fillPrompt
+      const promptEl = host?.querySelector('[data-ws-prompt]')
+      if (promptEl instanceof HTMLTextAreaElement) promptEl.value = fillPrompt
+    }
+    const neg =
+      typeof plan === 'object' && plan.fillNegative != null
+        ? String(plan.fillNegative)
+        : typeof plan === 'object' && plan.negativePrompt != null
+          ? String(plan.negativePrompt)
+          : null
+    if (neg != null) {
+      state.negativePrompt = neg
+      const negEl = host?.querySelector('[data-ws-negative]')
+      if (negEl instanceof HTMLTextAreaElement) negEl.value = neg
+      const details = host?.querySelector('[data-ws-neg-details]')
+      if (details instanceof HTMLDetailsElement && neg) details.open = true
+    }
+    const aspect =
+      typeof plan === 'object' ? plan.fillAspect || plan.prompts?.[0]?.aspect : null
+    if (aspect && aspect !== '自动') {
+      state.ratio = aspect
+      const ratioEl = host?.querySelector('[data-ws-param="ratio"]')
+      if (ratioEl instanceof HTMLSelectElement) {
+        const opt = Array.from(ratioEl.options).find((o) => o.value === aspect)
+        if (opt) ratioEl.value = aspect
+      }
+    }
+    syncFields?.()
+  }
+
   const paintSkillPlan = () => {
     const panel = host?.querySelector('[data-ws-plan-panel]')
     if (!(panel instanceof HTMLElement)) return
@@ -1527,7 +1588,7 @@ export function createStudioHost() {
 
             <div data-ws-plan-panel>
               <div style="${css.paramLabel}">创作方案</div>
-              <textarea data-ws-plan-text rows="2" placeholder="LLM 未接 — 可手写方案后点「就这样出图」" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
+              <textarea data-ws-plan-text rows="2" placeholder="选 Skill 后点「想方案」；也可手写" style="width:100%;resize:vertical;min-height:48px;padding:6px 8px;border-radius:8px;border:1px solid ${T.border2};background:${T.input};color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
               <div data-ws-plan-actions>
                 <button type="button" data-ws-plan-action="plan">${PROMPT_ACTIONS.plan}</button>
                 <button type="button" data-ws-plan-action="replan">${PROMPT_ACTIONS.replan}</button>
@@ -1806,21 +1867,24 @@ export function createStudioHost() {
       btn.addEventListener('click', () => {
         const action = btn.getAttribute('data-ws-plan-action')
         if (action === 'plan' || action === 'replan') {
-          // Honesty: no canned plan / no fake 「已想方案」— LLM / planSkill not wired on client
+          if (!state.skillId) {
+            setStatus('请先选择创作 Skill')
+            return
+          }
           const ta = host.querySelector('[data-ws-plan-text]')
           if (ta instanceof HTMLTextAreaElement) {
-            ta.placeholder = 'LLM 未接 — 可手写方案后点「就这样出图」'
+            ta.placeholder = '正在想方案…'
           }
-          paintSkillPlan()
+          setStatus('想方案中…')
           host.dispatchEvent(
             new CustomEvent('dsh-ws-plan', {
               bubbles: true,
               detail: { action, skillId: state.skillId, prompt: state.prompt, skillPlan: state.skillPlan },
             }),
           )
-          setStatus('LLM 未接 / 想方案未接宿主（可手写方案后出图）')
         } else if (action === 'accept') {
-          // Never disable from score — just generate with current plan
+          // Fill prompt from plan; score never disables. Then generate (就这样出图).
+          applySkillPlanToFields(state.skillPlan)
           dispatchGenerate({ fromPlan: true })
         }
       })
@@ -2019,6 +2083,31 @@ export function createStudioHost() {
     paintGenerateResult(value) {
       ensure()
       applyGenerateResult(value)
+    },
+    /**
+     * Apply host planSkill result to 方案卡 (display only; never locks CTA).
+     * @param {any} plan
+     */
+    paintSkillPlanResult(plan) {
+      ensure()
+      state.skillPlan = plan
+      const ta = host?.querySelector('[data-ws-plan-text]')
+      if (ta instanceof HTMLTextAreaElement) {
+        ta.value = formatPlanCard(plan)
+        ta.placeholder = '方案可改；点「就这样出图」填入提示词'
+      }
+      paintSkillPlan()
+      const scoreNote =
+        plan && typeof plan === 'object' && plan.score
+          ? `自检 ${plan.score.total ?? ''}（不锁出图）`
+          : '方案已就绪'
+      setStatus(scoreNote)
+    },
+    /** Fill prompt/negative/ratio from current skillPlan without generating. */
+    applySkillPlanToPrompt() {
+      ensure()
+      applySkillPlanToFields(state.skillPlan)
+      setStatus('已将方案填入提示词（可再改）')
     },
     dispose() {
       stopProgressClock()

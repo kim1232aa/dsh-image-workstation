@@ -1,9 +1,11 @@
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, mkdirSync } from 'node:fs'
+import path from 'node:path'
 import { Config, resolveConfig, SETTINGS_NAMESPACE } from './config.js'
 import { mediaEnvSummary } from './protocol/load-media-env.js'
-import { resolveMediaBag } from './protocol/resolve-media.js'
+import { resolveMediaBag, resolveVideoBag } from './protocol/resolve-media.js'
 import { createHostProxy } from './protocol/host-proxy.js'
 import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
+import { attachSkillRpc, SKILL_RPC_CHANNEL } from './protocol/skill-rpc.js'
 import { attachAgentImageTools } from './agent/image-tools.js'
 import {
   discoverSkills,
@@ -25,6 +27,28 @@ export { Config, SETTINGS_NAMESPACE }
 /** connection for RPC; webServer via nested inject; settings optional for Plugins card */
 export const inject = ['connection']
 
+/** Ensure gallery/history/generated seats under dataDir (client-safe relative names). */
+export const MEDIA_STORAGE_SUBDIRS = Object.freeze([
+  'media/generated',
+  'media/gallery',
+  'media/history',
+])
+
+/**
+ * @param {string} dataDir
+ */
+export function ensureMediaStorageDirs(dataDir) {
+  const root = String(dataDir || '').trim()
+  if (!root) return
+  for (const sub of MEDIA_STORAGE_SUBDIRS) {
+    try {
+      mkdirSync(path.join(root, sub), { recursive: true })
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /**
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {Record<string, unknown>} [config]
@@ -38,7 +62,9 @@ export function apply(ctx, config) {
 
   const rebuild = (cfg) => {
     runtime.resolved = resolveConfig(cfg)
+    ensureMediaStorageDirs(runtime.resolved.dataDir)
     const media = resolveMediaBag(runtime.resolved)
+    media.video = resolveVideoBag(runtime.resolved)
     runtime.proxy = createHostProxy(runtime.resolved, media)
     return mediaEnvSummary(media)
   }
@@ -129,11 +155,18 @@ export function apply(ctx, config) {
     let rpcOk = false
     let rpcErr = ''
     try {
-      attachCtaRpc(webCtx, mediaFacade)
+      attachCtaRpc(webCtx, mediaFacade, {
+        getDataDir: () => runtime.resolved.dataDir,
+      })
       rpcOk = true
     } catch (e) {
       rpcErr = String(e?.stack || e)
       webCtx.logger?.error?.(`[dsh-image-workstation] CTA RPC attach failed: ${e?.message || e}`)
+    }
+    try {
+      attachSkillRpc(webCtx, { get skillDir() { return runtime.resolved.skillDir } })
+    } catch (e) {
+      webCtx.logger?.error?.(`[dsh-image-workstation] Skill RPC attach failed: ${e?.message || e}`)
     }
     try {
       writeFileSync(
@@ -144,6 +177,7 @@ export function apply(ctx, config) {
             rpcOk,
             rpcErr: rpcErr.slice(0, 800),
             channel: CTA_RPC_CHANNEL,
+            skillChannel: SKILL_RPC_CHANNEL,
             settingsNs: SETTINGS_NAMESPACE,
             hasWebServer: Boolean(webCtx.webServer),
             hasConnection: Boolean(webCtx.connection),
@@ -164,6 +198,6 @@ export function apply(ctx, config) {
   }))
 
   ctx.logger?.info?.(
-    `[dsh-image-workstation] host apply dataDir=${runtime.resolved.dataDir} skillDir=${runtime.resolved.skillDir || '(unset)'} media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate|probe settings=${SETTINGS_NAMESPACE} agentImage=${runtime.resolved.allowAgentImageGeneration} skills=${listSkills().length}`,
+    `[dsh-image-workstation] host apply dataDir=${runtime.resolved.dataDir} skillDir=${runtime.resolved.skillDir || '(unset)'} media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate|probe|storage.paths settings=${SETTINGS_NAMESPACE} agentImage=${runtime.resolved.allowAgentImageGeneration} skills=${listSkills().length}`,
   )
 }
