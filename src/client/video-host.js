@@ -51,13 +51,13 @@ function escapeHtml(s) {
 export function videoHostStyles() {
   return `
 [data-dsh-ws-studio-host] [data-ws-page="video"] {
-  display:none; flex:1; min-height:0; width:100%;
+  display:none; pointer-events:none; flex:1; min-height:0; width:100%;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="视频生成"] [data-ws-page="video"] {
-  display:flex;
+  display:flex; pointer-events:auto;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="视频生成"] [data-ws-page="image"] {
-  display:none !important;
+  display:none !important; pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-page="video"] [data-ws-video-cols] {
   display:flex; flex:1; min-height:0; width:100%;

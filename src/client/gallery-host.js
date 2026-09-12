@@ -217,19 +217,20 @@ export function defaultGalleryState() {
 export function galleryHostStyles() {
   return `
 [data-dsh-ws-studio-host] [data-ws-page="gallery"] {
-  display:none; flex:1; min-height:0; width:100%;
+  display:none; pointer-events:none; flex:1; min-height:0; width:100%;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="gallery"] {
-  display:flex;
+  display:flex; pointer-events:auto;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="image"],
 [data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="video"],
 [data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="ecom"],
 [data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page="canvas"] {
-  display:none !important;
+  display:none !important; pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-cols] {
-  display:flex; flex:1; min-height:0; width:100%;
+  /* display owned by [data-ws-page="gallery"] — same node must not force flex */
+  flex:1; min-height:0; width:100%;
 }
 [data-dsh-ws-studio-host] [data-ws-gallery-rail] {
   width:220px; flex-shrink:0; border-right:1px solid var(--dsw-alias-border-l2);

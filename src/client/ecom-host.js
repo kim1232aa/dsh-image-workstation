@@ -68,19 +68,20 @@ export function defaultEcomState() {
 export function ecomHostStyles() {
   return `
 [data-dsh-ws-studio-host] [data-ws-page="ecom"] {
-  display:none; flex:1; min-height:0; width:100%;
+  display:none; pointer-events:none; flex:1; min-height:0; width:100%;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="电商模式"] [data-ws-page="ecom"] {
-  display:flex;
+  display:flex; pointer-events:auto;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="电商模式"] [data-ws-page="image"],
 [data-dsh-ws-studio-host][data-ws-top-page="电商模式"] [data-ws-page="video"],
 [data-dsh-ws-studio-host][data-ws-top-page="电商模式"] [data-ws-page="gallery"],
 [data-dsh-ws-studio-host][data-ws-top-page="电商模式"] [data-ws-page="canvas"] {
-  display:none !important;
+  display:none !important; pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-ecom-cols] {
-  display:flex; flex:1; min-height:0; width:100%;
+  /* display owned by [data-ws-page="ecom"] — same node must not force flex */
+  flex:1; min-height:0; width:100%;
 }
 [data-dsh-ws-studio-host] [data-ws-ecom-config] {
   width:min(420px, 42%); flex-shrink:0; border-right:1px solid var(--dsw-alias-border-l2);

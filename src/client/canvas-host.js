@@ -46,18 +46,18 @@ function uid(prefix) {
 export function canvasHostStyles() {
   return `
 [data-dsh-ws-studio-host] [data-ws-page="canvas"] {
-  display:none; flex:1; min-height:0; width:100%; flex-direction:column;
+  display:none; pointer-events:none; flex:1; min-height:0; width:100%; flex-direction:column;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="canvas"] {
-  display:flex;
+  display:flex; pointer-events:auto;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="image"] {
-  display:none !important;
+  display:none !important; pointer-events:none;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="video"],
 [data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="gallery"],
 [data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="ecom"] {
-  display:none !important;
+  display:none !important; pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-project-bar] {
   display:flex; align-items:center; gap:8px; flex-shrink:0;

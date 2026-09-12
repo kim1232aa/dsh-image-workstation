@@ -149,6 +149,16 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] *,
 [data-dsh-ws-studio-host] *::before,
 [data-dsh-ws-studio-host] *::after { box-sizing: border-box; }
+/* Inactive page shells must not steal clicks (gallery/ecom cols flex vs display:none). */
+[data-dsh-ws-studio-host][data-ws-top-page="普通生图"] [data-ws-page]:not([data-ws-page="image"]),
+[data-dsh-ws-studio-host][data-ws-top-page="image"] [data-ws-page]:not([data-ws-page="image"]),
+[data-dsh-ws-studio-host][data-ws-top-page="视频生成"] [data-ws-page]:not([data-ws-page="video"]),
+[data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page]:not([data-ws-page="canvas"]),
+[data-dsh-ws-studio-host][data-ws-top-page="画廊"] [data-ws-page]:not([data-ws-page="gallery"]),
+[data-dsh-ws-studio-host][data-ws-top-page="电商模式"] [data-ws-page]:not([data-ws-page="ecom"]) {
+  display: none !important;
+  pointer-events: none !important;
+}
 [data-dsh-ws-studio-host] [data-ws-history-item] {
   display:flex; gap:7px; align-items:flex-start;
   padding:4px; border:1px solid var(--dsw-alias-border-l2); border-radius:8px;
@@ -1689,7 +1699,7 @@ export function createStudioHost(opts = {}) {
         </div>
         <span data-ws-conn-status title="${CHROME.connected}">${CHROME.connected}</span>
       </header>
-      <div data-ws-cols>
+      <div data-ws-cols data-ws-page="image">
         <!-- LEFT: 历史记录 -->
         <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid ${T.border2};padding:8px;overflow:auto;background:${T.sidebar};display:flex;flex-direction:column;gap:6px;">
           <div style="font-size:13px;font-weight:600;color:${T.fg};">${COLUMNS.history}</div>
