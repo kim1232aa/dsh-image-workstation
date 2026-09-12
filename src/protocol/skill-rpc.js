@@ -10,6 +10,7 @@ import {
   LABEL_TO_SKILL_ID,
   SKILL_ENTRY_LABELS,
 } from '../skills/index.js'
+import { toSkillProposal } from '../skills/proposal.js'
 
 export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
 export const SKILL_RPC_LIST = 'list'
@@ -55,14 +56,17 @@ export function createSkillRpcHandler(bag) {
           wantTriViews: Boolean(payload?.wantTriViews),
           briefJsonPath: payload?.briefJsonPath ? String(payload.briefJsonPath) : undefined,
         })
+        const proposal = toSkillProposal(plan, {
+          refImageIds: Array.isArray(payload?.refImageIds) ? payload.refImageIds : [],
+          mode: payload?.mode ? String(payload.mode) : undefined,
+        })
         return {
           ok: true,
           value: {
             ...plan,
+            ...proposal,
             disabledByScore: false,
-            fillPrompt: plan.fillPrompt || (plan.prompts || []).map((p) => p.prompt).filter(Boolean).join('\n\n'),
-            fillAspect: plan.fillAspect || plan.prompts?.[0]?.aspect || null,
-            fillNegative: plan.fillNegative != null ? plan.fillNegative : plan.negativePrompt || '',
+            proposal,
           },
         }
       }

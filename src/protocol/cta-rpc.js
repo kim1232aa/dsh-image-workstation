@@ -16,6 +16,12 @@ import {
   CTA_RPC_GIF_GENERATE,
   CTA_RPC_ECOM_GENERATE,
 } from './gif-ecom.js'
+import {
+  appendGallery,
+  listGallery,
+  removeGallery,
+  updateGalleryTags,
+} from './gallery-store.js'
 
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
@@ -26,6 +32,10 @@ export const CTA_RPC_VIDEO_GENERATE = 'videoGenerate'
 export { CTA_RPC_GIF_GENERATE, CTA_RPC_ECOM_GENERATE }
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
 export const CTA_RPC_STORAGE_LIST = 'storage.list'
+export const CTA_RPC_GALLERY_ADD = 'gallery.add'
+export const CTA_RPC_GALLERY_LIST = 'gallery.list'
+export const CTA_RPC_GALLERY_REMOVE = 'gallery.remove'
+export const CTA_RPC_GALLERY_TAGS = 'gallery.tags'
 
 /**
  * Map studio CTA detail → mediaProxy.generate request (no prompt rewrite).
@@ -213,9 +223,16 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
       if (endpoint === CTA_RPC_STORAGE_PATHS) {
         return { ok: true, value: paths }
       }
-      // storage.list — read gallery + history seats (honest empty if none)
-      const galleryItems = listMediaSeat(dataDir, paths.gallery)
+      // storage.list — disk seats + gallery index.json (Nova-shaped metadata)
+      const seatGallery = listMediaSeat(dataDir, paths.gallery)
       const historyItems = listMediaSeat(dataDir, paths.history)
+      let indexGallery = []
+      try {
+        indexGallery = await listGallery(dataDir)
+      } catch {
+        indexGallery = []
+      }
+      const galleryItems = [...indexGallery, ...seatGallery]
       return {
         ok: true,
         value: {
@@ -224,6 +241,73 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
           historyItems,
           items: [...galleryItems, ...historyItems],
         },
+      }
+    }
+
+    if (
+      endpoint === CTA_RPC_GALLERY_ADD ||
+      endpoint === CTA_RPC_GALLERY_LIST ||
+      endpoint === CTA_RPC_GALLERY_REMOVE ||
+      endpoint === CTA_RPC_GALLERY_TAGS
+    ) {
+      const dataDir = String(
+        (typeof opts.getDataDir === 'function' ? opts.getDataDir() : opts.dataDir) ||
+          (payload && payload.dataDir) ||
+          '',
+      )
+      try {
+        if (endpoint === CTA_RPC_GALLERY_LIST) {
+          const entries = await listGallery(dataDir)
+          return { ok: true, value: { entries, items: entries } }
+        }
+        if (endpoint === CTA_RPC_GALLERY_ADD) {
+          const detail = payload && typeof payload === 'object' ? payload : {}
+          const out = await appendGallery(dataDir, {
+            src: detail.src,
+            b64: detail.b64,
+            mime: detail.mime,
+            prompt: detail.prompt,
+            mode: detail.mode || detail.snapshot?.mode,
+            model: detail.model || detail.snapshot?.modelId,
+            ratio: detail.ratio || detail.snapshot?.ratio,
+            tags: detail.tags,
+            tagIds: detail.tagIds,
+            name: detail.name,
+            kind: detail.kind,
+            snapshot: detail.snapshot,
+          })
+          return { ok: true, value: out }
+        }
+        if (endpoint === CTA_RPC_GALLERY_REMOVE) {
+          const id = String(payload?.id || '').trim()
+          if (!id) {
+            return {
+              ok: false,
+              error: { code: 'GALLERY_ID_REQUIRED', message: 'gallery id required', details: {} },
+            }
+          }
+          const entries = await removeGallery(dataDir, id)
+          return { ok: true, value: { entries } }
+        }
+        const id = String(payload?.id || '').trim()
+        const tags = Array.isArray(payload?.tags) ? payload.tags : []
+        if (!id) {
+          return {
+            ok: false,
+            error: { code: 'GALLERY_ID_REQUIRED', message: 'gallery id required', details: {} },
+          }
+        }
+        const entries = await updateGalleryTags(dataDir, id, tags)
+        return { ok: true, value: { entries } }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: e?.code || 'GALLERY_FAILED',
+            message: scrubMessage(e?.message || e),
+            details: {},
+          },
+        }
       }
     }
     if (endpoint === CTA_RPC_PROBE) {
@@ -319,6 +403,7 @@ export function createCtaRpcHandler(mediaProxy, opts = {}) {
           aspect_ratio: mapped.aspect_ratio,
           resolution: mapped.resolution,
           size: mapped.size,
+          mode: detail.mode != null ? String(detail.mode) : mapped.mode,
           signal: mapped.signal || signal,
         })
         return { ok: true, value: { prompt: String(out?.prompt || '') } }

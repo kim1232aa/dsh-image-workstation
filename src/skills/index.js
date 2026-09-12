@@ -23,3 +23,9 @@ export {
   RUNTIME_CAPABILITIES,
 } from './runtime.js'
 export { stitchTriptychVertical } from './stitch.js'
+export {
+  toSkillProposal,
+  savePendingProposal,
+  loadPendingProposal,
+  clearPendingProposal,
+} from './proposal.js'

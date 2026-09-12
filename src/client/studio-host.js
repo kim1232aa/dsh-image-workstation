@@ -32,6 +32,11 @@ import { mountGalleryPage, GALLERY_PAGE } from './gallery-host.js'
 import { mountEcomPage, ECOM_PAGE } from './ecom-host.js'
 import { TOOL_MORE, TOOL_MENU, TOOL_ENTRIES } from '../ui/labels.js'
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
+import {
+  savePendingProposal,
+  loadPendingProposal,
+  clearPendingProposal,
+} from '../skills/proposal.js'
 
 /** Soft photo-noise fallback for broken real images only (not fake content) */
 function inspireFallbackSvg(seedIdx = 0) {
@@ -996,6 +1001,9 @@ export function createStudioHost(opts = {}) {
     const lines = []
     if (plan.label || plan.skillId) lines.push(`【${plan.label || plan.skillId}】`)
     if (plan.rationale) lines.push(String(plan.rationale))
+    else if (plan.reason) lines.push(String(plan.reason))
+    if (plan.action) lines.push(`动作: ${plan.action}`)
+    if (plan.suggestedAspectRatio) lines.push(`建议比例: ${plan.suggestedAspectRatio}`)
     if (Array.isArray(plan.prompts)) {
       for (const pr of plan.prompts) {
         lines.push(`— ${pr.label || '镜头'}（${pr.aspect || ''}）`)
@@ -1022,13 +1030,17 @@ export function createStudioHost(opts = {}) {
   const applySkillPlanToFields = (plan) => {
     if (!plan) return
     const fillPrompt =
-      typeof plan === 'object' && plan.fillPrompt != null
+      typeof plan === 'object' && plan.fillPrompt != null && String(plan.fillPrompt).trim()
         ? String(plan.fillPrompt)
-        : typeof plan === 'object' && Array.isArray(plan.prompts)
-          ? plan.prompts.map((p) => p.prompt).filter(Boolean).join('\n\n')
-          : typeof plan === 'string'
-            ? plan
-            : ''
+        : typeof plan === 'object' && plan.prompt != null && String(plan.prompt).trim()
+          ? String(plan.prompt)
+          : typeof plan === 'object' && Array.isArray(plan.prompts)
+            ? plan.prompts.map((p) => p.prompt).filter(Boolean).join('
+
+')
+            : typeof plan === 'string'
+              ? plan
+              : ''
     if (fillPrompt) {
       state.prompt = fillPrompt
       const promptEl = host?.querySelector('[data-ws-prompt]')
@@ -1048,7 +1060,9 @@ export function createStudioHost(opts = {}) {
       if (details instanceof HTMLDetailsElement && neg) details.open = true
     }
     const aspect =
-      typeof plan === 'object' ? plan.fillAspect || plan.prompts?.[0]?.aspect : null
+      typeof plan === 'object'
+        ? plan.fillAspect || plan.suggestedAspectRatio || plan.prompts?.[0]?.aspect
+        : null
     if (aspect && aspect !== '自动') {
       state.ratio = aspect
       const ratioEl = host?.querySelector('[data-ws-param="ratio"]')
@@ -2228,7 +2242,11 @@ export function createStudioHost(opts = {}) {
 
     host.querySelector('[data-ws-plan-text]')?.addEventListener('input', (e) => {
       const t = /** @type {HTMLTextAreaElement} */ (e.target)
-      state.skillPlan = t.value
+      if (typeof state.skillPlan === 'object' && state.skillPlan) {
+        state.skillPlan = { ...state.skillPlan, cardText: t.value }
+      } else {
+        state.skillPlan = t.value
+      }
     })
     host.querySelectorAll('[data-ws-plan-action]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -2249,7 +2267,14 @@ export function createStudioHost(opts = {}) {
           host.dispatchEvent(
             new CustomEvent('dsh-ws-plan', {
               bubbles: true,
-              detail: { action, skillId, prompt: state.prompt, skillPlan: state.skillPlan },
+              detail: {
+                action,
+                skillId,
+                prompt: state.prompt,
+                skillPlan: state.skillPlan,
+                mode: state.mode,
+                refImageIds: (state.refImages || []).map((r) => r.id).filter(Boolean),
+              },
             }),
           )
         } else if (action === 'accept') {
@@ -2270,6 +2295,10 @@ export function createStudioHost(opts = {}) {
             return
           }
           setStatus('已填入方案，出图中…')
+          try {
+            clearPendingProposal()
+          } catch (_) {}
+          state.planPhase = 'generating'
           dispatchGenerate({ fromPlan: true })
         }
       })
@@ -2513,6 +2542,18 @@ export function createStudioHost(opts = {}) {
       mountStudioHostEl(el)
       el.style.display = 'flex'
       open = true
+      try {
+        const pending = loadPendingProposal()
+        if (pending && (pending.prompt || pending.fillPrompt || pending.reason || pending.rationale)) {
+          state.skillPlan = pending
+          if (pending.label || pending.skillId) state.skillId = pending.label || pending.skillId
+          state.planPhase = 'proposal'
+          paintSkillPlan()
+          const ta = host?.querySelector('[data-ws-plan-text]')
+          if (ta instanceof HTMLTextAreaElement) ta.value = formatPlanCard(pending)
+          setStatus('已恢复未确认方案（不锁出图）')
+        }
+      } catch (_) {}
     },
     close() {
       if (host) host.style.display = 'none'
@@ -2614,17 +2655,38 @@ export function createStudioHost(opts = {}) {
      */
     paintSkillPlanResult(plan) {
       ensure()
-      state.skillPlan = plan
+      const card =
+        plan && typeof plan === 'object' && plan.proposal && typeof plan.proposal === 'object'
+          ? { ...plan, ...plan.proposal, proposal: plan.proposal }
+          : plan
+      state.skillPlan = card
+      state.planPhase = 'proposal'
       const ta = host?.querySelector('[data-ws-plan-text]')
       if (ta instanceof HTMLTextAreaElement) {
-        ta.value = formatPlanCard(plan)
-        ta.placeholder = '方案可改；点「就这样出图」填入提示词'
+        ta.value = formatPlanCard(card)
+        ta.placeholder = '方案可改（Nova 提案卡形）；点「就这样出图」确认出图'
       }
       paintSkillPlan()
+      try {
+        savePendingProposal(
+          typeof card === 'object'
+            ? card
+            : {
+                prompt: String(card || ''),
+                reason: '',
+                action: 'generate',
+                referencedImageIds: [],
+                disabledByScore: false,
+                phase: 'proposal',
+              },
+        )
+      } catch (_) {}
       const scoreNote =
-        plan && typeof plan === 'object' && plan.score
-          ? `自检 ${plan.score.total ?? ''}（不锁出图）`
-          : '方案已就绪'
+        card && typeof card === 'object' && card.score
+          ? `自检 ${card.score.total ?? ''}（不锁出图）`
+          : card && typeof card === 'object' && (card.reason || card.rationale)
+            ? '提案已就绪（可改后确认）'
+            : '方案已就绪'
       setStatus(scoreNote)
     },
     /** Fill prompt/negative/ratio from current skillPlan without generating. */
