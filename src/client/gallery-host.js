@@ -1,5 +1,6 @@
 /**
  * 画廊 page shell — grid + local history/media read (docs/ui/06).
+ * Resolves seats via RPC storage.paths (media/gallery · media/history).
  * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
  * Labels exact from ../ui/labels.js. Empty honest if no media — no fake demos.
  */
@@ -18,6 +19,16 @@ export const GALLERY_PAGE = '画廊'
 export const IMAGE_PAGE = '普通生图'
 
 const STORAGE_KEY = 'dsh-ws-gallery-items'
+const HISTORY_KEY = 'dsh-ws-history-v1'
+const CTA_RPC_CHANNEL = '/dsh-ws'
+const CTA_RPC_STORAGE_PATHS = 'storage.paths'
+const CTA_RPC_STORAGE_LIST = 'storage.list'
+const DEFAULT_PATHS = Object.freeze({
+  dataDir: '',
+  generated: 'media/generated',
+  gallery: 'media/gallery',
+  history: 'media/history',
+})
 const EMPTY_HINT =
   '画廊还是空的。在普通生图或视频结果里点「加画廊」，满意作品会沉淀到这里。'
 const FILTER_ALL = '全部'
@@ -69,6 +80,127 @@ export function writeLocalGalleryItems(items) {
  *   lightboxId?: string,
  * }}
  */
+
+/** @returns {typeof DEFAULT_PATHS & Record<string, string>} */
+export function defaultStoragePaths() {
+  return { ...DEFAULT_PATHS }
+}
+
+/**
+ * Read studio local history (if persisted) into gallery-shaped items.
+ * Never invent fixtures.
+ * @returns {GalleryItem[]}
+ */
+export function readLocalHistoryItems() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    /** @type {GalleryItem[]} */
+    const out = []
+    for (const entry of parsed) {
+      const id = entry?.id != null ? String(entry.id) : ''
+      const value = entry?.value && typeof entry.value === 'object' ? entry.value : {}
+      const results = Array.isArray(value.results) ? value.results : []
+      const snap = entry?.snapshot && typeof entry.snapshot === 'object' ? entry.snapshot : {}
+      results.forEach((r, i) => {
+        const url = r?.url ? String(r.url) : ''
+        const localPath = r?.localPath ? String(r.localPath) : ''
+        if (!url && !localPath) return
+        out.push({
+          id: `${id || 'hist'}-${i}`,
+          url: url || '',
+          localPath: localPath || undefined,
+          kind: r?.kind === 'video' ? 'video' : 'image',
+          mode: snap.mode ? String(snap.mode) : undefined,
+          model: snap.modelId ? String(snap.modelId) : undefined,
+          ratio: snap.ratio ? String(snap.ratio) : undefined,
+          createdAt: Number(entry.savedAt) || Date.now(),
+          name: snap.prompt ? String(snap.prompt).slice(0, 40) : '历史',
+          seat: 'history',
+        })
+      })
+    }
+    return out
+  } catch (_) {
+    return []
+  }
+}
+
+/**
+ * @param {{ getRpc?: () => { call?: Function } | null | undefined } | null | undefined} opts
+ * @returns {Promise<{ paths: typeof DEFAULT_PATHS & Record<string, string>, diskItems: GalleryItem[] }>}
+ */
+export async function fetchStorageMedia(opts) {
+  const paths = defaultStoragePaths()
+  /** @type {GalleryItem[]} */
+  let diskItems = []
+  const rpc = typeof opts?.getRpc === 'function' ? opts.getRpc() : null
+  if (!rpc || typeof rpc.call !== 'function') {
+    return { paths, diskItems }
+  }
+  try {
+    const pathRes = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_PATHS, {})
+    if (pathRes?.ok && pathRes.value && typeof pathRes.value === 'object') {
+      const v = pathRes.value
+      if (v.dataDir != null) paths.dataDir = String(v.dataDir)
+      if (v.generated) paths.generated = String(v.generated)
+      if (v.gallery) paths.gallery = String(v.gallery)
+      if (v.history) paths.history = String(v.history)
+    }
+  } catch (_) {
+    /* keep defaults */
+  }
+  try {
+    const listRes = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_LIST, {})
+    if (listRes?.ok && listRes.value && typeof listRes.value === 'object') {
+      const v = listRes.value
+      if (v.gallery) paths.gallery = String(v.gallery || paths.gallery)
+      if (v.history) paths.history = String(v.history || paths.history)
+      if (v.dataDir != null) paths.dataDir = String(v.dataDir)
+      const rows = Array.isArray(v.items)
+        ? v.items
+        : [...(Array.isArray(v.galleryItems) ? v.galleryItems : []), ...(Array.isArray(v.historyItems) ? v.historyItems : [])]
+      diskItems = rows
+        .filter((it) => it && typeof it === 'object')
+        .map((it) => ({
+          id: String(it.id || it.relativePath || it.name || Math.random()),
+          url: it.url ? String(it.url) : '',
+          localPath: it.localPath ? String(it.localPath) : undefined,
+          kind: it.kind === 'video' ? 'video' : 'image',
+          name: it.name ? String(it.name) : it.relativePath ? String(it.relativePath) : '素材',
+          createdAt: Number(it.createdAt) || Date.now(),
+          seat: it.seat ? String(it.seat) : undefined,
+          relativePath: it.relativePath ? String(it.relativePath) : undefined,
+        }))
+    }
+  } catch (_) {
+    /* honest empty disk */
+  }
+  return { paths, diskItems }
+}
+
+/**
+ * Merge localStorage gallery + history + disk seats. Dedup by id/url/path.
+ * @param {GalleryItem[]} diskItems
+ * @returns {GalleryItem[]}
+ */
+export function collectLocalMediaItems(diskItems = []) {
+  const gallery = readLocalGalleryItems()
+  const history = readLocalHistoryItems()
+  const merged = [...diskItems, ...gallery, ...history]
+  const seen = new Set()
+  const out = []
+  for (const it of merged) {
+    const key = it.id || it.url || it.localPath || it.relativePath || ''
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(it)
+  }
+  return out
+}
+
 export function defaultGalleryState() {
   return {
     filters: { mode: FILTER_ALL, model: FILTER_ALL, ratio: FILTER_ALL, tagIds: [] },
@@ -76,7 +208,8 @@ export function defaultGalleryState() {
     sort: 'newest',
     tags: [],
     selection: [],
-    items: readLocalGalleryItems(),
+    items: collectLocalMediaItems([]),
+    paths: defaultStoragePaths(),
     lightboxId: undefined,
   }
 }
@@ -248,7 +381,7 @@ export function buildGalleryPageHtml(T, css, state) {
  * @param {{ T: Record<string, string>, css: object }} opts
  */
 export function mountGalleryPage(host, opts) {
-  const { T, css } = opts
+  const { T, css, getRpc } = opts
   const state = defaultGalleryState()
 
   const imageCols = host.querySelector('[data-ws-cols]')
@@ -323,9 +456,12 @@ export function mountGalleryPage(host, opts) {
 
     if (!items.length) {
       const rawEmpty = !state.items.length
+      const seats = state.paths
+        ? `本地座位：${escapeHtml(state.paths.gallery)} · ${escapeHtml(state.paths.history)}`
+        : ''
       grid.innerHTML = `<div data-ws-gallery-empty role="status">${
         rawEmpty
-          ? EMPTY_HINT
+          ? `${EMPTY_HINT}${seats ? `<div style="margin-top:8px;font-size:11px;opacity:.85;">${seats}</div>` : ''}`
           : '当前筛选下没有素材。试试改模式 / 模型 / 比例 / 标签。'
       }</div>`
       return
@@ -334,11 +470,18 @@ export function mountGalleryPage(host, opts) {
     grid.innerHTML = items
       .map((it) => {
         const selected = state.selection.includes(it.id)
-        const isVideo = it.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(it.url)
-        const media = isVideo
-          ? `<video src="${escapeHtml(it.url)}" muted playsinline preload="metadata"></video>`
-          : `<img src="${escapeHtml(it.url)}" alt="" loading="lazy" />`
-        const meta = escapeHtml(it.name || it.mode || it.model || it.ratio || '素材')
+        const src = it.url || ''
+        const isVideo = it.kind === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(src || it.relativePath || '')
+        let media
+        if (src) {
+          media = isVideo
+            ? `<video src="${escapeHtml(src)}" muted playsinline preload="metadata"></video>`
+            : `<img src="${escapeHtml(src)}" alt="" loading="lazy" />`
+        } else {
+          const label = escapeHtml(it.name || it.relativePath || '本地文件')
+          media = `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:8px;font-size:11px;color:var(--dsw-alias-label-tertiary);text-align:center;background:var(--dsw-alias-bg-layer-1);">${label}</div>`
+        }
+        const meta = escapeHtml(it.name || it.mode || it.model || it.ratio || it.relativePath || '素材')
         return `<article data-ws-gallery-card data-id="${escapeHtml(it.id)}" role="listitem" ${selected ? 'data-selected' : ''}>
           ${media}
           <div data-ws-gallery-card-meta>${meta}</div>
@@ -386,11 +529,19 @@ export function mountGalleryPage(host, opts) {
     box.setAttribute('aria-hidden', 'false')
   }
 
-  const reload = () => {
-    state.items = readLocalGalleryItems()
+  const reload = async () => {
+    const { paths, diskItems } = await fetchStorageMedia({ getRpc })
+    state.paths = paths
+    state.items = collectLocalMediaItems(diskItems)
     paintTags()
     paintGrid()
     paintViewSort()
+    const seatHint = `${paths.gallery} · ${paths.history}`
+    if (!state.items.length) {
+      setStatus(`本地座位 ${seatHint}（暂无媒体）`)
+    } else {
+      setStatus(`已读本地媒体 · ${seatHint}`)
+    }
   }
 
   page.querySelectorAll('[data-ws-gallery-filter]').forEach((sel) => {

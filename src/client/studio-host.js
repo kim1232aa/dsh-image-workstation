@@ -26,6 +26,8 @@ import { mountCanvasPage, CANVAS_PAGE } from './canvas-host.js'
 import { mountGifHost, GIF_PAGE } from './gif-host.js'
 import { mountUiDesignHost, UI_DESIGN_PAGE } from './ui-design-host.js'
 import { mountTemplateHost, TEMPLATE_PAGE } from './template-host.js'
+import { mountGalleryPage, GALLERY_PAGE } from './gallery-host.js'
+import { mountEcomPage, ECOM_PAGE } from './ecom-host.js'
 import { TOOL_MORE, TOOL_ENTRIES } from '../ui/labels.js'
 export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
@@ -709,6 +711,10 @@ export function createStudioHost(opts = {}) {
   let uiDesignApi = null
   /** @type {ReturnType<typeof mountTemplateHost> | null} */
   let templateApi = null
+  /** @type {ReturnType<typeof mountGalleryPage> | null} */
+  let galleryApi = null
+  /** @type {ReturnType<typeof mountEcomPage> | null} */
+  let ecomApi = null
   /** @type {ReturnType<typeof defaultStudioState> & { compareModels?: boolean, refImages?: Array<{ id: string, url: string, name?: string }>, task?: any }} */
   let state = defaultStudioState()
   /** @type {string | null} */
@@ -764,13 +770,23 @@ export function createStudioHost(opts = {}) {
     const toggle = host?.querySelector('[data-ws-mode-toggle]')
     if (menu instanceof HTMLElement) menu.hidden = true
     if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false')
-    // Stamp top-page for sibling page CSS (video/canvas hide image cols).
+    // Stamp top-page for sibling page CSS (video/canvas/gallery/ecom hide image cols).
     host?.setAttribute('data-ws-top-page', name)
-    if (name === VIDEO_PAGE || name === IMAGE_PAGE || name === CANVAS_PAGE) {
+    const topWired =
+      name === VIDEO_PAGE ||
+      name === IMAGE_PAGE ||
+      name === CANVAS_PAGE ||
+      name === GALLERY_PAGE ||
+      name === ECOM_PAGE
+    if (topWired) {
       videoApi?.setPage(name)
       canvasApi?.setPage(name)
+      galleryApi?.setPage(name)
+      ecomApi?.setPage(name)
       if (name === VIDEO_PAGE) setStatus('视频生成')
       else if (name === CANVAS_PAGE) setStatus('无限画布')
+      else if (name === GALLERY_PAGE) setStatus('画廊')
+      else if (name === ECOM_PAGE) setStatus('电商模式')
       else setStatus('普通生图')
     } else {
       setStatus(`「${name}」未接线`)
@@ -2300,11 +2316,15 @@ export function createStudioHost(opts = {}) {
     mountStudioHostEl(host)
     videoApi?.dispose?.()
     canvasApi?.dispose?.()
+    galleryApi?.dispose?.()
+    ecomApi?.dispose?.()
     gifApi?.dispose?.()
     uiDesignApi?.dispose?.()
     templateApi?.dispose?.()
     videoApi = mountVideoPage(host, { T, css, paneWidths: state.paneWidths })
     canvasApi = mountCanvasPage(host, { T, css })
+    galleryApi = mountGalleryPage(host, { T, css, getRpc })
+    ecomApi = mountEcomPage(host, { T, css })
     gifApi = mountGifHost(host, { T, css, setStatus })
     uiDesignApi = mountUiDesignHost(host, { T, css, setStatus })
     templateApi = mountTemplateHost(host, {
@@ -2323,9 +2343,16 @@ export function createStudioHost(opts = {}) {
         ? VIDEO_PAGE
         : state.topTab === CANVAS_PAGE
           ? CANVAS_PAGE
-          : IMAGE_PAGE
+          : state.topTab === GALLERY_PAGE
+            ? GALLERY_PAGE
+            : state.topTab === ECOM_PAGE
+              ? ECOM_PAGE
+              : IMAGE_PAGE
+    host.setAttribute('data-ws-top-page', initialTop)
     videoApi.setPage(initialTop)
     canvasApi.setPage(initialTop)
+    galleryApi.setPage(initialTop)
+    ecomApi.setPage(initialTop)
     paintChat()
     syncFields()
     paintStageIdle()
@@ -2448,6 +2475,10 @@ export function createStudioHost(opts = {}) {
       videoApi = null
       canvasApi?.dispose?.()
       canvasApi = null
+      galleryApi?.dispose?.()
+      galleryApi = null
+      ecomApi?.dispose?.()
+      ecomApi = null
       gifApi?.dispose?.()
       gifApi = null
       uiDesignApi?.dispose?.()
