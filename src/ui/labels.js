@@ -99,6 +99,7 @@ export const RESULT_ACTIONS = Object.freeze([
   '重新生成',
   '复制提示词',
   '拿去做视频',
+  '再编辑',
 ])
 
 export const EMPTY = Object.freeze({

@@ -22,6 +22,9 @@ export const inject = ['slots', 'locale', 'connection', 'sessions', 'conversatio
 /** Plugin-owned Connection RPC channel (host registers via connection.rpc.handle). */
 export const CTA_RPC_CHANNEL = '/dsh-ws'
 export const CTA_RPC_GENERATE = 'generate'
+export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
+/** Future write seat — not registered yet; client must stay honest 未接线 */
+export const CTA_RPC_GALLERY_ADD = 'gallery.add'
 export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
 export const SKILL_RPC_PLAN = 'plan'
 
@@ -202,6 +205,83 @@ export function apply(ctx, _config) {
     document.addEventListener('dsh-ws-video-generate', onVideoGenerate)
     disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
 
+
+  /**
+   * Resolve dataDir + media/{generated,gallery,history} seats from host.
+   * Studio namespaced history localStorage by dataDir when known.
+   */
+  const onStoragePathsRequest = async () => {
+    const rpc = ctx.connection?.rpc
+    if (!rpc || typeof rpc.call !== 'function') return
+    try {
+      const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_PATHS, {})
+      if (result?.ok && result.value && typeof result.value === 'object') {
+        studio.setStoragePaths?.(result.value)
+      }
+    } catch (_) {
+      /* keep local history key; no fake path */
+    }
+  }
+  document.addEventListener('dsh-ws-storage-paths-request', onStoragePathsRequest)
+  disposers.push(() => document.removeEventListener('dsh-ws-storage-paths-request', onStoragePathsRequest))
+  // Warm paths once at mount when connection already up
+  try {
+    onStoragePathsRequest()
+  } catch (_) {}
+
+  /**
+   * 加画廊 — needs host persist into media/gallery (storage.paths seat).
+   * Until gallery.add (or equivalent) exists, stay honest 「未接线」— never fake success.
+   */
+  const onGalleryAdd = async (ev) => {
+    const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+    const src = detail.src || ''
+    if (!src) {
+      studio.setStatus?.('无图可加画廊')
+      return
+    }
+    const rpc = ctx.connection?.rpc
+    if (!rpc || typeof rpc.call !== 'function') {
+      studio.setStatus?.('「加画廊」未接线')
+      return
+    }
+    try {
+      // Confirm gallery seat exists (paths RPC from 插件工 399ea28+)
+      const paths = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_STORAGE_PATHS, {})
+      if (!paths?.ok || !paths?.value?.gallery) {
+        studio.setStatus?.('「加画廊」未接线')
+        return
+      }
+      const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GALLERY_ADD, {
+        src,
+        prompt: detail.prompt || '',
+        snapshot: detail.snapshot || null,
+        galleryRel: paths.value.gallery,
+        dataDir: paths.value.dataDir,
+      })
+      if (result?.ok) {
+        studio.setStatus?.('已加入画廊')
+        return
+      }
+      const code = result?.error?.code || ''
+      // UNKNOWN_ENDPOINT / missing write path → honest placeholder
+      studio.setStatus?.(
+        code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED'
+          ? '「加画廊」未接线'
+          : scrubErrorMessage(result?.error?.message || '「加画廊」未接线'),
+      )
+    } catch (e) {
+      const code = e?.code || ''
+      const msg = formatClientRpcFailure(e)
+      studio.setStatus?.(
+        code === 'UNKNOWN_ENDPOINT' || /unknown/i.test(String(msg))
+          ? '「加画廊」未接线'
+          : msg || '「加画廊」未接线',
+      )
+    }
+  }
+  document.addEventListener('dsh-ws-gallery-add', onGalleryAdd)
+  disposers.push(() => document.removeEventListener('dsh-ws-gallery-add', onGalleryAdd))
 
   /**
    * dsh-ws-plan → /dsh-ws-skill plan → paintSkillPlanResult

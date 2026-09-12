@@ -61,6 +61,11 @@ function inspireFallbackSvg(seedIdx = 0) {
 const DETAIL_OPTS = Object.freeze(['自动', '标准', '高清'])
 
 const HIST_THUMB = 88
+/** Persist 普通生图 history (localStorage; namespaced by storage.paths dataDir when known) */
+const HISTORY_KEY_BASE = 'dsh-ws-history-v1'
+const HISTORY_MAX = 40
+/** Result actions with no write/edit path yet — never fake success */
+const UNWIRED_RESULT_ACTIONS = new Set(['加对话', '拿去做视频', '再编辑'])
 
 const STAGE_LABEL = '生成结果'
 const STAGE_EMPTY_TITLE = '生成后显示在这里'
@@ -143,10 +148,10 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] *::before,
 [data-dsh-ws-studio-host] *::after { box-sizing: border-box; }
 [data-dsh-ws-studio-host] [data-ws-history-item] {
-  display:flex; gap:8px; align-items:flex-start;
-  padding:5px; border:1px solid var(--dsw-alias-border-l2); border-radius:9px;
+  display:flex; gap:7px; align-items:flex-start;
+  padding:4px; border:1px solid var(--dsw-alias-border-l2); border-radius:8px;
   background: var(--dsw-alias-bg-module-platform); flex:none; font:inherit; color:inherit; text-align:left;
-  transition: border-color .12s ease, background .12s ease;
+  transition: border-color .12s ease, background .12s ease; cursor:pointer;
 }
 [data-dsh-ws-studio-host] [data-ws-history-item]:hover {
   border-color: var(--dsw-alias-border-l3);
@@ -166,7 +171,7 @@ const HOST_STYLES = `
   background: var(--dsw-alias-bg-layer-1);
 }
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-meta {
-  flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;
+  flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;
 }
 [data-dsh-ws-studio-host] [data-ws-history-ghost] .ws-hist-line,
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-line {
@@ -177,7 +182,7 @@ const HOST_STYLES = `
   font-size:10.5px; color: var(--dsw-alias-label-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 [data-dsh-ws-studio-host] [data-ws-history-item] .ws-hist-actions {
-  display:flex; gap:4px; flex-wrap:wrap; margin-top:2px;
+  display:flex; gap:3px; flex-wrap:wrap; margin-top:1px;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-card] {
   position:relative; display:flex; flex-direction:column; justify-content:flex-end;
@@ -436,6 +441,9 @@ const HOST_STYLES = `
   padding:7px 14px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
   background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
   cursor:pointer; font:inherit; font-size:12.5px; line-height:1.25; min-height:32px;
+}
+[data-dsh-ws-studio-host] [data-ws-result-actions] button[data-ws-unwired] {
+  opacity:.7; border-style:dashed; color: var(--dsw-alias-label-tertiary);
 }
 [data-dsh-ws-studio-host] [data-ws-plan-panel] {
   display:none; flex-direction:column; gap:4px; padding:6px 8px;
@@ -705,8 +713,14 @@ export function createStudioHost(opts = {}) {
   let state = defaultStudioState()
   /** @type {string | null} */
   let activeHistoryId = null
-  /** @type {Map<string, { snapshot: Record<string, unknown>, value: any }>} */
+  /** @type {Map<string, { snapshot: Record<string, unknown>, value: any, savedAt?: number }>} */
   const historyStore = new Map()
+  /** @type {{ dataDir?: string, generated?: string, gallery?: string, history?: string } | null} */
+  let storagePaths = null
+  const historyStorageKey = () => {
+    const dir = storagePaths?.dataDir ? String(storagePaths.dataDir) : ''
+    return dir ? `${HISTORY_KEY_BASE}::${dir}` : HISTORY_KEY_BASE
+  }
   /** @type {number | null} */
   let progressTimer = null
   /** @type {number} */
@@ -789,6 +803,78 @@ export function createStudioHost(opts = {}) {
       )
     } catch (_) {
       /* ignore quota / private mode */
+    }
+  }
+
+
+  const slimResultRow = (r) => {
+    if (!r || typeof r !== 'object') return null
+    const url = r.url != null ? String(r.url) : ''
+    const localPath = r.localPath != null ? String(r.localPath) : ''
+    const kind = r.kind != null ? String(r.kind) : undefined
+    if (url.startsWith('data:') && url.length > 120000) {
+      return localPath ? { localPath, kind } : null
+    }
+    const out = {}
+    if (url) out.url = url
+    if (localPath) out.localPath = localPath
+    if (kind) out.kind = kind
+    return out.url || out.localPath ? out : null
+  }
+
+  const slimGenerateValue = (value) => {
+    if (!value || typeof value !== 'object') return value
+    const results = Array.isArray(value.results)
+      ? value.results.map(slimResultRow).filter(Boolean)
+      : []
+    return {
+      jobId: value.jobId,
+      phase: value.phase || value.status || 'done',
+      status: value.status || value.phase || 'done',
+      progress: value.progress,
+      elapsedMs: value.elapsedMs,
+      error: value.error,
+      results,
+    }
+  }
+
+  const persistHistory = () => {
+    try {
+      const histEl = host?.querySelector('[data-ws-history-list]')
+      const orderedIds = histEl
+        ? Array.from(histEl.querySelectorAll('[data-ws-history-item]')).map((el) =>
+            el.getAttribute('data-ws-history-item'),
+          )
+        : Array.from(historyStore.keys())
+      const final = []
+      const seen = new Set()
+      for (const id of orderedIds) {
+        if (!id || seen.has(id) || !historyStore.has(id)) continue
+        seen.add(id)
+        const entry = historyStore.get(id)
+        final.push({
+          id,
+          snapshot: entry?.snapshot || {},
+          value: slimGenerateValue(entry?.value),
+          savedAt: entry?.savedAt || Date.now(),
+        })
+        if (final.length >= HISTORY_MAX) break
+      }
+      localStorage.setItem(historyStorageKey(), JSON.stringify(final))
+    } catch (_) {
+      /* quota / private mode — keep in-memory only */
+    }
+  }
+
+  const loadHistoryEntries = () => {
+    try {
+      const raw = localStorage.getItem(historyStorageKey())
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return []
+      return parsed.filter((e) => e && typeof e === 'object' && e.id).slice(0, HISTORY_MAX)
+    } catch (_) {
+      return []
     }
   }
 
@@ -1172,6 +1258,115 @@ export function createStudioHost(opts = {}) {
     if (stage instanceof HTMLElement) stage.setAttribute('data-has-results', '')
   }
 
+  /**
+   * Mount one history row (thumb · prompt excerpt · model · 恢复/删除).
+   * @param {string} jobId
+   * @param {{ snapshot?: Record<string, unknown>, value?: any, savedAt?: number }} entry
+   * @param {{ persist?: boolean }} [opts]
+   */
+  const mountHistoryItem = (jobId, entry, opts = {}) => {
+    const histEl = host?.querySelector('[data-ws-history-list]')
+    if (!histEl || !jobId) return
+    const persist = opts.persist !== false
+    const snapshot = entry?.snapshot || captureParamSnapshot()
+    const value = entry?.value
+    const savedAt = entry?.savedAt || Date.now()
+    historyStore.set(jobId, { snapshot, value, savedAt })
+
+    const existing = Array.from(histEl.querySelectorAll('[data-ws-history-item]')).find(
+      (el) => el.getAttribute('data-ws-history-item') === jobId,
+    )
+    if (existing) {
+      const results = Array.isArray(value?.results) ? value.results : []
+      const thumb = results.length ? pickDisplayUrl(results[0]) : ''
+      const img = existing.querySelector('img')
+      if (thumb && img instanceof HTMLImageElement) img.src = thumb
+      if (persist) persistHistory()
+      markHistoryActive(jobId)
+      return
+    }
+
+    histEl.querySelector('[data-ws-history-empty]')?.remove()
+    const promptText =
+      (snapshot?.prompt != null ? String(snapshot.prompt) : state.prompt || '').trim()
+    const snippet = promptText.slice(0, 28) || '生成结果'
+    const ratio = snapshot?.ratio != null ? String(snapshot.ratio) : state.ratio || '1:1'
+    const mode = snapshot?.mode != null ? String(snapshot.mode) : state.mode || MODE_TXT
+    const modelId =
+      snapshot?.modelId != null && String(snapshot.modelId)
+        ? String(snapshot.modelId)
+        : state.modelId || DEFAULT_MODEL
+    const line = `${snippet} · ${ratio}`
+    const modelLine = `${modelId} · ${mode}`
+    const results = Array.isArray(value?.results) ? value.results : []
+    const thumb = results.length ? pickDisplayUrl(results[0]) : ''
+
+    const item = document.createElement('div')
+    item.dataset.wsHistoryItem = jobId
+    item.innerHTML =
+      (thumb
+        ? `<img src="${escapeHtml(thumb)}" alt="" width="${HIST_THUMB}" height="${HIST_THUMB}" />`
+        : `<span style="width:${HIST_THUMB}px;height:${HIST_THUMB}px;border-radius:7px;background:${T.module};flex:none;"></span>`) +
+      `<div class="ws-hist-meta">` +
+      `<div class="ws-hist-line" title="${escapeHtml(promptText || '生成结果')}">${escapeHtml(line)}</div>` +
+      `<div class="ws-hist-model">${escapeHtml(modelLine)}</div>` +
+      `<div class="ws-hist-actions">` +
+      `<button type="button" data-ws-history-restore style="${css.histAction}">${HISTORY_ACTIONS.restore}</button>` +
+      `<button type="button" data-ws-history-delete style="${css.histAction}">${HISTORY_ACTIONS.remove}</button>` +
+      `</div></div>`
+    const himg = item.querySelector('img')
+    if (himg) {
+      himg.addEventListener('error', () => {
+        if (himg.dataset.failed) return
+        himg.dataset.failed = '1'
+        himg.src = inspireFallbackSvg(1)
+      })
+    }
+    item.querySelector('[data-ws-history-restore]')?.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const stored = historyStore.get(jobId)
+      if (stored?.snapshot) applyParamSnapshot(stored.snapshot)
+      markHistoryActive(jobId)
+      if (stored?.value) applyGenerateResult(stored.value)
+      setStatus('已恢复参数')
+    })
+    item.querySelector('[data-ws-history-delete]')?.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      historyStore.delete(jobId)
+      item.remove()
+      if (activeHistoryId === jobId) activeHistoryId = null
+      persistHistory()
+      paintHistoryEmpty()
+      setStatus('已删除记录')
+    })
+    item.addEventListener('click', (e) => {
+      if (e.target instanceof Element && e.target.closest('[data-ws-history-restore],[data-ws-history-delete]'))
+        return
+      markHistoryActive(jobId)
+      const stored = historyStore.get(jobId)
+      if (stored?.value) applyGenerateResult(stored.value)
+      setStatus('已从历史载入结果')
+    })
+    histEl.insertBefore(item, histEl.firstChild)
+    markHistoryActive(jobId)
+    syncHistoryChrome()
+    if (persist) persistHistory()
+  }
+
+  const hydrateHistoryFromStorage = () => {
+    const entries = loadHistoryEntries()
+    if (!entries.length) {
+      paintHistoryEmpty()
+      return
+    }
+    for (const e of [...entries].reverse()) {
+      mountHistoryItem(String(e.id), e, { persist: false })
+    }
+    syncHistoryChrome()
+  }
+
   /** True empty history only — no ghost placeholder rows; demote filters when empty */
   const paintHistoryEmpty = () => {
     const histEl = host?.querySelector('[data-ws-history-list]')
@@ -1397,77 +1592,13 @@ export function createStudioHost(opts = {}) {
       }
     }
     if (histEl && results.length) {
-      histEl.querySelector('[data-ws-history-empty]')?.remove()
       const jobId = value?.jobId || `local-${Date.now()}`
-      const existing = Array.from(histEl.querySelectorAll('[data-ws-history-item]')).find(
-        (el) => el.getAttribute('data-ws-history-item') === jobId,
-      )
-      if (existing) {
-        const prev = historyStore.get(jobId)
-        historyStore.set(jobId, {
-          snapshot: prev?.snapshot || captureParamSnapshot(),
-          value,
-        })
-        markHistoryActive(jobId)
-      } else {
-        historyStore.set(jobId, { snapshot: captureParamSnapshot(), value })
-        const item = document.createElement('div')
-        item.dataset.wsHistoryItem = jobId
-        const thumb = pickDisplayUrl(results[0])
-        const snippet =
-          (state.prompt || '').trim().slice(0, 18) || '生成结果'
-        const line = `${snippet} · ${state.ratio || '1:1'}`
-        const modelLine = state.modelId || DEFAULT_MODEL
-        item.innerHTML =
-          (thumb
-            ? `<img src="${escapeHtml(thumb)}" alt="" width="${HIST_THUMB}" height="${HIST_THUMB}" />`
-            : `<span style="width:${HIST_THUMB}px;height:${HIST_THUMB}px;border-radius:7px;background:${T.module};flex:none;"></span>`) +
-          `<div class="ws-hist-meta">` +
-          `<div class="ws-hist-line" title="${escapeHtml(state.prompt || '生成结果')}">${escapeHtml(line)}</div>` +
-          `<div class="ws-hist-model">${escapeHtml(modelLine)}</div>` +
-          `<div class="ws-hist-actions">` +
-          `<button type="button" data-ws-history-restore style="${css.histAction}">${HISTORY_ACTIONS.restore}</button>` +
-          `<button type="button" data-ws-history-delete style="${css.histAction}">${HISTORY_ACTIONS.remove}</button>` +
-          `</div></div>`
-        const himg = item.querySelector('img')
-        if (himg) {
-          himg.addEventListener('error', () => {
-            if (himg.dataset.failed) return
-            himg.dataset.failed = '1'
-            himg.src = inspireFallbackSvg(1)
-          })
-        }
-        item.querySelector('[data-ws-history-restore]')?.addEventListener('click', (e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          const stored = historyStore.get(jobId)
-          if (stored?.snapshot) applyParamSnapshot(stored.snapshot)
-          markHistoryActive(jobId)
-          if (stored?.value) applyGenerateResult(stored.value)
-          setStatus('已恢复参数')
-        })
-        item.querySelector('[data-ws-history-delete]')?.addEventListener('click', (e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          historyStore.delete(jobId)
-          item.remove()
-          if (activeHistoryId === jobId) activeHistoryId = null
-          paintHistoryEmpty()
-          setStatus('已删除记录')
-        })
-        item.addEventListener('click', (e) => {
-          if (e.target instanceof Element && e.target.closest('[data-ws-history-restore],[data-ws-history-delete]'))
-            return
-          markHistoryActive(jobId)
-          const stored = historyStore.get(jobId)
-          if (stored?.value) applyGenerateResult(stored.value)
-          else applyGenerateResult(value)
-          setStatus('已从历史载入结果')
-        })
-        histEl.insertBefore(item, histEl.firstChild)
-        markHistoryActive(jobId)
-        syncHistoryChrome()
-      }
+      const prev = historyStore.get(jobId)
+      mountHistoryItem(jobId, {
+        snapshot: prev?.snapshot || captureParamSnapshot(),
+        value,
+        savedAt: Date.now(),
+      })
     }
     setStatus(
       results.length
@@ -1545,7 +1676,7 @@ export function createStudioHost(opts = {}) {
               </select>
             </div>
           </div>
-          <div data-ws-history-list style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;"></div>
+          <div data-ws-history-list style="display:flex;flex-direction:column;gap:5px;flex:1;min-height:0;"></div>
           <button type="button" data-ws-history-clear hidden disabled style="align-self:flex-start;${css.pill({ color: T.fg3 })}">${HISTORY_ACTIONS.clear}</button>
         </aside>
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
@@ -1670,7 +1801,7 @@ export function createStudioHost(opts = {}) {
             </div>
             <div data-ws-progress>
               <div data-ws-progress-meta>
-                <span data-ws-progress-label>进度 0%</span>
+                <span data-ws-progress-label>等待宿主进度</span>
                 <span data-ws-progress-elapsed>耗时 0s</span>
                 <span data-ws-progress-phase style="color:${T.fg3};"></span>
                 <span style="flex:1"></span>
@@ -1686,10 +1817,10 @@ export function createStudioHost(opts = {}) {
             <div data-ws-results hidden></div>
             <div data-ws-result-actions>
               ${RESULT_ACTIONS.filter((a) => a !== '取消' && a !== '重试')
-                .map(
-                  (a) =>
-                    `<button type="button" data-ws-result-action="${a}">${a}</button>`,
-                )
+                .map((a) => {
+                  const unwired = a === '加画廊' || UNWIRED_RESULT_ACTIONS.has(a)
+                  return `<button type="button" data-ws-result-action="${a}"${unwired ? ' data-ws-unwired title="未接线"' : ''}>${a}</button>`
+                })
                 .join('')}
             </div>
           </div>
@@ -1787,6 +1918,7 @@ export function createStudioHost(opts = {}) {
       if (histEl) histEl.innerHTML = ''
       historyStore.clear()
       activeHistoryId = null
+      persistHistory()
       paintHistoryEmpty()
       paintStageIdle()
       setStatus('已清空历史')
@@ -1807,7 +1939,8 @@ export function createStudioHost(opts = {}) {
       }
       const rpc = getRpc?.()
       if (!rpc || typeof rpc.call !== 'function') {
-        setStatus('连接不可用，无法增强提示词')
+        // Honest — do not claim 「已增强」 when RPC missing
+        setStatus(`「${PROMPT_ACTIONS.enhance}」未接线`)
         return
       }
       setStatus(`${PROMPT_ACTIONS.enhance}中…`)
@@ -1825,14 +1958,22 @@ export function createStudioHost(opts = {}) {
         } else {
           const code = result?.error?.code ? String(result.error.code) : ''
           const msg = result?.error?.message ? String(result.error.message) : '增强失败'
-          setStatus(
-            code
-              ? `${PROMPT_ACTIONS.enhance}失败：${msg}（${code}）`
-              : `${PROMPT_ACTIONS.enhance}失败：${msg}`,
-          )
+          // Missing endpoint / not configured → 未接线; else show scrubbed failure
+          if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED' || code === 'ENHANCE_NOT_CONFIGURED') {
+            setStatus(`「${PROMPT_ACTIONS.enhance}」未接线`)
+          } else {
+            setStatus(
+              code
+                ? `${PROMPT_ACTIONS.enhance}失败：${msg}（${code}）`
+                : `${PROMPT_ACTIONS.enhance}失败：${msg}`,
+            )
+          }
         }
       } catch (e) {
-        setStatus(`${PROMPT_ACTIONS.enhance}失败：${e?.message || e}`)
+        const msg = String(e?.message || e)
+        setStatus(/unknown|not.?wired|not.?configured/i.test(msg)
+          ? `「${PROMPT_ACTIONS.enhance}」未接线`
+          : `${PROMPT_ACTIONS.enhance}失败：${msg}`)
       }
     })
     host.querySelector('[data-ws-action="templates"]')?.addEventListener('click', () => {
@@ -2051,7 +2192,6 @@ export function createStudioHost(opts = {}) {
         host.querySelector('[data-ws-results] img[data-ws-result]')
       const src = selectedImg instanceof HTMLImageElement ? selectedImg.src : ''
       /** Host-only actions with no document listener / studio handler yet */
-      const UNWIRED = new Set(['加画廊', '加对话', '拿去做视频'])
       if (action === '下载') {
         if (src) {
           const a = document.createElement('a')
@@ -2089,8 +2229,24 @@ export function createStudioHost(opts = {}) {
         dispatchGenerate({ regenerate: true })
         return
       }
-      if (UNWIRED.has(action)) {
+      if (action === '加画廊') {
+        // Ask client to persist via /dsh-ws when gallery write RPC exists; else honest 未接线
+        host.dispatchEvent(
+          new CustomEvent('dsh-ws-gallery-add', {
+            bubbles: true,
+            detail: {
+              src,
+              prompt: state.prompt,
+              snapshot: captureParamSnapshot(),
+              storagePaths,
+            },
+          }),
+        )
+        return
+      }
+      if (UNWIRED_RESULT_ACTIONS.has(action)) {
         // Prefer 「未接线」 when no host listener — do NOT claim 「已触发」
+        // 再编辑 has no edit path yet
         setStatus(`「${action}」未接线`)
         return
       }
@@ -2174,6 +2330,10 @@ export function createStudioHost(opts = {}) {
     syncFields()
     paintStageIdle()
     paintHistoryEmpty()
+    hydrateHistoryFromStorage()
+    host.dispatchEvent(
+      new CustomEvent('dsh-ws-storage-paths-request', { bubbles: true, detail: {} }),
+    )
     paintRefSlot()
     paintSkillPlan()
     paintConnStatus(true)
@@ -2207,6 +2367,25 @@ export function createStudioHost(opts = {}) {
     setStatus(text) {
       ensure()
       setStatus(text)
+    },
+    /**
+     * Host storage.paths seat (dataDir + media/gallery|history|generated).
+     * Re-keys local history persist when dataDir becomes known.
+     * @param {{ dataDir?: string, generated?: string, gallery?: string, history?: string } | null} paths
+     */
+    setStoragePaths(paths) {
+      ensure()
+      const prevKey = historyStorageKey()
+      storagePaths = paths && typeof paths === 'object' ? { ...paths } : null
+      const nextKey = historyStorageKey()
+      if (prevKey !== nextKey) {
+        // Reload history for the namespaced key (do not wipe other tenants)
+        const histEl = host?.querySelector('[data-ws-history-list]')
+        if (histEl) histEl.innerHTML = ''
+        historyStore.clear()
+        activeHistoryId = null
+        hydrateHistoryFromStorage()
+      }
     },
     /** @param {boolean} on */
     setConnected(on) {
