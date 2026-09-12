@@ -2672,10 +2672,10 @@ export function createStudioHost(opts = {}) {
       ensure()
       videoApi?.showStubFailure?.(message || 'VIDEO_NOT_CONFIGURED')
     },
-    /** GIF stub failure — exact GIF_STUB_NOT_WIRED (no fake success; CTA stays enabled) */
+    /** GIF failure — exact protocol code (GIF_NOT_CONFIGURED / GIF_STUB_NOT_WIRED); no fake success */
     paintGifStubFailure(message) {
       ensure()
-      gifApi?.showStubFailure?.(message || 'GIF_STUB_NOT_WIRED')
+      gifApi?.showStubFailure?.(message || 'GIF_NOT_CONFIGURED')
     },
     /** Ecommerce stub failure — exact ECOM_STUB_NOT_WIRED */
     paintEcomStubFailure(message) {
@@ -2686,6 +2686,11 @@ export function createStudioHost(opts = {}) {
     paintVideoResult(value) {
       ensure()
       videoApi?.paintVideoResult?.(value)
+    },
+    /** Live gifGenerate results (grid / sprite-sheet image URLs) */
+    paintGifResult(value) {
+      ensure()
+      gifApi?.paintGifResult?.(value)
     },
     setVideoProgress(value) {
       ensure()

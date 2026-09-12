@@ -373,7 +373,9 @@ export function apply(ctx, _config) {
   disposers.push(() => document.removeEventListener('dsh-ws-canvas-generate', onCanvasGenerate))
 
   /**
-   * GIF CTA → /dsh-ws/gifGenerate (stub → GIF_STUB_NOT_WIRED). Never fake success; CTA stays enabled.
+   * GIF CTA → /dsh-ws/gifGenerate (live-when-configured).
+   * Unconfigured → GIF_NOT_CONFIGURED; forceStub → GIF_STUB_NOT_WIRED.
+   * On ok: paintGifResult with URLs — never fake success without URLs.
    */
   let gifInflight = false
   /** @type {AbortController | null} */
@@ -381,19 +383,22 @@ export function apply(ctx, _config) {
   const onGifGenerate = async (ev) => {
     const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
     const paintFail = (msg) => {
-      const status = String(msg || 'GIF_STUB_NOT_WIRED')
+      const status = String(msg || 'GIF_NOT_CONFIGURED')
       studio.paintGifStubFailure?.(status)
       studio.setStatus?.(status)
     }
     const statusFromError = (error) => {
       const code = error?.code ? String(error.code) : ''
       if (code === 'GIF_STUB_NOT_WIRED') return 'GIF_STUB_NOT_WIRED'
-      if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED') return 'GIF_STUB_NOT_WIRED'
+      if (code === 'GIF_NOT_CONFIGURED') return 'GIF_NOT_CONFIGURED'
+      if (code === 'UNKNOWN_ENDPOINT' || code === 'HOST_PROXY_NOT_WIRED') {
+        return 'GIF_NOT_CONFIGURED'
+      }
       if (code) {
         const msg = scrubErrorMessage(error?.message || code)
         return msg.includes(code) ? msg : `${code}: ${msg}`
       }
-      return 'GIF_STUB_NOT_WIRED'
+      return 'GIF_NOT_CONFIGURED'
     }
     if (gifInflight) {
       studio.setStatus?.('已有 GIF 任务进行中…')
@@ -402,12 +407,13 @@ export function apply(ctx, _config) {
     const rpc = ctx.connection?.rpc
     const canCall = typeof globalThis.fetch === 'function' || (rpc && typeof rpc.call === 'function')
     if (!canCall) {
-      paintFail('GIF_STUB_NOT_WIRED')
+      paintFail('GIF_NOT_CONFIGURED')
       return
     }
     gifInflight = true
     const ac = new AbortController()
     gifAbort = ac
+    const started = Date.now()
     studio.setStatus?.('等待宿主进度…')
     const timer = setTimeout(() => ac.abort(), CLIENT_GENERATE_TIMEOUT_MS)
     try {
@@ -425,8 +431,18 @@ export function apply(ctx, _config) {
         ac.signal,
       )
       if (result?.ok) {
-        // Live seat only — never invent success on stub
-        studio.setStatus?.(result.value?.phase || 'done')
+        const value = result.value || {}
+        const list = Array.isArray(value.results) ? value.results : []
+        const urls = list.map((r) => r?.url).filter((u) => typeof u === 'string' && u)
+        if (!urls.length) {
+          paintFail(statusFromError(value.error || { code: 'GIF_NOT_CONFIGURED' }))
+        } else {
+          studio.paintGifResult?.({
+            ...value,
+            phase: value.phase || 'done',
+            elapsedMs: Date.now() - started,
+          })
+        }
       } else {
         paintFail(statusFromError(result?.error || {}))
       }
@@ -435,7 +451,11 @@ export function apply(ctx, _config) {
         studio.setStatus?.('已取消')
       } else {
         const code = e?.code ? String(e.code) : ''
-        paintFail(code === 'GIF_STUB_NOT_WIRED' ? code : statusFromError({ code, message: e?.message || e }))
+        paintFail(
+          code === 'GIF_STUB_NOT_WIRED' || code === 'GIF_NOT_CONFIGURED'
+            ? code
+            : statusFromError({ code, message: e?.message || e }),
+        )
       }
     } finally {
       clearTimeout(timer)

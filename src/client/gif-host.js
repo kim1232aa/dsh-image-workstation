@@ -1,6 +1,8 @@
 /**
  * GIF 生成 shell — multi-frame params + CTA (docs/ui/08).
- * Entry: 生图工具条 /「更多」. Honest stub: surface GIF_STUB_NOT_WIRED (no fake success).
+ * Entry: 生图工具条 /「更多」.
+ * Live-when-configured: CTA dispatches RPC; paintGifResult shows host grid image URL(s).
+ * Failures surface exact codes (GIF_NOT_CONFIGURED / GIF_STUB_NOT_WIRED) — no fake success.
  */
 import {
   GIF_TITLE,
@@ -124,7 +126,7 @@ export function mountGifHost(host, opts) {
     <div data-ws-gif-panel>
       <div data-ws-gif-head>
         <strong style="font-size:14px;">${GIF_TITLE}</strong>
-        <span style="font-size:11px;color:${T.fg3};">多帧 · 本地编码未接线</span>
+        <span style="font-size:11px;color:${T.fg3};">多帧 / 精灵表</span>
         <span style="flex:1"></span>
         <button type="button" data-ws-gif-close style="${css.pill()}">关闭</button>
       </div>
@@ -175,6 +177,8 @@ export function mountGifHost(host, opts) {
         </div>
         <div data-ws-gif-frames></div>
       </div>
+
+      <div data-ws-gif-results hidden style="display:none;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;"></div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" data-ws-gif-cta style="${css.cta};width:auto;min-width:8rem;flex:1;">${GIF_CTA}</button>
@@ -268,8 +272,8 @@ export function mountGifHost(host, opts) {
     cta.removeAttribute('disabled')
   }
   cta?.addEventListener('click', () => {
-    // No upstream yet → honest protocol code (client.js RPC will re-paint same/exact code).
-    showStubFailure(GIF_STUB_NOT_WIRED)
+    setStatus('等待宿主进度…')
+    setHostStatus('等待宿主进度…')
     host.dispatchEvent(
       new CustomEvent('dsh-ws-gif-generate', {
         bubbles: true,
@@ -298,7 +302,7 @@ export function mountGifHost(host, opts) {
     overlay.setAttribute('data-open', '')
     paintChips()
     paintFrames()
-    setStatus('GIF 壳 · 参数可调，编码未接线')
+    setStatus('GIF · 多帧参数可调')
     setHostStatus('GIF')
   }
 
@@ -310,12 +314,51 @@ export function mountGifHost(host, opts) {
   paintFrames()
   paintChips()
 
+  /**
+   * Paint host gifGenerate results (sprite-sheet / grid image URL(s)).
+   * Never invent success without URLs — fall through to showStubFailure.
+   * @param {{ phase?: string, error?: string, results?: Array<{ url?: string, kind?: string }>, elapsedMs?: number, jobId?: string }} value
+   */
+  const paintGifResult = (value) => {
+    const phase = String(value?.phase || '')
+    const err = value?.error != null ? String(value.error) : ''
+    if (phase === 'failed' || phase === 'error') {
+      showStubFailure(err || 'GIF_NOT_CONFIGURED')
+      return
+    }
+    const list = Array.isArray(value?.results) ? value.results : []
+    const urls = list.map((r) => r?.url).filter((u) => typeof u === 'string' && u)
+    if (!urls.length) {
+      showStubFailure(err || 'GIF_NOT_CONFIGURED')
+      return
+    }
+    const box = overlay.querySelector('[data-ws-gif-results]')
+    if (box instanceof HTMLElement) {
+      box.hidden = false
+      box.style.display = 'grid'
+      box.innerHTML = urls
+        .map(
+          (url) =>
+            `<div data-ws-gif-result-card style="border-radius:8px;overflow:hidden;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);">` +
+            `<img src="${escapeHtml(url)}" alt="GIF 精灵表" style="width:100%;display:block;max-height:280px;object-fit:contain;background:#111;" />` +
+            `</div>`,
+        )
+        .join('')
+    }
+    const elapsed = value?.elapsedMs != null ? Math.round(Number(value.elapsedMs) / 1000) : null
+    const status =
+      elapsed != null ? `GIF 完成 · ${elapsed}s · ${urls.length} 图` : `GIF 完成 · ${urls.length} 图`
+    setStatus(status)
+    setHostStatus(status)
+  }
+
   return {
     state,
     open,
     close,
     isOpen: () => overlay.hasAttribute('data-open'),
     showStubFailure,
+    paintGifResult,
     setStatus,
     dispose: () => {
       overlay.remove()
