@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>普通生图 · preview（studio-host DOM 镜像）</title>
+<style>
+  body { margin:0; font:13px/1.4 system-ui,sans-serif; background:#0b0d10; color:#e8eaed; }
+  [data-dsh-ws-studio-host] { display:flex; flex-direction:column; height:100vh; }
+  [data-ws-cols] { display:flex; flex:1; min-height:0; }
+  [data-ws-col="history"] { width:264px; border-right:1px solid #1a1f2a; padding:8px; overflow:auto; }
+  [data-ws-col="studio"] { flex:1; min-width:0; display:flex; flex-direction:column; }
+  [data-ws-inspire-wall] { width:318px; border-left:1px solid #1a1f2a; padding:8px; }
+  [data-ws-pane-drag] { width:5px; cursor:col-resize; background:#1a1f2a; }
+  [data-ws-ref-slot] { display:none; padding:8px; border:1px dashed #2a3140; margin:6px 12px; border-radius:10px; }
+  [data-ws-ref-slot][data-visible] { display:block; }
+  [data-ws-progress], [data-ws-fail], [data-ws-result-actions], [data-ws-plan-panel] { display:none; margin:8px 12px; padding:8px; border-radius:10px; border:1px solid #1f2430; }
+  [data-ws-progress][data-visible], [data-ws-fail][data-visible], [data-ws-result-actions][data-visible], [data-ws-plan-panel][data-visible] { display:block; }
+  [data-ws-conn-status] { padding:0 10px; height:26px; border:1px solid #2a3140; border-radius:999px; display:inline-flex; align-items:center; }
+  header { display:flex; gap:4px; padding:7px 12px; border-bottom:1px solid #1a1f2a; align-items:center; }
+  button { font:inherit; cursor:pointer; }
+  .note { color:#6b7280; font-size:11px; padding:8px 12px; }
+</style>
+</head>
+<body>
+<!-- Mirror of key DOM from src/client/studio-host.js — not a live host -->
+<div data-dsh-ws-studio-host role="main" aria-label="生图">
+  <header data-ws-top-bar>
+    <button type="button" data-ws-top="普通生图">普通生图</button>
+    <button type="button" data-ws-top="视频生成">视频生成</button>
+    <button type="button" data-ws-top="无限画布">无限画布</button>
+    <button type="button" data-ws-top="画廊">画廊</button>
+    <button type="button" data-ws-top="电商模式">电商模式</button>
+    <span style="flex:1"></span>
+    <span data-ws-conn-status title="已连接">已连接</span>
+    <button type="button" data-ws-chat-toggle>AI 对话</button>
+  </header>
+  <div data-ws-cols>
+    <aside data-ws-col="history">
+      <div>历史记录</div>
+      <div data-ws-history-list>
+        <div data-ws-history-item="demo">
+          <div class="ws-hist-meta">
+            <div class="ws-hist-line">提示词摘要 · 1:1</div>
+            <div class="ws-hist-model">gpt-image-2</div>
+            <div class="ws-hist-actions">
+              <button type="button" data-ws-history-restore>恢复</button>
+              <button type="button" data-ws-history-delete>删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button type="button" data-ws-history-clear>清空</button>
+    </aside>
+    <div data-ws-pane-drag="history"></div>
+    <section data-ws-col="studio">
+      <div data-ws-stage>
+        <div data-ws-stage-head><strong>生成结果</strong><span data-ws-stage-empty-hint>生成后显示在这里</span></div>
+        <div data-ws-progress data-visible>
+          <div data-ws-progress-meta>
+            <span data-ws-progress-label>进度 42%</span>
+            <span data-ws-progress-elapsed>耗时 12s</span>
+            <button type="button" data-ws-cancel>取消</button>
+          </div>
+          <div data-ws-progress-bar><i style="display:block;height:6px;width:42%;background:#5b8def;"></i></div>
+        </div>
+        <div data-ws-fail><div data-ws-fail-reason>原因：示例失败</div><button type="button" data-ws-retry>重试</button></div>
+        <div data-ws-results></div>
+        <div data-ws-result-actions data-visible>
+          <button type="button" data-ws-result-action="下载">下载</button>
+          <button type="button" data-ws-result-action="加画廊">加画廊</button>
+          <button type="button" data-ws-result-action="加对话">加对话</button>
+          <button type="button" data-ws-result-action="当参考图">当参考图</button>
+          <button type="button" data-ws-result-action="重新生成">重新生成</button>
+          <button type="button" data-ws-result-action="复制提示词">复制提示词</button>
+          <button type="button" data-ws-result-action="拿去做视频">拿去做视频</button>
+        </div>
+      </div>
+      <div data-ws-dock>
+        <div role="tablist">
+          <button type="button" data-ws-mode="文生图" aria-pressed="true">文生图</button>
+          <button type="button" data-ws-mode="图生图" aria-pressed="false">图生图</button>
+        </div>
+        <div data-ws-ref-slot data-visible aria-label="参考图">
+          <button type="button" data-ws-ref-upload>上传</button>
+          <input type="file" data-ws-ref-file accept="image/*" multiple hidden />
+          <div data-ws-ref-drop>点击、拖入或 Ctrl+V 粘贴</div>
+          <div data-ws-ref-thumbs></div>
+        </div>
+        <textarea data-ws-prompt placeholder="提示词"></textarea>
+        <div data-ws-param-row>
+          <div data-ws-chips><!-- 比例/清晰度/张数/细节 chips --></div>
+        </div>
+        <div data-ws-model-row>
+          <input data-ws-param="model" placeholder="选择模型" />
+          <label><input type="checkbox" data-ws-compare /> 多模型对比</label>
+        </div>
+        <div data-ws-plan-panel data-visible>
+          <textarea data-ws-plan-text placeholder="方案"></textarea>
+          <div data-ws-plan-actions>
+            <button type="button" data-ws-plan-action="plan">想方案</button>
+            <button type="button" data-ws-plan-action="replan">重新想一版</button>
+            <button type="button" data-ws-plan-action="accept" data-primary>就这样出图</button>
+          </div>
+        </div>
+      </div>
+      <div data-ws-cta-footer>
+        <button type="button" data-ws-cta>开始生成</button>
+        <p data-ws-status></p>
+      </div>
+    </section>
+    <div data-ws-pane-drag="chat"></div>
+    <aside data-ws-inspire-wall>
+      <strong>灵感案例</strong>
+      <button type="button" data-ws-empty="shuffle">随机</button>
+      <div data-ws-inspire-grid></div>
+    </aside>
+    <aside data-ws-col="chat" style="display:none"><strong>AI 对话</strong></aside>
+  </div>
+</div>
+<p class="note">Static DOM mirror for Looper / 插件工. Live behavior lives in <code>src/client/studio-host.js</code>. Mount prefers <code>[data-pane="conversation"]</code> / <code>[class*="centerCol"]</code> / <code>[data-dsh-ws-content-mount]</code>; host fills with <code>position:absolute;inset:0</code>.</p>
+</body>
+</html>

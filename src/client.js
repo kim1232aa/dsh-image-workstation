@@ -35,6 +35,17 @@ export function apply(ctx, _config) {
   const studio = createStudioHost()
   const disposers = []
   let inflight = false
+  /** @type {AbortController | null} */
+  let inflightAbort = null
+
+  const syncConnected = () => {
+    const c = ctx.connection
+    const on = !!(c && (c.state === 'connected' || c.connected === true || c.rpc))
+    studio.setConnected?.(on)
+  }
+  try {
+    syncConnected()
+  } catch (_) {}
 
   /**
    * dsh-ws-generate → connection.rpc → paintGenerateResult
@@ -49,16 +60,32 @@ export function apply(ctx, _config) {
     }
     if (!String(detail.prompt || '').trim()) {
       studio.setStatus('请先输入提示词（不选 Skill 也可出图）')
+      studio.paintGenerateResult?.({ phase: 'failed', error: '请先输入提示词（不选 Skill 也可出图）' })
       return
     }
     const rpc = ctx.connection?.rpc
     if (!rpc || typeof rpc.call !== 'function') {
-      studio.setStatus('连接不可用，无法出图')
+      const msg = '连接不可用，无法出图'
+      studio.setStatus(msg)
+      studio.setConnected?.(false)
+      studio.paintGenerateResult?.({ phase: 'failed', error: msg })
       return
     }
     inflight = true
+    studio.setConnected?.(true)
     studio.setStatus('出图中…')
+    studio.setProgress?.({ status: 'running', phase: 'submitted', progress: 12 })
     const ac = new AbortController()
+    inflightAbort = ac
+    const started = Date.now()
+    const tick = setInterval(() => {
+      studio.setProgress?.({
+        status: 'running',
+        phase: 'polling',
+        progress: Math.min(90, 12 + Math.floor((Date.now() - started) / 400)),
+        elapsedMs: Date.now() - started,
+      })
+    }, 400)
     const timer = setTimeout(() => ac.abort(), CLIENT_GENERATE_TIMEOUT_MS)
     try {
       const result = await rpc.call(
@@ -69,26 +96,52 @@ export function apply(ctx, _config) {
           negativePrompt: detail.negativePrompt,
           mode: detail.mode,
           skillId: detail.skillId,
+          skillPlan: detail.skillPlan,
           ratio: detail.ratio,
           clarity: detail.clarity,
           count: detail.count,
           detail: detail.detail,
           modelId: detail.modelId,
+          compareModels: detail.compareModels,
+          refImages: detail.refImages,
         },
         ac.signal,
       )
       if (result?.ok) {
-        studio.paintGenerateResult(result.value || {})
+        studio.paintGenerateResult({
+          ...(result.value || {}),
+          phase: result.value?.phase || 'done',
+          elapsedMs: Date.now() - started,
+        })
       } else {
-        studio.setStatus(formatHostGenerateError(result?.error || {}))
+        const msg = formatHostGenerateError(result?.error || {})
+        studio.setStatus(msg)
+        studio.paintGenerateResult({ phase: 'failed', error: msg, elapsedMs: Date.now() - started })
       }
     } catch (e) {
-      studio.setStatus(formatClientRpcFailure(e))
-      // Extra scrubbed breadcrumb for console (never tokens)
-      console.warn('[dsh-image-workstation] CTA RPC failed:', scrubErrorMessage(e?.message || e))
+      if (ac.signal.aborted) {
+        studio.paintGenerateResult({ phase: 'cancelled', elapsedMs: Date.now() - started })
+        studio.setStatus('已取消')
+      } else {
+        const msg = formatClientRpcFailure(e)
+        studio.setStatus(msg)
+        studio.paintGenerateResult({ phase: 'failed', error: msg, elapsedMs: Date.now() - started })
+        // Extra scrubbed breadcrumb for console (never tokens)
+        console.warn('[dsh-image-workstation] CTA RPC failed:', scrubErrorMessage(e?.message || e))
+      }
     } finally {
       clearTimeout(timer)
+      clearInterval(tick)
       inflight = false
+      inflightAbort = null
+    }
+  }
+
+  const onCancel = () => {
+    if (inflightAbort) {
+      try {
+        inflightAbort.abort()
+      } catch (_) {}
     }
   }
 
@@ -107,7 +160,9 @@ export function apply(ctx, _config) {
       }),
     )
     document.addEventListener('dsh-ws-generate', onGenerate)
+    document.addEventListener('dsh-ws-cancel', onCancel)
     disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
+    disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
     disposers.push(() => studio.dispose())
   } catch (error) {
     console.warn('[dsh-image-workstation] sidebar/CTA mount failed:', error)

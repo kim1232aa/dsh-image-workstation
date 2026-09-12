@@ -19,6 +19,7 @@ import {
   SKILL_ENTRIES,
   EMPTY,
   HISTORY_ACTIONS,
+  RESULT_ACTIONS,
 } from '../ui/labels.js'
 import { defaultStudioState } from '../ui/studio-stub.js'
 
@@ -65,6 +66,11 @@ const HISTORY_EMPTY_HINT = '暂无记录'
 const DEFAULT_MODEL = 'gpt-image-2'
 
 const ACCENT = '#5b8def'
+const PANE_WIDTHS_KEY = 'dsh-ws-pane-widths'
+const MODE_TXT = MODE_TABS[0]
+const MODE_IMG = MODE_TABS[1]
+const DEFAULT_PANE_WIDTHS = Object.freeze({ history: 264, studio: null, chat: 318 })
+
 
 const css = {
   mode: (on) =>
@@ -260,6 +266,75 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-advanced][open] > summary [data-ws-adv-chev] { transform:rotate(90deg); }
 [data-dsh-ws-studio-host] [data-ws-advanced][open] > summary { margin-bottom:6px; width:100%; border-bottom-color:transparent; }
 [data-dsh-ws-studio-host] [data-ws-advanced]:not([open]) { margin:0; }
+
+[data-dsh-ws-studio-host] [data-ws-ref-slot] {
+  display:none; flex-direction:column; gap:6px; padding:8px 10px;
+  background:#12161f; border:1px dashed #2a3140; border-radius:10px;
+}
+[data-dsh-ws-studio-host] [data-ws-ref-slot][data-visible] { display:flex; }
+[data-dsh-ws-studio-host] [data-ws-ref-drop] {
+  min-height:72px; border-radius:8px; border:1px dashed #3a4558;
+  background:#0e1218; display:flex; align-items:center; justify-content:center;
+  gap:8px; flex-wrap:wrap; padding:8px; color:#9aa3b2; font-size:12px; cursor:pointer;
+}
+[data-dsh-ws-studio-host] [data-ws-ref-drop][data-dragover] { border-color:#5b8def; color:#c5cad3; }
+[data-dsh-ws-studio-host] [data-ws-ref-thumbs] { display:flex; flex-wrap:wrap; gap:6px; }
+[data-dsh-ws-studio-host] [data-ws-ref-thumb] {
+  position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden;
+  border:1px solid #2a3140; background:#0b0d10;
+}
+[data-dsh-ws-studio-host] [data-ws-ref-thumb] img { width:100%; height:100%; object-fit:cover; display:block; }
+[data-dsh-ws-studio-host] [data-ws-ref-thumb] button {
+  position:absolute; top:2px; right:2px; width:18px; height:18px; border:0; border-radius:999px;
+  background:rgba(0,0,0,.7); color:#fff; cursor:pointer; font-size:11px; line-height:1; padding:0;
+}
+[data-dsh-ws-studio-host] [data-ws-progress] {
+  display:none; flex-direction:column; gap:6px; padding:8px 10px; border:1px solid #1f2430;
+  border-radius:10px; background:#12161f; flex:none;
+}
+[data-dsh-ws-studio-host] [data-ws-progress][data-visible] { display:flex; }
+[data-dsh-ws-studio-host] [data-ws-progress-bar] {
+  height:6px; border-radius:999px; background:#1a1f2a; overflow:hidden;
+}
+[data-dsh-ws-studio-host] [data-ws-progress-bar] > i {
+  display:block; height:100%; width:0%; background:#5b8def; border-radius:999px; transition:width .2s ease;
+}
+[data-dsh-ws-studio-host] [data-ws-progress-meta] {
+  display:flex; align-items:center; gap:10px; font-size:12px; color:#c5cad3; flex-wrap:wrap;
+}
+[data-dsh-ws-studio-host] [data-ws-fail] {
+  display:none; flex-direction:column; gap:6px; padding:8px 10px; border:1px solid #3a2a2a;
+  border-radius:10px; background:#1a1214; flex:none; color:#e8b4b4; font-size:12px;
+}
+[data-dsh-ws-studio-host] [data-ws-fail][data-visible] { display:flex; }
+[data-dsh-ws-studio-host] [data-ws-result-actions] {
+  display:none; flex-wrap:wrap; gap:6px; padding:4px 0 2px; flex:none;
+}
+[data-dsh-ws-studio-host] [data-ws-result-actions][data-visible] { display:flex; }
+[data-dsh-ws-studio-host] [data-ws-result-actions] button {
+  padding:4px 10px; border:1px solid #2a3140; border-radius:999px; background:#12161f;
+  color:#c5cad3; cursor:pointer; font:inherit; font-size:11.5px;
+}
+[data-dsh-ws-studio-host] [data-ws-plan-panel] {
+  display:none; flex-direction:column; gap:6px; padding:8px 10px; background:#12161f;
+  border:1px solid #1f2430; border-radius:10px;
+}
+[data-dsh-ws-studio-host] [data-ws-plan-panel][data-visible] { display:flex; }
+[data-dsh-ws-studio-host] [data-ws-plan-actions] { display:flex; flex-wrap:wrap; gap:6px; }
+[data-dsh-ws-studio-host] [data-ws-plan-actions] button {
+  padding:4px 10px; border:1px solid #2a3140; border-radius:999px; background:#12161f;
+  color:#c5cad3; cursor:pointer; font:inherit; font-size:11.5px;
+}
+[data-dsh-ws-studio-host] [data-ws-plan-actions] button[data-primary] {
+  border-color:#3a4558; background:#1c2333; color:#fff; font-weight:600;
+}
+[data-dsh-ws-studio-host] [data-ws-pane-drag] {
+  flex:0 0 5px; width:5px; cursor:col-resize; background:transparent; position:relative; z-index:2;
+  align-self:stretch;
+}
+[data-dsh-ws-studio-host] [data-ws-pane-drag]:hover,
+[data-dsh-ws-studio-host] [data-ws-pane-drag][data-active] { background:rgba(91,141,239,.35); }
+[data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
 `
 
 /**
@@ -278,17 +353,24 @@ function resolveSidebarColumn() {
  * @returns {HTMLElement | undefined}
  */
 function resolveMainContentPane() {
-  const direct =
-    document.querySelector('[data-pane="main"]') ||
-    document.querySelector('[data-pane="content"]') ||
-    document.querySelector('[class*="mainCol"]') ||
-    document.querySelector('[class*="contentCol"]') ||
-    document.querySelector('[class*="mainPane"]') ||
-    document.querySelector('[class*="contentPane"]') ||
-    document.querySelector('[class*="workspaceMain"]') ||
-    document.querySelector('main')
-  if (direct instanceof HTMLElement && !direct.closest('[data-pane="sidebar"],[class*="sidebarCol"]')) {
-    return direct
+  // Prefer 插件工 mount hints — conversation / centerCol / content-mount first
+  const preferred = [
+    document.querySelector('[data-pane="conversation"]'),
+    document.querySelector('[class*="centerCol"]'),
+    document.querySelector('[data-dsh-ws-content-mount]:not([data-dsh-ws-content-mount="measured"])'),
+    document.querySelector('[data-pane="main"]'),
+    document.querySelector('[data-pane="content"]'),
+    document.querySelector('[class*="mainCol"]'),
+    document.querySelector('[class*="contentCol"]'),
+    document.querySelector('[class*="mainPane"]'),
+    document.querySelector('[class*="contentPane"]'),
+    document.querySelector('[class*="workspaceMain"]'),
+    document.querySelector('main'),
+  ]
+  for (const el of preferred) {
+    if (el instanceof HTMLElement && !el.closest('[data-pane="sidebar"],[class*="sidebarCol"]')) {
+      return el
+    }
   }
 
   const sidebar = resolveSidebarColumn()
@@ -298,9 +380,10 @@ function resolveMainContentPane() {
   const named = siblings.find(
     (el) =>
       el instanceof HTMLElement &&
-      (el.getAttribute('data-pane') === 'main' ||
+      (el.getAttribute('data-pane') === 'conversation' ||
+        el.getAttribute('data-pane') === 'main' ||
         el.getAttribute('data-pane') === 'content' ||
-        /main|content|workspace|session|conversation/i.test(String(el.className || ''))),
+        /centerCol|main|content|workspace|session|conversation/i.test(String(el.className || ''))),
   )
   if (named instanceof HTMLElement) return named
   // Largest non-sidebar sibling usually is the content column
@@ -389,17 +472,21 @@ function mountStudioHostEl(hostEl) {
 }
 
 /**
- * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, setStatus: (text: string) => void, getHostEl: () => HTMLElement | undefined }}
+ * @returns {{ open: () => void, close: () => void, dispose: () => void, isOpen: () => boolean, setNegativePrompt: (text: string) => void, paintGenerateResult: (value: any) => void, setProgress: (value: any) => void, setStatus: (text: string) => void, setConnected: (on: boolean) => void, getHostEl: () => HTMLElement | undefined }}
  */
 export function createStudioHost() {
   let host
   let open = false
-  /** @type {ReturnType<typeof defaultStudioState> & { compareModels?: boolean }} */
+  /** @type {ReturnType<typeof defaultStudioState> & { compareModels?: boolean, refImages?: Array<{ id: string, url: string, name?: string }>, task?: any }} */
   let state = defaultStudioState()
   /** @type {string | null} */
   let activeHistoryId = null
   /** @type {Map<string, { snapshot: Record<string, unknown>, value: any }>} */
   const historyStore = new Map()
+  /** @type {number | null} */
+  let progressTimer = null
+  /** @type {number} */
+  let progressStartedAt = 0
 
   const paintChat = () => {
     const chat = host?.querySelector('[data-ws-col="chat"]')
@@ -415,6 +502,154 @@ export function createStudioHost() {
       if (wall) wall.style.display = 'none'
       toggle.textContent = '收起对话'
     }
+  }
+
+  const loadPaneWidths = () => {
+    try {
+      const raw = localStorage.getItem(PANE_WIDTHS_KEY)
+      if (!raw) return { ...DEFAULT_PANE_WIDTHS }
+      const parsed = JSON.parse(raw)
+      return {
+        history: Math.max(180, Math.min(480, Number(parsed.history) || DEFAULT_PANE_WIDTHS.history)),
+        studio: null,
+        chat: Math.max(220, Math.min(520, Number(parsed.chat) || DEFAULT_PANE_WIDTHS.chat)),
+      }
+    } catch (_) {
+      return { ...DEFAULT_PANE_WIDTHS }
+    }
+  }
+
+  const savePaneWidths = () => {
+    try {
+      localStorage.setItem(
+        PANE_WIDTHS_KEY,
+        JSON.stringify({
+          history: state.paneWidths.history,
+          chat: state.paneWidths.chat,
+        }),
+      )
+    } catch (_) {
+      /* ignore quota / private mode */
+    }
+  }
+
+  const formatElapsed = (ms) => {
+    const s = Math.max(0, Math.floor((ms || 0) / 1000))
+    const m = Math.floor(s / 60)
+    const r = s % 60
+    return m > 0 ? `${m}:${String(r).padStart(2, '0')}` : `${r}s`
+  }
+
+  const stopProgressClock = () => {
+    if (progressTimer != null) {
+      clearInterval(progressTimer)
+      progressTimer = null
+    }
+  }
+
+  const paintConnStatus = (connected) => {
+    const el = host?.querySelector('[data-ws-conn-status]')
+    if (!(el instanceof HTMLElement)) return
+    const on = connected !== false
+    el.textContent = on ? CHROME.connected : CHROME.disconnected
+    el.title = el.textContent
+    el.style.color = on ? '#9aa3b2' : '#e8b4b4'
+    el.dataset.connected = on ? '1' : '0'
+  }
+
+  const paintRefSlot = () => {
+    const slot = host?.querySelector('[data-ws-ref-slot]')
+    if (!(slot instanceof HTMLElement)) return
+    const show = state.mode === MODE_IMG
+    if (show) slot.setAttribute('data-visible', '')
+    else slot.removeAttribute('data-visible')
+    const thumbs = slot.querySelector('[data-ws-ref-thumbs]')
+    if (!(thumbs instanceof HTMLElement)) return
+    thumbs.innerHTML = ''
+    const refs = Array.isArray(state.refImages) ? state.refImages : []
+    for (const ref of refs) {
+      const wrap = document.createElement('div')
+      wrap.dataset.wsRefThumb = ''
+      wrap.dataset.refId = ref.id
+      const img = document.createElement('img')
+      img.src = ref.url
+      img.alt = ref.name || '参考图'
+      const rm = document.createElement('button')
+      rm.type = 'button'
+      rm.setAttribute('aria-label', '移除参考图')
+      rm.textContent = '×'
+      rm.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        state.refImages = (state.refImages || []).filter((r) => r.id !== ref.id)
+        paintRefSlot()
+      })
+      wrap.append(img, rm)
+      thumbs.appendChild(wrap)
+    }
+    const hint = slot.querySelector('[data-ws-ref-hint]')
+    if (hint) hint.textContent = refs.length ? `已选 ${refs.length} 张参考图` : '上传 / 拖拽 / 粘贴参考图'
+  }
+
+  const paintSkillPlan = () => {
+    const panel = host?.querySelector('[data-ws-plan-panel]')
+    if (!(panel instanceof HTMLElement)) return
+    if (state.skillId) panel.setAttribute('data-visible', '')
+    else panel.removeAttribute('data-visible')
+    const ta = panel.querySelector('[data-ws-plan-text]')
+    if (ta instanceof HTMLTextAreaElement) {
+      const planText =
+        typeof state.skillPlan === 'string'
+          ? state.skillPlan
+          : state.skillPlan?.text != null
+            ? String(state.skillPlan.text)
+            : state.skillPlan
+              ? JSON.stringify(state.skillPlan, null, 2)
+              : ''
+      if (ta.value !== planText && document.activeElement !== ta) ta.value = planText
+    }
+  }
+
+  const paintProgressUi = () => {
+    const prog = host?.querySelector('[data-ws-progress]')
+    const fail = host?.querySelector('[data-ws-fail]')
+    const task = state.task
+    if (prog instanceof HTMLElement) {
+      const running =
+        task &&
+        (task.status === 'running' ||
+          task.status === 'queued' ||
+          task.status === 'submitted' ||
+          task.status === 'polling' ||
+          task.status === 'downloading')
+      if (running) prog.setAttribute('data-visible', '')
+      else prog.removeAttribute('data-visible')
+      const pct = Math.max(0, Math.min(100, Number(task?.progress) || 0))
+      const bar = prog.querySelector('[data-ws-progress-bar] > i')
+      if (bar instanceof HTMLElement) bar.style.width = `${pct}%`
+      const label = prog.querySelector('[data-ws-progress-label]')
+      if (label) label.textContent = `进度 ${pct}%`
+      const elapsed = prog.querySelector('[data-ws-progress-elapsed]')
+      if (elapsed) elapsed.textContent = `耗时 ${formatElapsed(task?.elapsedMs || 0)}`
+      const phase = prog.querySelector('[data-ws-progress-phase]')
+      if (phase) phase.textContent = task?.phase || task?.status || ''
+    }
+    if (fail instanceof HTMLElement) {
+      if (task?.status === 'failed') {
+        fail.setAttribute('data-visible', '')
+        const reason = fail.querySelector('[data-ws-fail-reason]')
+        if (reason) reason.textContent = task.error ? `原因：${task.error}` : '原因：出图失败'
+      } else {
+        fail.removeAttribute('data-visible')
+      }
+    }
+  }
+
+  const paintResultActions = (show) => {
+    const bar = host?.querySelector('[data-ws-result-actions]')
+    if (!(bar instanceof HTMLElement)) return
+    if (show) bar.setAttribute('data-visible', '')
+    else bar.removeAttribute('data-visible')
   }
 
   const paintChips = () => {
@@ -444,6 +679,8 @@ export function createStudioHost() {
     })
     const cmp = host.querySelector('[data-ws-compare]')
     if (cmp instanceof HTMLInputElement) cmp.checked = !!state.compareModels
+    paintRefSlot()
+    paintSkillPlan()
   }
 
   const captureParamSnapshot = () => ({
@@ -451,12 +688,14 @@ export function createStudioHost() {
     negativePrompt: state.negativePrompt,
     mode: state.mode,
     skillId: state.skillId,
+    skillPlan: state.skillPlan,
     ratio: state.ratio,
     clarity: state.clarity,
     count: state.count,
     detail: state.detail,
     modelId: state.modelId,
     compareModels: !!state.compareModels,
+    refImages: Array.isArray(state.refImages) ? state.refImages.map((r) => ({ ...r })) : [],
   })
 
   const applyParamSnapshot = (snap) => {
@@ -465,12 +704,14 @@ export function createStudioHost() {
     state.negativePrompt = snap.negativePrompt != null ? String(snap.negativePrompt) : ''
     state.mode = snap.mode || MODE_TABS[0]
     state.skillId = snap.skillId || null
+    state.skillPlan = snap.skillPlan ?? null
     state.ratio = snap.ratio || RATIOS[0]
     state.clarity = snap.clarity || CLARITY[0]
     state.count = Number(snap.count) || COUNTS[0]
     state.detail = snap.detail || DETAIL_OPTS[0]
     state.modelId = snap.modelId != null ? String(snap.modelId) : ''
     state.compareModels = !!snap.compareModels
+    state.refImages = Array.isArray(snap.refImages) ? snap.refImages.map((r) => ({ ...r })) : []
     syncFields()
   }
 
@@ -527,6 +768,11 @@ export function createStudioHost() {
       hint.hidden = false
       hint.textContent = STAGE_EMPTY_HINT
     }
+    paintResultActions(false)
+    if (state.task?.status !== 'failed' && state.task?.status !== 'running') {
+      state.task = null
+      paintProgressUi()
+    }
   }
 
   const showResultStage = () => {
@@ -574,11 +820,157 @@ export function createStudioHost() {
   }
 
   /**
+   * Apply progress / phase updates from host or local CTA click.
+   * @param {{ progress?: number, elapsedMs?: number, phase?: string, status?: string, error?: string, id?: string }} value
+   */
+  const applyProgress = (value) => {
+    const v = value && typeof value === 'object' ? value : {}
+    const status = v.status || v.phase || 'running'
+    const normalized =
+      status === 'done' || status === 'completed'
+        ? 'done'
+        : status === 'failed' || status === 'error'
+          ? 'failed'
+          : status === 'cancelled' || status === 'canceled'
+            ? 'cancelled'
+            : status === 'queued' ||
+                status === 'submitted' ||
+                status === 'polling' ||
+                status === 'downloading' ||
+                status === 'running'
+              ? status === 'running'
+                ? 'running'
+                : status
+              : 'running'
+    state.task = {
+      id: v.id || state.task?.id || `task-${Date.now()}`,
+      status: normalized === 'done' ? 'done' : normalized,
+      progress: v.progress != null ? Number(v.progress) : state.task?.progress || 0,
+      elapsedMs:
+        v.elapsedMs != null
+          ? Number(v.elapsedMs)
+          : progressStartedAt
+            ? Date.now() - progressStartedAt
+            : state.task?.elapsedMs || 0,
+      phase: v.phase || normalized,
+      error: v.error != null ? String(v.error) : state.task?.error,
+    }
+    paintProgressUi()
+    if (normalized === 'running' || normalized === 'queued' || normalized === 'submitted' || normalized === 'polling' || normalized === 'downloading') {
+      paintResultActions(false)
+      const hint = host?.querySelector('[data-ws-stage-empty-hint]')
+      if (hint) hint.hidden = true
+    }
+    if (normalized === 'cancelled') {
+      stopProgressClock()
+      setStatus('已取消')
+    }
+  }
+
+  const beginLocalProgress = () => {
+    stopProgressClock()
+    progressStartedAt = Date.now()
+    state.task = {
+      id: `local-${progressStartedAt}`,
+      status: 'running',
+      progress: 8,
+      elapsedMs: 0,
+      phase: 'running',
+    }
+    paintProgressUi()
+    paintResultActions(false)
+    const fail = host?.querySelector('[data-ws-fail]')
+    if (fail) fail.removeAttribute('data-visible')
+    const hint = host?.querySelector('[data-ws-stage-empty-hint]')
+    if (hint) hint.hidden = true
+    progressTimer = window.setInterval(() => {
+      if (!state.task || state.task.status === 'done' || state.task.status === 'failed' || state.task.status === 'cancelled') {
+        stopProgressClock()
+        return
+      }
+      const elapsed = Date.now() - progressStartedAt
+      const bump = Math.min(92, (state.task.progress || 8) + 2)
+      state.task = { ...state.task, elapsedMs: elapsed, progress: bump }
+      paintProgressUi()
+    }, 500)
+  }
+
+  /**
    * Paint generate RPC result into stage + history thumbs.
-   * @param {{ jobId?: string, phase?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
+   * Phases: queued|submitted|polling|downloading|running → progress; failed → fail UI; done → results.
+   * @param {{ jobId?: string, phase?: string, status?: string, progress?: number, elapsedMs?: number, error?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
    */
   const applyGenerateResult = (value) => {
+    const phase = value?.phase || value?.status || ''
     const results = Array.isArray(value?.results) ? value.results : []
+    const failed =
+      phase === 'failed' ||
+      phase === 'error' ||
+      (!!value?.error && !results.length && phase !== 'done' && phase !== 'completed' && phase !== 'cancelled')
+    const cancelled = phase === 'cancelled' || phase === 'canceled'
+    const inProgress =
+      !results.length &&
+      !failed &&
+      !cancelled &&
+      (phase === 'queued' ||
+        phase === 'submitted' ||
+        phase === 'polling' ||
+        phase === 'downloading' ||
+        phase === 'running')
+
+    if (inProgress) {
+      applyProgress({
+        id: value?.jobId,
+        progress: value?.progress,
+        elapsedMs: value?.elapsedMs,
+        phase,
+        status: phase || 'running',
+      })
+      setStatus(`出图中… ${phase || ''}`.trim())
+      return
+    }
+
+    if (cancelled) {
+      stopProgressClock()
+      state.task = {
+        id: value?.jobId || state.task?.id,
+        status: 'cancelled',
+        progress: state.task?.progress || 0,
+        elapsedMs: value?.elapsedMs ?? state.task?.elapsedMs ?? 0,
+        phase: 'cancelled',
+      }
+      paintProgressUi()
+      setStatus('已取消')
+      return
+    }
+
+    if (failed) {
+      stopProgressClock()
+      const errText = value?.error != null ? String(value.error) : '出图失败'
+      state.task = {
+        id: value?.jobId || state.task?.id,
+        status: 'failed',
+        progress: state.task?.progress || 0,
+        elapsedMs: value?.elapsedMs ?? state.task?.elapsedMs ?? 0,
+        phase: 'failed',
+        error: errText,
+      }
+      paintProgressUi()
+      paintResultActions(false)
+      setStatus(errText)
+      return
+    }
+
+    stopProgressClock()
+    state.task = {
+      id: value?.jobId || state.task?.id,
+      status: 'done',
+      progress: 100,
+      elapsedMs: value?.elapsedMs ?? (progressStartedAt ? Date.now() - progressStartedAt : 0),
+      phase: 'done',
+    }
+    paintProgressUi()
+
     const resultsEl = host?.querySelector('[data-ws-results]')
     const histEl = host?.querySelector('[data-ws-history-list]')
     if (resultsEl) {
@@ -613,12 +1005,12 @@ export function createStudioHost() {
           }
           resultsEl.appendChild(card)
         }
+        paintResultActions(true)
       }
     }
     if (histEl && results.length) {
       histEl.querySelector('[data-ws-history-empty]')?.remove()
       const jobId = value?.jobId || `local-${Date.now()}`
-      // Avoid duplicate seed rows for same demo job
       const existing = Array.from(histEl.querySelectorAll('[data-ws-history-item]')).find(
         (el) => el.getAttribute('data-ws-history-item') === jobId,
       )
@@ -708,8 +1100,11 @@ export function createStudioHost() {
     if (host) return host
     state = defaultStudioState()
     state.compareModels = false
-    // 三栏宽度：历史 ~264（88px 缩略）/ 对话·灵感 ~318 — 借鉴形态，自写组件
-    state.paneWidths = { ...state.paneWidths, history: 264, chat: 318 }
+    state.refImages = Array.isArray(state.refImages) ? state.refImages : []
+    state.skillPlan = state.skillPlan ?? null
+    state.task = null
+    // 三栏宽度：历史 ~264（88px 缩略）/ 对话·灵感 ~318 — 可拖，记忆 localStorage
+    state.paneWidths = { ...DEFAULT_PANE_WIDTHS, ...loadPaneWidths() }
     host = document.createElement('div')
     host.dataset.dshWsStudioHost = ''
     host.setAttribute('role', 'main')
@@ -735,7 +1130,7 @@ export function createStudioHost() {
         <button type="button" data-ws-chat-toggle style="padding:0 10px;height:26px;border:1px solid #2a3140;border-radius:999px;background:#12161f;color:#c5cad3;cursor:pointer;font:inherit;font-size:12px;">${CHROME.expandChat}</button>
         <button type="button" data-ws-close style="padding:6px 10px;border:0;background:transparent;color:#9aa3b2;cursor:pointer;font:inherit;">关闭</button>
       </header>
-      <div style="display:flex;flex:1;min-height:0;">
+      <div data-ws-cols>
         <!-- LEFT: 历史记录 -->
         <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid #1a1f2a;padding:8px;overflow:auto;background:#0b0d10;display:flex;flex-direction:column;gap:6px;">
           <div style="font-size:13px;font-weight:600;color:#e8eaed;">${COLUMNS.history}</div>
@@ -751,6 +1146,7 @@ export function createStudioHost() {
           <div data-ws-history-list style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;"></div>
           <button type="button" data-ws-history-clear style="align-self:flex-start;padding:2px 8px;border:1px solid #2a3140;border-radius:999px;background:transparent;color:#6b7280;cursor:pointer;font:inherit;font-size:11.5px;">${HISTORY_ACTIONS.clear}</button>
         </aside>
+        <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
         <!-- CENTER: 出图台 — stage (samples/results) + compact dock + sticky CTA -->
         <section data-ws-col="studio" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0;background:#0b0d10;border-left:0;border-right:0;">
@@ -759,8 +1155,30 @@ export function createStudioHost() {
               <strong>${STAGE_LABEL}</strong>
               <span data-ws-stage-empty-hint>${STAGE_EMPTY_HINT}</span>
             </div>
+            <div data-ws-progress>
+              <div data-ws-progress-meta>
+                <span data-ws-progress-label>进度 0%</span>
+                <span data-ws-progress-elapsed>耗时 0s</span>
+                <span data-ws-progress-phase style="color:#6b7280;"></span>
+                <span style="flex:1"></span>
+                <button type="button" data-ws-cancel style="padding:2px 10px;border:1px solid #2a3140;border-radius:999px;background:transparent;color:#c5cad3;cursor:pointer;font:inherit;font-size:11.5px;">${RESULT_ACTIONS[0]}</button>
+              </div>
+              <div data-ws-progress-bar><i></i></div>
+            </div>
+            <div data-ws-fail>
+              <div data-ws-fail-reason>原因：出图失败</div>
+              <button type="button" data-ws-retry style="align-self:flex-start;padding:4px 12px;border:1px solid #3a4558;border-radius:999px;background:#1c2333;color:#fff;cursor:pointer;font:inherit;font-size:12px;">${RESULT_ACTIONS[1]}</button>
+            </div>
             <div data-ws-stage-samples></div>
             <div data-ws-results hidden></div>
+            <div data-ws-result-actions>
+              ${RESULT_ACTIONS.filter((a) => a !== '取消' && a !== '重试')
+                .map(
+                  (a) =>
+                    `<button type="button" data-ws-result-action="${a}">${a}</button>`,
+                )
+                .join('')}
+            </div>
           </div>
 
           <div data-ws-dock>
@@ -769,6 +1187,18 @@ export function createStudioHost() {
                 (m, i) =>
                   `<button type="button" data-ws-mode="${m}" aria-pressed="${i === 0 ? 'true' : 'false'}" style="${css.mode(i === 0)}">${m}</button>`,
               ).join('')}
+            </div>
+
+            <div data-ws-ref-slot aria-label="参考图">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="${css.paramLabel}">参考图</span>
+                <span data-ws-ref-hint style="font-size:11px;color:#6b7280;">上传 / 拖拽 / 粘贴参考图</span>
+                <span style="flex:1"></span>
+                <button type="button" data-ws-ref-upload style="padding:2px 10px;border:1px solid #2a3140;border-radius:999px;background:#12161f;color:#c5cad3;cursor:pointer;font:inherit;font-size:11px;">上传</button>
+                <input type="file" data-ws-ref-file accept="image/*" multiple hidden />
+              </div>
+              <div data-ws-ref-drop tabindex="0">点击、拖入或 Ctrl+V 粘贴</div>
+              <div data-ws-ref-thumbs></div>
             </div>
 
             <div style="${css.dockBlock}">
@@ -842,6 +1272,16 @@ export function createStudioHost() {
                 </label>
               </div>
             </details>
+
+            <div data-ws-plan-panel>
+              <div style="${css.paramLabel}">创作方案（可编辑；评分只提示，永不锁出图）</div>
+              <textarea data-ws-plan-text rows="3" placeholder="点「想方案」后方案会出现在这里，可改" style="width:100%;resize:vertical;min-height:72px;padding:8px 10px;border-radius:8px;border:1px solid #2a3140;background:#0e1218;color:inherit;font:inherit;font-size:12.5px;line-height:1.45;"></textarea>
+              <div data-ws-plan-actions>
+                <button type="button" data-ws-plan-action="plan">${PROMPT_ACTIONS.plan}</button>
+                <button type="button" data-ws-plan-action="replan">${PROMPT_ACTIONS.replan}</button>
+                <button type="button" data-ws-plan-action="accept" data-primary>${PROMPT_ACTIONS.acceptPlan}</button>
+              </div>
+            </div>
           </div>
 
           <div data-ws-cta-footer>
@@ -850,8 +1290,9 @@ export function createStudioHost() {
           </div>
         </section>
 
+        <div data-ws-pane-drag="chat" title="拖拽调整灵感/对话栏宽度"></div>
         <!-- RIGHT: 灵感墙 -->
-        <aside data-ws-inspire-wall style="width:318px;flex-shrink:0;border-left:1px solid #1a1f2a;padding:8px;display:flex;flex-direction:column;gap:8px;background:#0b0d10;overflow:auto;min-height:0;">
+        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid #1a1f2a;padding:8px;display:flex;flex-direction:column;gap:8px;background:#0b0d10;overflow:auto;min-height:0;">
           <div style="display:flex;align-items:center;gap:8px;">
             <strong style="font-size:13px;font-weight:650;">${EMPTY.inspiration}</strong>
             <span style="flex:1"></span>
@@ -904,6 +1345,7 @@ export function createStudioHost() {
       btn.addEventListener('click', () => {
         state.mode = btn.getAttribute('data-ws-mode') || MODE_TABS[0]
         paintChips()
+        setStatus(state.mode === MODE_IMG ? '已切换到图生图' : '已切换到文生图')
       })
     })
     const applySkillSideEffects = (id) => {
@@ -916,7 +1358,12 @@ export function createStudioHost() {
       const id = t.value || null
       state.skillId = id
       if (id) applySkillSideEffects(id)
+      else state.skillPlan = null
       syncFields()
+      paintSkillPlan()
+      // Open advanced when skill chosen so plan is visible nearby
+      const adv = host.querySelector('[data-ws-advanced]')
+      if (adv instanceof HTMLDetailsElement && id) adv.open = true
       setStatus(id ? `已选「${id}」（可选；出图仍不强制）` : '已取消 Skill')
     })
     host.querySelector('[data-ws-param-row]')?.addEventListener('click', (e) => {
@@ -969,7 +1416,9 @@ export function createStudioHost() {
       cta.disabled = false
       cta.removeAttribute('disabled')
     }
-    cta?.addEventListener('click', () => {
+
+    const dispatchGenerate = (extra = {}) => {
+      beginLocalProgress()
       setStatus('出图中…')
       host.dispatchEvent(
         new CustomEvent('dsh-ws-generate', {
@@ -979,17 +1428,213 @@ export function createStudioHost() {
             negativePrompt: state.negativePrompt,
             mode: state.mode,
             skillId: state.skillId,
+            skillPlan: state.skillPlan,
             ratio: state.ratio,
             clarity: state.clarity,
             count: state.count,
             detail: state.detail,
             modelId: state.modelId,
             compareModels: !!state.compareModels,
-            // selfCheck never gates
+            refImages: Array.isArray(state.refImages) ? state.refImages : [],
+            // selfCheck never gates — score never disables CTA
             selfCheck: state.selfCheck,
+            ...extra,
           },
         }),
       )
+    }
+
+    cta?.addEventListener('click', () => dispatchGenerate())
+
+    const addRefFromFile = (file) => {
+      if (!(file instanceof File) || !file.type.startsWith('image/')) return
+      const id = `ref-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const url = URL.createObjectURL(file)
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : url
+        state.refImages = [...(state.refImages || []), { id, url: dataUrl, name: file.name }]
+        try {
+          URL.revokeObjectURL(url)
+        } catch (_) {}
+        paintRefSlot()
+        setStatus(`已添加参考图「${file.name || 'image'}」`)
+      }
+      reader.onerror = () => {
+        state.refImages = [...(state.refImages || []), { id, url, name: file.name }]
+        paintRefSlot()
+      }
+      reader.readAsDataURL(file)
+    }
+
+    const refFile = host.querySelector('[data-ws-ref-file]')
+    const refUpload = host.querySelector('[data-ws-ref-upload]')
+    const refDrop = host.querySelector('[data-ws-ref-drop]')
+    refUpload?.addEventListener('click', () => {
+      if (refFile instanceof HTMLInputElement) refFile.click()
+    })
+    refFile?.addEventListener('change', (e) => {
+      const input = /** @type {HTMLInputElement} */ (e.target)
+      for (const f of Array.from(input.files || [])) addRefFromFile(f)
+      input.value = ''
+    })
+    refDrop?.addEventListener('click', () => {
+      if (refFile instanceof HTMLInputElement) refFile.click()
+    })
+    ;['dragenter', 'dragover'].forEach((evName) => {
+      refDrop?.addEventListener(evName, (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (refDrop instanceof HTMLElement) refDrop.setAttribute('data-dragover', '')
+      })
+    })
+    ;['dragleave', 'drop'].forEach((evName) => {
+      refDrop?.addEventListener(evName, (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (refDrop instanceof HTMLElement) refDrop.removeAttribute('data-dragover')
+      })
+    })
+    refDrop?.addEventListener('drop', (e) => {
+      const dt = /** @type {DragEvent} */ (e).dataTransfer
+      for (const f of Array.from(dt?.files || [])) addRefFromFile(f)
+    })
+    host.addEventListener('paste', (e) => {
+      if (state.mode !== MODE_IMG) return
+      const items = Array.from(e.clipboardData?.items || [])
+      let found = false
+      for (const it of items) {
+        if (it.type.startsWith('image/')) {
+          const f = it.getAsFile()
+          if (f) {
+            addRefFromFile(f)
+            found = true
+          }
+        }
+      }
+      if (found) e.preventDefault()
+    })
+
+    host.querySelector('[data-ws-plan-text]')?.addEventListener('input', (e) => {
+      const t = /** @type {HTMLTextAreaElement} */ (e.target)
+      state.skillPlan = t.value
+    })
+    host.querySelectorAll('[data-ws-plan-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const action = btn.getAttribute('data-ws-plan-action')
+        if (action === 'plan' || action === 'replan') {
+          const draft =
+            (state.prompt || '').trim() ||
+            `围绕「${state.skillId || '创作'}」的一版方案`
+          state.skillPlan =
+            `${draft}\n\n构图：主体清晰、层次分明\n光影：自然主光 + 柔和环境光\n风格：与所选 Skill「${state.skillId || ''}」对齐\n（可编辑；评分只提示，不锁出图）`
+          paintSkillPlan()
+          host.dispatchEvent(
+            new CustomEvent('dsh-ws-plan', {
+              bubbles: true,
+              detail: { action, skillId: state.skillId, prompt: state.prompt, skillPlan: state.skillPlan },
+            }),
+          )
+          setStatus(action === 'replan' ? '已重新想一版（可继续改）' : '已想方案（可编辑后出图）')
+        } else if (action === 'accept') {
+          // Never disable from score — just generate with current plan
+          dispatchGenerate({ fromPlan: true })
+        }
+      })
+    })
+
+    host.querySelector('[data-ws-cancel]')?.addEventListener('click', () => {
+      stopProgressClock()
+      state.task = {
+        ...(state.task || {}),
+        status: 'cancelled',
+        phase: 'cancelled',
+        elapsedMs: progressStartedAt ? Date.now() - progressStartedAt : state.task?.elapsedMs || 0,
+      }
+      paintProgressUi()
+      setStatus('已取消')
+      host.dispatchEvent(
+        new CustomEvent('dsh-ws-cancel', {
+          bubbles: true,
+          detail: { jobId: state.task?.id, reason: 'user' },
+        }),
+      )
+    })
+
+    host.querySelector('[data-ws-retry]')?.addEventListener('click', () => {
+      dispatchGenerate({ retry: true })
+    })
+
+    host.querySelector('[data-ws-result-actions]')?.addEventListener('click', (e) => {
+      const btn = e.target instanceof Element ? e.target.closest('[data-ws-result-action]') : null
+      if (!btn) return
+      const action = btn.getAttribute('data-ws-result-action') || ''
+      const firstImg = host.querySelector('[data-ws-results] img[data-ws-result]')
+      const src = firstImg instanceof HTMLImageElement ? firstImg.src : ''
+      if (action === '下载' && src) {
+        const a = document.createElement('a')
+        a.href = src
+        a.download = `dsh-ws-${Date.now()}.png`
+        a.rel = 'noopener'
+        a.click()
+      } else if (action === '复制提示词') {
+        const textPrompt = state.prompt || ''
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(textPrompt).catch(() => {})
+      } else if (action === '当参考图' && src) {
+        state.mode = MODE_IMG
+        state.refImages = [
+          ...(state.refImages || []),
+          { id: `ref-result-${Date.now()}`, url: src, name: '结果参考' },
+        ]
+        paintChips()
+      } else if (action === '重新生成') {
+        dispatchGenerate({ regenerate: true })
+      }
+      host.dispatchEvent(
+        new CustomEvent('dsh-ws-result-action', {
+          bubbles: true,
+          detail: { action, src, prompt: state.prompt },
+        }),
+      )
+      setStatus(`已触发「${action}」`)
+    })
+
+    // Pane drag + width memory
+    const applyColWidths = () => {
+      const hist = host.querySelector('[data-ws-col="history"]')
+      const chat = host.querySelector('[data-ws-col="chat"]')
+      const wall = host.querySelector('[data-ws-inspire-wall]')
+      if (hist instanceof HTMLElement) hist.style.width = `${state.paneWidths.history}px`
+      if (chat instanceof HTMLElement) chat.style.width = `${state.paneWidths.chat}px`
+      if (wall instanceof HTMLElement) wall.style.width = `${state.paneWidths.chat}px`
+    }
+    applyColWidths()
+    host.querySelectorAll('[data-ws-pane-drag]').forEach((handle) => {
+      handle.addEventListener('mousedown', (ev) => {
+        ev.preventDefault()
+        const which = handle.getAttribute('data-ws-pane-drag')
+        handle.setAttribute('data-active', '')
+        const startX = /** @type {MouseEvent} */ (ev).clientX
+        const startHist = state.paneWidths.history
+        const startChat = state.paneWidths.chat
+        const onMove = (e) => {
+          const dx = e.clientX - startX
+          if (which === 'history') {
+            state.paneWidths.history = Math.max(180, Math.min(480, startHist + dx))
+          } else if (which === 'chat') {
+            state.paneWidths.chat = Math.max(220, Math.min(520, startChat - dx))
+          }
+          applyColWidths()
+        }
+        const onUp = () => {
+          handle.removeAttribute('data-active')
+          document.removeEventListener('mousemove', onMove)
+          document.removeEventListener('mouseup', onUp)
+          savePaneWidths()
+        }
+        document.addEventListener('mousemove', onMove)
+        document.addEventListener('mouseup', onUp)
+      })
     })
 
     mountStudioHostEl(host)
@@ -998,6 +1643,9 @@ export function createStudioHost() {
     paintInspiration()
     paintStageIdle()
     paintHistoryEmpty()
+    paintRefSlot()
+    paintSkillPlan()
+    paintConnStatus(true)
     return host
   }
 
@@ -1008,7 +1656,7 @@ export function createStudioHost() {
       mountStudioHostEl(el)
       el.style.display = 'flex'
       open = true
-      },
+    },
     close() {
       if (host) host.style.display = 'none'
       open = false
@@ -1029,18 +1677,33 @@ export function createStudioHost() {
       ensure()
       setStatus(text)
     },
+    /** @param {boolean} on */
+    setConnected(on) {
+      ensure()
+      paintConnStatus(!!on)
+    },
     getHostEl() {
       return host
     },
     /**
+     * Progress UI: 进度 · 耗时 · 取消
+     * @param {{ progress?: number, elapsedMs?: number, phase?: string, status?: string, error?: string, id?: string }} value
+     */
+    setProgress(value) {
+      ensure()
+      applyProgress(value)
+    },
+    /**
      * Paint generate RPC result into stage + history thumbs.
-     * @param {{ jobId?: string, phase?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
+     * Accepts phase progress / failed / done payloads.
+     * @param {{ jobId?: string, phase?: string, status?: string, progress?: number, elapsedMs?: number, error?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
      */
     paintGenerateResult(value) {
       ensure()
       applyGenerateResult(value)
     },
     dispose() {
+      stopProgressClock()
       host?.remove()
       host = undefined
       open = false

@@ -31,9 +31,11 @@ export const defaultStudioState = () => ({
   count: COUNTS[0],
   detail: '自动',
   modelId: '',
+  refImages: [], // 图生图参考
   skillId: null, // null = 普通生图，不挡 CTA
   skillPlan: null,
   selfCheck: null, // scores display-only — never disable CTA
+  task: null,
 })
 
 /**
