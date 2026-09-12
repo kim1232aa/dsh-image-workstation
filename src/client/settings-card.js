@@ -28,7 +28,8 @@ export function WorkstationSettingsCard(props) {
   const [status, setStatus] = useState('')
   const [models, setModels] = useState([])
   const [busy, setBusy] = useState(false)
-  const [open, setOpen] = useState(true)
+  // Collapse by default so Save/Detect stay reachable inside the modal.
+  const [open, setOpen] = useState(false)
 
   const pull = useCallback(() => {
     if (!scope?.getSnapshot) return
@@ -117,7 +118,8 @@ export function WorkstationSettingsCard(props) {
     }
   }
 
-  const canDetect = Boolean(baseUrl.trim() || keyConfigured)
+  // Probe needs both base URL and a token (stored or draft).
+  const canDetect = Boolean(baseUrl.trim() && (keyConfigured || apiKeyDraft.trim()))
   const detectDisabled = busy || !canDetect
 
   const fg = 'var(--dsw-alias-label-primary, #1a1d24)'
@@ -126,6 +128,7 @@ export function WorkstationSettingsCard(props) {
   const border = '0.5px solid var(--dsw-alias-border-l4, #d8dbe2)'
   const borderStrong = '0.5px solid var(--dsw-alias-border-l3, #c9cdd6)'
   const inputBg = 'var(--dsw-alias-bg-layer-1, #fff)'
+  const layer3 = 'var(--dsw-alias-bg-layer-3, #fff)'
 
   const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, fontSize: 13 }
   const inputStyle = {
@@ -152,14 +155,25 @@ export function WorkstationSettingsCard(props) {
     fontWeight: 650,
     cursor: busy ? 'wait' : 'pointer',
   }
-  const detectStyle = {
-    ...btnBase,
-    border: borderStrong,
-    background: 'transparent',
-    color: fg,
-    cursor: busy ? 'wait' : canDetect ? 'pointer' : 'not-allowed',
-    opacity: detectDisabled ? 0.4 : 1,
-  }
+  const detectStyle = detectDisabled
+    ? {
+        ...btnBase,
+        border: borderStrong,
+        background: 'transparent',
+        color: fgMuted,
+        cursor: 'not-allowed',
+        opacity: 0.35,
+        pointerEvents: 'none',
+      }
+    : {
+        ...btnBase,
+        border: borderStrong,
+        background: 'transparent',
+        color: fg,
+        cursor: busy ? 'wait' : 'pointer',
+        opacity: 1,
+        pointerEvents: 'auto',
+      }
 
   return h(
     'div',
@@ -191,7 +205,18 @@ export function WorkstationSettingsCard(props) {
           font: 'inherit',
         },
       },
-      h('div', { style: { fontWeight: 650, fontSize: 14 } }, '生图工作台'),
+      h('div', { style: { fontWeight: 650, fontSize: 14 } }, 'Image workstation'),
+      h(
+        'div',
+        {
+          style: {
+            fontSize: 12,
+            color: fgMuted,
+            marginTop: 3,
+          },
+        },
+        '生图工作台',
+      ),
       h(
         'div',
         {
@@ -204,81 +229,121 @@ export function WorkstationSettingsCard(props) {
         },
         `${NS} · ${ENTRY}`,
       ),
-      h(
-        'div',
-        { style: { fontSize: 12, color: fgMuted, marginTop: 4 } },
-        'Image workstation — channel / key / detect (secret stored on host, never echoed)',
-      ),
     ),
     open
       ? h(
           'div',
-          { style: { padding: '0 14px 14px' } },
+          {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: 'min(60vh, 480px)',
+            },
+          },
           h(
-            'label',
-            { style: fieldStyle },
-            h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'API base URL'),
-            h('input', {
-              style: inputStyle,
-              value: baseUrl,
-              placeholder: 'Base URL (OpenAI-compatible)',
-              onChange: (e) => setBaseUrl(e.target.value),
-              disabled: busy,
-            }),
-          ),
-          h(
-            'label',
-            { style: fieldStyle },
+            'div',
+            {
+              style: {
+                padding: '0 14px',
+                overflow: 'auto',
+                flex: '1 1 auto',
+              },
+            },
             h(
-              'span',
-              { style: { display: 'flex', justifyContent: 'space-between' } },
-              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'API key'),
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'API base URL'),
+              h('input', {
+                style: inputStyle,
+                value: baseUrl,
+                placeholder: 'Base URL (OpenAI-compatible)',
+                onChange: (e) => setBaseUrl(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
               h(
                 'span',
-                { style: { color: fgMuted, fontSize: 12 } },
-                keyConfigured ? 'Configured' : 'Not configured',
+                { style: { display: 'flex', justifyContent: 'space-between' } },
+                h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'API key'),
+                h(
+                  'span',
+                  { style: { color: fgMuted, fontSize: 12 } },
+                  keyConfigured ? 'Configured' : 'Not configured',
+                ),
+              ),
+              h('input', {
+                style: inputStyle,
+                type: 'password',
+                autoComplete: 'new-password',
+                value: apiKeyDraft,
+                placeholder: keyConfigured ? 'Leave blank to keep stored key' : 'Paste key, then Save',
+                onChange: (e) => setApiKeyDraft(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Provider'),
+              h(
+                'select',
+                {
+                  style: inputStyle,
+                  value: provider,
+                  onChange: (e) => setProvider(e.target.value),
+                  disabled: busy,
+                },
+                h('option', { value: 'openai-images' }, 'openai-images'),
+                h('option', { value: 'anthropic-compat' }, 'anthropic-compat'),
               ),
             ),
-            h('input', {
-              style: inputStyle,
-              type: 'password',
-              autoComplete: 'new-password',
-              value: apiKeyDraft,
-              placeholder: keyConfigured ? 'Leave blank to keep stored key' : 'Paste key, then Save',
-              onChange: (e) => setApiKeyDraft(e.target.value),
-              disabled: busy,
-            }),
-          ),
-          h(
-            'label',
-            { style: fieldStyle },
-            h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Provider'),
             h(
-              'select',
-              {
-                style: inputStyle,
-                value: provider,
-                onChange: (e) => setProvider(e.target.value),
+              'label',
+              { style: { ...fieldStyle, flexDirection: 'row', alignItems: 'center', gap: 8 } },
+              h('input', {
+                type: 'checkbox',
+                checked: allowAgent,
+                onChange: (e) => setAllowAgent(e.target.checked),
                 disabled: busy,
-              },
-              h('option', { value: 'openai-images' }, 'openai-images'),
-              h('option', { value: 'anthropic-compat' }, 'anthropic-compat'),
+              }),
+              h('span', { style: { color: fg } }, 'Allow agent image gen'),
             ),
-          ),
-          h(
-            'label',
-            { style: { ...fieldStyle, flexDirection: 'row', alignItems: 'center', gap: 8 } },
-            h('input', {
-              type: 'checkbox',
-              checked: allowAgent,
-              onChange: (e) => setAllowAgent(e.target.checked),
-              disabled: busy,
-            }),
-            h('span', { style: { color: fg } }, 'Allow agent image gen'),
+            status ? h('p', { style: { margin: '0 0 10px', fontSize: 12, color: fgMuted } }, status) : null,
+            models.length
+              ? h(
+                  'ul',
+                  {
+                    style: {
+                      margin: '0 0 10px',
+                      paddingLeft: 18,
+                      fontSize: 12,
+                      color: fgSecondary,
+                      maxHeight: 120,
+                      overflow: 'auto',
+                    },
+                  },
+                  models.map((m) => h('li', { key: m }, m)),
+                )
+              : null,
           ),
           h(
             'div',
-            { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 } },
+            {
+              style: {
+                position: 'sticky',
+                bottom: 0,
+                background: layer3,
+                padding: '10px 14px 14px',
+                borderTop: border,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                flexShrink: 0,
+              },
+            },
             h('button', { type: 'button', style: primaryStyle, disabled: busy, onClick: onSave }, 'Save'),
             h(
               'button',
@@ -286,35 +351,24 @@ export function WorkstationSettingsCard(props) {
                 type: 'button',
                 style: detectStyle,
                 disabled: detectDisabled,
-                onClick: onProbe,
-                title: canDetect ? 'Detect available models' : 'Set API base URL or configure a key first',
+                'aria-disabled': detectDisabled ? 'true' : 'false',
+                onClick: detectDisabled ? undefined : onProbe,
+                title: canDetect
+                  ? 'Detect available models'
+                  : 'Set API base URL and configure a key first',
               },
               'Detect models',
             ),
           ),
-          status ? h('p', { style: { margin: '10px 0 0', fontSize: 12, color: fgMuted } }, status) : null,
-          models.length
-            ? h(
-                'ul',
-                {
-                  style: {
-                    margin: '8px 0 0',
-                    paddingLeft: 18,
-                    fontSize: 12,
-                    color: fgSecondary,
-                    maxHeight: 120,
-                    overflow: 'auto',
-                  },
-                },
-                models.map((m) => h('li', { key: m }, m)),
-              )
-            : null,
         )
       : null,
   )
 }
 
 /**
+ * Additive keyed inject — same shape as VisioWork (~57080) and host generator
+ * yields in dsh-client-ui-settings-plugins. Does NOT replace host cards
+ * (bash / agent-loop / subagent / web-search); keyed by our NS only.
  * @param {any} ctx
  */
 export function mountSettingsCard(ctx) {
@@ -330,8 +384,9 @@ export function mountSettingsCard(ctx) {
   const scope = ctx.settingsScope.bind({ namespace: NS })
   const react = require('react')
 
-  ctx.slots.inject('settings.plugin.item', () =>
-    ctx.slots.register(
+  // Host-style generator yield: additive registration for our key only.
+  ctx.slots.inject('settings.plugin.item', function* () {
+    yield ctx.slots.register(
       {
         name: 'settings.plugin.item',
         key: NS,
@@ -342,8 +397,8 @@ export function mountSettingsCard(ctx) {
         }),
       },
       WorkstationSettingsCard,
-    ),
-  )
+    )
+  })
 
   ctx.logger?.info?.(`[dsh-image-workstation] settings card registered key=${NS} entry=${ENTRY}`)
 }
