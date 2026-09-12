@@ -1,5 +1,5 @@
 /**
- * 生图工作台 host — 三栏出图台（历史 | 出图台 | 灵感/对话）。
+ * 生图工作台 host — 三栏出图台（历史 | 写+生成 | 生成结果/对话）。
  * 借鉴形态，自写组件。Labels only from ../ui/labels.js.
  * CTA never disabled / never score-gated. No debug watermark.
  */
@@ -17,7 +17,6 @@ import {
   COUNTS,
   PARAM_LABELS,
   SKILL_ENTRIES,
-  EMPTY,
   HISTORY_ACTIONS,
   RESULT_ACTIONS,
 } from '../ui/labels.js'
@@ -61,8 +60,6 @@ const HIST_THUMB = 88
 
 const STAGE_LABEL = '生成结果'
 const STAGE_EMPTY_HINT = '生成后显示在这里'
-const INSPIRE_EMPTY_HINT = '暂无灵感'
-const INSPIRE_EMPTY_HELPER = '本地案例未接入，生成后可从结果加入灵感'
 const HISTORY_EMPTY_HINT = '暂无记录'
 
 const DEFAULT_MODEL = 'gpt-image-2'
@@ -125,7 +122,7 @@ const css = {
   pill: (opts = {}) =>
     `padding:${opts.pad || '2px 10px'};border:1px solid ${T.border2};border-radius:999px;background:${opts.fill || 'transparent'};color:${opts.color || T.fg2};cursor:pointer;font:inherit;font-size:${opts.size || '11.5px'};`,
   topTab: (on) =>
-    `padding:2px 7px;border:0;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg3};cursor:pointer;border-radius:5px;font:inherit;font-size:11px;font-weight:${on ? 500 : 400};line-height:1.2;`,
+    `padding:1px 6px;border:0;background:${on ? T.active : 'transparent'};color:${on ? T.fg : T.fg3};cursor:pointer;border-radius:4px;font:inherit;font-size:10.5px;font-weight:${on ? 500 : 400};line-height:1.2;`,
 }
 
 const HOST_STYLES = `
@@ -224,33 +221,31 @@ const HOST_STYLES = `
   background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary);
   font:inherit; font-size:11px; display:inline-flex; align-items:center; flex:none;
 }
-[data-dsh-ws-studio-host] [data-ws-stage] {
-  /* Idle: compact hint strip BELOW form — NOT half-column gray sea.
-     Form (dock+CTA) sits above; results land here when present. */
-  flex:0 0 auto; min-height:40px; max-height:72px; display:flex; flex-direction:column; gap:4px;
-  margin:0; padding:6px 12px; overflow:hidden;
-  background: var(--dsw-alias-bg-module-platform); border-top:1px solid var(--dsw-alias-border-l2);
-}
-[data-dsh-ws-studio-host] [data-ws-stage][data-has-results] {
-  flex:1 1 auto; min-height:160px; max-height:none; padding:8px 12px; gap:8px;
-  background: var(--dsw-alias-bg-base);
-}
-[data-dsh-ws-studio-host] [data-ws-stage][data-busy] {
-  flex:1 1 auto; min-height:96px; max-height:none; padding:8px 12px; gap:6px;
-  background: var(--dsw-alias-bg-base);
+[data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage] {
+  /* Right column = result landing (fills column). Center has no stage. */
+  flex:1 1 auto; min-height:0; max-height:none; display:flex; flex-direction:column; gap:8px;
+  margin:0; padding:0; overflow:hidden; background:transparent; border:0;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] {
   display:flex; align-items:baseline; gap:8px; flex:none;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-head] strong {
-  font-size:12px; font-weight:600; color: var(--dsw-alias-label-secondary);
-}
-[data-dsh-ws-studio-host] [data-ws-stage][data-has-results] [data-ws-stage-head] strong,
-[data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-head] strong {
   font-size:13px; font-weight:650; color: var(--dsw-alias-label-primary);
 }
+[data-dsh-ws-studio-host] [data-ws-stage-empty] {
+  flex:1; min-height:120px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px; padding:28px 16px; text-align:center;
+  border:0; border-radius:10px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+[data-dsh-ws-studio-host] [data-ws-stage-empty][hidden],
+[data-dsh-ws-studio-host] [data-ws-stage][data-has-results] [data-ws-stage-empty],
+[data-dsh-ws-studio-host] [data-ws-stage][data-busy] [data-ws-stage-empty] {
+  display:none !important;
+}
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint] {
-  font-size:11.5px; color: var(--dsw-alias-label-tertiary); font-weight:400;
+  font-size:12px; color: var(--dsw-alias-label-tertiary); font-weight:400;
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty-hint][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-stage-samples] {
@@ -260,7 +255,7 @@ const HOST_STYLES = `
 [data-dsh-ws-studio-host] [data-ws-stage-samples][hidden],
 [data-dsh-ws-studio-host] [data-ws-results][hidden] { display:none !important; }
 [data-dsh-ws-studio-host] [data-ws-results] {
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr));
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
   gap:10px; align-content:start; flex:1; min-height:0; overflow:auto; padding:2px 0 4px;
 }
 [data-dsh-ws-studio-host] [data-ws-results] [data-ws-result-card] {
@@ -318,24 +313,6 @@ const HOST_STYLES = `
   border-top:0;
   max-height:none; overflow:auto; min-height:0;
 }
-[data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-has-results]) [data-ws-dock],
-[data-dsh-ws-studio-host] [data-ws-col="studio"]:has([data-ws-stage][data-busy]) [data-ws-dock] {
-  /* Results/busy: stage grows below; dock stays compact at top */
-  flex:0 0 auto; max-height:40%;
-}
-[data-dsh-ws-studio-host] [data-ws-inspire-empty] {
-  grid-column:1 / -1; flex:1; min-height:120px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:6px; padding:28px 16px; text-align:center;
-  border:0; border-radius:10px;
-  background: var(--dsw-alias-bg-module-platform);
-}
-[data-dsh-ws-studio-host] [data-ws-inspire-empty] strong {
-  font-size:13px; font-weight:600; color: var(--dsw-alias-label-secondary); letter-spacing:.01em;
-}
-[data-dsh-ws-studio-host] [data-ws-inspire-empty] span {
-  font-size:11.5px; color: var(--dsw-alias-label-tertiary); line-height:1.45; max-width:16em;
-}
 [data-dsh-ws-studio-host] [data-ws-skill-model-row] {
   display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; min-height:28px;
 }
@@ -346,7 +323,7 @@ const HOST_STYLES = `
   flex:1 1 8rem; min-width:0; max-width:14rem;
 }
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
-  /* Pack directly under dock at TOP of mid column — form-up, results below. */
+  /* Pack directly under dock at TOP of mid — write+CTA only; results on right. */
   flex:0 0 auto; margin-top:0; position:relative; z-index:2;
   padding:6px 12px 10px; background: var(--dsw-alias-bg-base);
   display:flex; flex-direction:column; gap:4px;
@@ -459,23 +436,23 @@ const HOST_STYLES = `
   background: var(--dsw-alias-interactive-bg-hover);
 }
 [data-dsh-ws-studio-host] [data-ws-col="studio"] {
-  /* Form-up: dock+CTA pack at top; compact result landing below */
+  /* Write+generate only: dock+CTA pack at top; no result stage / no white sea */
   display:flex; flex-direction:column; justify-content:flex-start; flex:1; min-width:0; min-height:0;
-  overflow:hidden; background: var(--dsw-alias-bg-base);
+  overflow:auto; background: var(--dsw-alias-bg-base);
 }
 [data-dsh-ws-studio-host] [data-ws-cols] { display:flex; flex:1; min-height:0; }
 [data-dsh-ws-studio-host] [data-ws-top-bar] {
-  display:flex; gap:6px; padding:3px 10px; align-items:center; flex-shrink:0;
+  display:flex; gap:4px; padding:2px 8px; align-items:center; flex-shrink:0;
   background: var(--dsw-alias-bg-base); border-bottom:1px solid var(--dsw-alias-border-l1, var(--dsw-alias-border-l2));
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] {
   display:inline-flex; align-items:center; gap:0; flex:none;
-  padding:1px; border-radius:7px;
+  padding:1px; border-radius:6px;
   background: var(--dsw-alias-bg-module-platform);
-  border:1px solid var(--dsw-alias-border-l2);
+  border:1px solid var(--dsw-alias-border-l1, var(--dsw-alias-border-l2));
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top] {
-  padding:2px 7px; border:0; border-radius:5px; font:inherit; font-size:11px; line-height:1.2; font-weight:400;
+  padding:1px 6px; border:0; border-radius:4px; font:inherit; font-size:10.5px; line-height:1.2; font-weight:400;
   cursor:pointer; background:transparent; color: var(--dsw-alias-label-tertiary);
 }
 [data-dsh-ws-studio-host] [data-ws-top-seg] [data-ws-top][aria-current="true"],
@@ -767,8 +744,8 @@ export function createStudioHost() {
   }
 
   const paintProgressUi = () => {
-    const prog = host?.querySelector('[data-ws-progress]')
-    const fail = host?.querySelector('[data-ws-fail]')
+    const prog = host?.querySelector('[data-ws-inspire-wall] [data-ws-progress]') || host?.querySelector('[data-ws-progress]')
+    const fail = host?.querySelector('[data-ws-inspire-wall] [data-ws-fail]') || host?.querySelector('[data-ws-fail]')
     const task = state.task
     if (prog instanceof HTMLElement) {
       const running =
@@ -810,7 +787,7 @@ export function createStudioHost() {
   }
 
   const paintResultActions = (show) => {
-    const bar = host?.querySelector('[data-ws-result-actions]')
+    const bar = host?.querySelector('[data-ws-inspire-wall] [data-ws-result-actions]') || host?.querySelector('[data-ws-result-actions]')
     if (!(bar instanceof HTMLElement)) return
     if (show) bar.setAttribute('data-visible', '')
     else bar.removeAttribute('data-visible')
@@ -916,9 +893,12 @@ export function createStudioHost() {
   }
 
   const syncStageWeight = () => {
-    const stage = host?.querySelector('[data-ws-stage]')
+    // Image results live in right column [data-ws-inspire-wall] [data-ws-stage]
+    const stage = host?.querySelector('[data-ws-inspire-wall] [data-ws-stage]')
+      || host?.querySelector('[data-ws-page="image"] [data-ws-stage]')
     if (!(stage instanceof HTMLElement)) return
-    const hasResults = !!(host.querySelector('[data-ws-results]:not([hidden])')?.childElementCount)
+    const resultsEl = stage.querySelector('[data-ws-results]')
+    const hasResults = !!(resultsEl && !resultsEl.hidden && resultsEl.childElementCount)
     const busy =
       !!state.task &&
       (state.task.status === 'running' ||
@@ -926,17 +906,28 @@ export function createStudioHost() {
         state.task.status === 'submitted' ||
         state.task.status === 'polling' ||
         state.task.status === 'downloading')
+    const failed = state.task?.status === 'failed'
     if (hasResults) stage.setAttribute('data-has-results', '')
     else stage.removeAttribute('data-has-results')
     if (busy) stage.setAttribute('data-busy', '')
     else stage.removeAttribute('data-busy')
+    const empty = stage.querySelector('[data-ws-stage-empty]')
+    if (empty instanceof HTMLElement) empty.hidden = !!(hasResults || busy || failed)
+    const hint = stage.querySelector('[data-ws-stage-empty-hint]')
+    if (hint instanceof HTMLElement) {
+      hint.hidden = !!(hasResults || busy || failed)
+      if (!hint.hidden) hint.textContent = STAGE_EMPTY_HINT
+    }
   }
 
-  /** First paint / empty: empty stage + hint only (no fake sample tiles). */
+  /** First paint / empty: right-column muted empty (no fake sample tiles). */
   const paintStageIdle = () => {
-    const samples = host?.querySelector('[data-ws-stage-samples]')
-    const resultsEl = host?.querySelector('[data-ws-results]')
-    const hint = host?.querySelector('[data-ws-stage-empty-hint]')
+    const stage = host?.querySelector('[data-ws-inspire-wall] [data-ws-stage]')
+      || host?.querySelector('[data-ws-page="image"] [data-ws-stage]')
+    const samples = stage?.querySelector('[data-ws-stage-samples]') || host?.querySelector('[data-ws-stage-samples]')
+    const resultsEl = stage?.querySelector('[data-ws-results]') || host?.querySelector('[data-ws-results]')
+    const hint = stage?.querySelector('[data-ws-stage-empty-hint]') || host?.querySelector('[data-ws-stage-empty-hint]')
+    const empty = stage?.querySelector('[data-ws-stage-empty]')
     if (resultsEl) {
       resultsEl.innerHTML = ''
       resultsEl.hidden = true
@@ -945,6 +936,7 @@ export function createStudioHost() {
       samples.innerHTML = ''
       samples.hidden = true
     }
+    if (empty instanceof HTMLElement) empty.hidden = false
     if (hint) {
       hint.hidden = false
       hint.textContent = STAGE_EMPTY_HINT
@@ -958,34 +950,23 @@ export function createStudioHost() {
   }
 
   const showResultStage = () => {
-    const samples = host?.querySelector('[data-ws-stage-samples]')
-    const resultsEl = host?.querySelector('[data-ws-results]')
-    const hint = host?.querySelector('[data-ws-stage-empty-hint]')
+    const stage = host?.querySelector('[data-ws-inspire-wall] [data-ws-stage]')
+      || host?.querySelector('[data-ws-page="image"] [data-ws-stage]')
+    const samples = stage?.querySelector('[data-ws-stage-samples]') || host?.querySelector('[data-ws-stage-samples]')
+    const resultsEl = stage?.querySelector('[data-ws-results]') || host?.querySelector('[data-ws-results]')
+    const hint = stage?.querySelector('[data-ws-stage-empty-hint]') || host?.querySelector('[data-ws-stage-empty-hint]')
+    const empty = stage?.querySelector('[data-ws-stage-empty]')
     if (samples) {
       samples.innerHTML = ''
       samples.hidden = true
     }
     if (resultsEl) resultsEl.hidden = false
+    if (empty instanceof HTMLElement) empty.hidden = true
     if (hint) {
       hint.hidden = true
       hint.textContent = STAGE_EMPTY_HINT
     }
     syncStageWeight()
-  }
-
-  /** Inspire wall: quiet intentional empty — no stock photos / picsum */
-  const paintInspiration = () => {
-    const grid = host?.querySelector('[data-ws-inspire-grid]')
-    if (!grid) return
-    grid.innerHTML = ''
-    const empty = document.createElement('div')
-    empty.dataset.wsInspireEmpty = ''
-    const title = document.createElement('strong')
-    title.textContent = INSPIRE_EMPTY_HINT
-    const helper = document.createElement('span')
-    helper.textContent = INSPIRE_EMPTY_HELPER
-    empty.append(title, helper)
-    grid.appendChild(empty)
   }
 
   /** True empty history only — no ghost placeholder rows */
@@ -1043,8 +1024,7 @@ export function createStudioHost() {
     paintProgressUi()
     if (normalized === 'running' || normalized === 'queued' || normalized === 'submitted' || normalized === 'polling' || normalized === 'downloading') {
       paintResultActions(false)
-      const hint = host?.querySelector('[data-ws-stage-empty-hint]')
-      if (hint) hint.hidden = true
+      syncStageWeight()
     }
     if (normalized === 'cancelled') {
       stopProgressClock()
@@ -1065,10 +1045,9 @@ export function createStudioHost() {
     }
     paintProgressUi()
     paintResultActions(false)
-    const fail = host?.querySelector('[data-ws-fail]')
+    const fail = host?.querySelector('[data-ws-inspire-wall] [data-ws-fail]') || host?.querySelector('[data-ws-fail]')
     if (fail) fail.removeAttribute('data-visible')
-    const hint = host?.querySelector('[data-ws-stage-empty-hint]')
-    if (hint) hint.hidden = true
+    syncStageWeight()
     setStatus('等待宿主进度…')
     // Elapsed clock only (honest wall time); never bump fake progress
     progressTimer = window.setInterval(() => {
@@ -1083,7 +1062,7 @@ export function createStudioHost() {
   }
 
   /**
-   * Paint generate RPC result into stage + history thumbs.
+   * Paint generate RPC result into right-column stage + history thumbs.
    * Phases: queued|submitted|polling|downloading|running → progress; failed → fail UI; done → results.
    * @param {{ jobId?: string, phase?: string, status?: string, progress?: number, elapsedMs?: number, error?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
    */
@@ -1158,7 +1137,7 @@ export function createStudioHost() {
     }
     paintProgressUi()
 
-    const resultsEl = host?.querySelector('[data-ws-results]')
+    const resultsEl = host?.querySelector('[data-ws-inspire-wall] [data-ws-results]') || host?.querySelector('[data-ws-results]')
     const histEl = host?.querySelector('[data-ws-history-list]')
     if (resultsEl) {
       resultsEl.innerHTML = ''
@@ -1288,7 +1267,7 @@ export function createStudioHost() {
     state.refImages = Array.isArray(state.refImages) ? state.refImages : []
     state.skillPlan = state.skillPlan ?? null
     state.task = null
-    // 三栏宽度：历史 ~264（88px 缩略）/ 对话·灵感 ~318 — 可拖，记忆 localStorage
+    // 三栏宽度：历史 ~264（88px 缩略）/ 结果·对话 ~318 — 可拖，记忆 localStorage
     state.paneWidths = { ...DEFAULT_PANE_WIDTHS, ...loadPaneWidths() }
     host = document.createElement('div')
     host.dataset.dshWsStudioHost = ''
@@ -1335,8 +1314,8 @@ export function createStudioHost() {
         </aside>
         <div data-ws-pane-drag="history" title="拖拽调整历史栏宽度"></div>
 
-        <!-- CENTER: 出图台 — form (dock+CTA) up; compact result landing below -->
-        <section data-ws-col="studio" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.bg};border-left:0;border-right:0;">
+        <!-- CENTER: write + generate ONLY (no result stage / no white sea) -->
+        <section data-ws-col="studio" style="flex:1;padding:0;overflow:auto;display:flex;flex-direction:column;justify-content:flex-start;min-width:0;background:${T.bg};border-left:0;border-right:0;">
 
           <div data-ws-dock>
             <div style="display:flex;gap:6px;align-items:center;" role="tablist">
@@ -1440,9 +1419,16 @@ export function createStudioHost() {
             <p data-ws-status style="opacity:.65;font-size:11.5px;min-height:0;margin:0;"></p>
           </div>
 
-          <div data-ws-stage aria-label="出图台">
+        </section>
+
+        <div data-ws-pane-drag="chat" title="拖拽调整结果/对话栏宽度"></div>
+        <!-- RIGHT: 生成结果 landing (replaces empty 灵感 as primary) -->
+        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:flex;flex-direction:column;gap:8px;background:${T.bg};overflow:hidden;min-height:0;">
+          <div data-ws-stage aria-label="${STAGE_LABEL}">
             <div data-ws-stage-head>
               <strong>${STAGE_LABEL}</strong>
+            </div>
+            <div data-ws-stage-empty>
               <span data-ws-stage-empty-hint>${STAGE_EMPTY_HINT}</span>
             </div>
             <div data-ws-progress>
@@ -1470,18 +1456,6 @@ export function createStudioHost() {
                 .join('')}
             </div>
           </div>
-
-        </section>
-
-        <div data-ws-pane-drag="chat" title="拖拽调整灵感/对话栏宽度"></div>
-        <!-- RIGHT: 灵感墙 -->
-        <aside data-ws-inspire-wall style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:flex;flex-direction:column;gap:8px;background:${T.bg};overflow:auto;min-height:0;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <strong style="font-size:13px;font-weight:650;color:${T.fg};">${EMPTY.inspiration}</strong>
-            <span style="flex:1"></span>
-            <button type="button" data-ws-empty="shuffle" style="${css.pill({ pad: '3px 9px', size: '12px' })}">${EMPTY.shuffle}</button>
-          </div>
-          <div data-ws-inspire-grid style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start;flex:1;min-height:0;"></div>
         </aside>
         <aside data-ws-col="chat" style="width:${state.paneWidths.chat}px;flex-shrink:0;border-left:1px solid ${T.border2};padding:8px;display:none;flex-direction:column;background:${T.bg};">
           <strong style="font-size:13px;color:${T.fg};">${COLUMNS.chat}</strong>
@@ -1596,11 +1570,6 @@ export function createStudioHost() {
       setStatus(`「${PROMPT_ACTIONS.templates}」`)
     })
 
-    host.querySelector('[data-ws-empty="shuffle"]')?.addEventListener('click', () => {
-      // No stock wall — shuffle is a quiet no-op over empty state
-      paintInspiration()
-      setStatus(`已${EMPTY.shuffle}`)
-    })
 
     // 【必须】CTA never score-locked; never set disabled; no skill required
     const cta = host.querySelector('[data-ws-cta]')
@@ -1735,7 +1704,7 @@ export function createStudioHost() {
       })
     })
 
-    host.querySelector('[data-ws-cancel]')?.addEventListener('click', () => {
+    host.querySelector('[data-ws-inspire-wall] [data-ws-cancel]')?.addEventListener('click', () => {
       stopProgressClock()
       state.task = {
         ...(state.task || {}),
@@ -1753,15 +1722,15 @@ export function createStudioHost() {
       )
     })
 
-    host.querySelector('[data-ws-retry]')?.addEventListener('click', () => {
+    host.querySelector('[data-ws-inspire-wall] [data-ws-retry]')?.addEventListener('click', () => {
       dispatchGenerate({ retry: true })
     })
 
-    host.querySelector('[data-ws-result-actions]')?.addEventListener('click', (e) => {
+    host.querySelector('[data-ws-inspire-wall] [data-ws-result-actions]')?.addEventListener('click', (e) => {
       const btn = e.target instanceof Element ? e.target.closest('[data-ws-result-action]') : null
       if (!btn) return
       const action = btn.getAttribute('data-ws-result-action') || ''
-      const firstImg = host.querySelector('[data-ws-results] img[data-ws-result]')
+      const firstImg = host.querySelector('[data-ws-inspire-wall] [data-ws-results] img[data-ws-result]') || host.querySelector('[data-ws-results] img[data-ws-result]')
       const src = firstImg instanceof HTMLImageElement ? firstImg.src : ''
       /** Host-only actions with no document listener / studio handler yet */
       const UNWIRED = new Set(['加画廊', '加对话', '拿去做视频'])
@@ -1860,7 +1829,6 @@ export function createStudioHost() {
     videoApi.setPage(state.topTab === VIDEO_PAGE ? VIDEO_PAGE : IMAGE_PAGE)
     paintChat()
     syncFields()
-    paintInspiration()
     paintStageIdle()
     paintHistoryEmpty()
     paintRefSlot()
@@ -1919,7 +1887,7 @@ export function createStudioHost() {
       applyProgress(value)
     },
     /**
-     * Paint generate RPC result into stage + history thumbs.
+     * Paint generate RPC result into right-column stage + history thumbs.
      * Accepts phase progress / failed / done payloads.
      * @param {{ jobId?: string, phase?: string, status?: string, progress?: number, elapsedMs?: number, error?: string, results?: Array<{ url?: string, localPath?: string, kind?: string }> }} value
      */
