@@ -83,6 +83,12 @@ const HISTORY_EMPTY_HINT = '暂无记录'
 
 const DEFAULT_MODEL = 'grok-imagine-image'
 
+/** Empty 「选择模型」 is OK to send (host defaults), but UI/history must show the resolved id. */
+const resolveModelId = (raw) => {
+  const s = raw != null ? String(raw).trim() : ''
+  return s || DEFAULT_MODEL
+}
+
 /** Semantic dsh theme tokens — follow body[data-ds-dark-theme] / host skin */
 const T = Object.freeze({
   bg: 'var(--dsw-alias-bg-base)',
@@ -1194,7 +1200,7 @@ export function createStudioHost(opts = {}) {
     clarity: state.clarity,
     count: state.count,
     detail: state.detail,
-    modelId: state.modelId,
+    modelId: resolveModelId(state.modelId),
     compareModels: !!state.compareModels,
     refImages: Array.isArray(state.refImages) ? state.refImages.map((r) => ({ ...r })) : [],
   })
@@ -1210,7 +1216,7 @@ export function createStudioHost(opts = {}) {
     state.clarity = snap.clarity || CLARITY[0]
     state.count = Number(snap.count) || COUNTS[0]
     state.detail = snap.detail || DETAIL_OPTS[0]
-    state.modelId = snap.modelId != null ? String(snap.modelId) : ''
+    state.modelId = resolveModelId(snap.modelId)
     state.compareModels = !!snap.compareModels
     state.refImages = Array.isArray(snap.refImages) ? snap.refImages.map((r) => ({ ...r })) : []
     syncFields()
@@ -1379,10 +1385,7 @@ export function createStudioHost(opts = {}) {
     const snippet = promptText.slice(0, 28) || '生成结果'
     const ratio = snapshot?.ratio != null ? String(snapshot.ratio) : state.ratio || '1:1'
     const mode = snapshot?.mode != null ? String(snapshot.mode) : state.mode || MODE_TXT
-    const modelId =
-      snapshot?.modelId != null && String(snapshot.modelId)
-        ? String(snapshot.modelId)
-        : state.modelId || DEFAULT_MODEL
+    const modelId = resolveModelId(snapshot?.modelId ?? state.modelId)
     const line = `${snippet} · ${ratio}`
     const modelLine = `${modelId} · ${mode}`
     const results = Array.isArray(value?.results) ? value.results : []
@@ -1623,6 +1626,9 @@ export function createStudioHost(opts = {}) {
       elapsedMs: value?.elapsedMs ?? (progressStartedAt ? Date.now() - progressStartedAt : 0),
       phase: 'done',
     }
+    // Keep middle-column model control on the id used for this job (not empty 「选择模型」)
+    state.modelId = resolveModelId(value?.modelId ?? value?.model ?? state.modelId)
+    syncFields()
     paintProgressUi()
 
     const resultsEl = host?.querySelector('[data-ws-inspire-wall] [data-ws-results]') || host?.querySelector('[data-ws-results]')
@@ -2167,6 +2173,9 @@ export function createStudioHost(opts = {}) {
     }
 
     const dispatchGenerate = (extra = {}) => {
+      // Empty 「选择模型」 → default on send; persist so field shows real modelId after done
+      state.modelId = resolveModelId(state.modelId)
+      syncFields()
       beginLocalProgress()
       setStatus('出图中…')
       host.dispatchEvent(
