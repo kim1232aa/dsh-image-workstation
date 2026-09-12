@@ -1,35 +1,55 @@
-# GIF / 电商 stub contracts
+# GIF / 电商 contracts (Nova-aligned)
 
-Honest stubs — **no fake success**. When live later: result URLs **verbatim** (same rule as `openai.images` / `video.async`).
+Honest seats — **no fake success**. Result URLs **verbatim** when live (same rule as `openai.images` / `video.async`).
+
+Primary reference: **Nova** (`ref-nova-image-studio`) — GIF = sprite-sheet via images lane + client encode; ecommerce has **no** dedicated Nova generation seat.
 
 ## RPC methods (`/dsh-ws`)
 
-### `gifGenerate`
+### `gifGenerate` — **live-when-configured**
 
-Payload (draft):
+Payload:
 
 ```json
 {
   "prompt": "string",
-  "frameCount": 8,
+  "frameCount": 12,
   "fps": 12,
-  "loop": 0,
-  "size": "512x512",
-  "modelId": "optional"
+  "loop": true,
+  "closedLoop": false,
+  "loops": 0,
+  "size": "3264x2448",
+  "modelId": "optional",
+  "refImages": [{ "url": "…" }]
 }
 ```
 
-Always returns:
+Behavior (Nova `useGifWorkflow` / `buildGifPrompt`):
+
+1. If media channel configured **or** `GIF_BASE_URL` + `GIF_API_KEY` (alias `GIF_API_URL`) set → compose sprite-sheet prompt → `openai.images` generate (or edit when `refImages` present).
+2. Returns grid image URL(s) verbatim (`seat: gif.grid`). Client may encode GIF locally (Nova `gifenc` pattern) — **host does not invent GIF blobs**.
+3. If neither media nor `GIF_*` → `{ ok:false, error:{ code:"GIF_NOT_CONFIGURED" } }`.
+4. `forceStub` → `GIF_STUB_NOT_WIRED` (no fake success).
+
+Success:
 
 ```json
-{ "ok": false, "error": { "code": "GIF_STUB_NOT_WIRED", "message": "…", "details": {} } }
+{
+  "ok": true,
+  "value": {
+    "jobId": "…",
+    "phase": "done",
+    "seat": "gif.grid",
+    "results": [{ "kind": "image", "url": "https://…/grid.png" }]
+  }
+}
 ```
 
-Local encode seat TBD. Do not invent frames or GIF URLs.
+### `ecommerceGenerate` — **stub**
 
-### `ecommerceGenerate`
+Nova has no dedicated ecommerce generation seat (gallery category only). Keep honest stub.
 
-Payload (draft):
+Payload (draft / reserved):
 
 ```json
 {
@@ -43,18 +63,30 @@ Payload (draft):
 }
 ```
 
-Always returns:
+Always:
 
 ```json
 { "ok": false, "error": { "code": "ECOM_STUB_NOT_WIRED", "message": "…", "details": {} } }
 ```
 
-Plan → confirm batch seat TBD. Do not invent product sheets or image URLs.
+Optional future keys (names only): `ECOM_BASE_URL`, `ECOM_API_KEY`, `ECOM_DEFAULT_MODEL` (alias `ECOM_API_URL`). Not a live seat today.
 
 ## Host
 
-`mediaProxy.gifGenerate` / `mediaProxy.ecommerceGenerate` throw the same codes.
+- `mediaProxy.gifGenerate` → live-when-configured (deps: `generate` + optional `gifEnv`)
+- `mediaProxy.ecommerceGenerate` → `ECOM_STUB_NOT_WIRED`
+
+## Env keys (names only — never values)
+
+| Key | Role |
+|---|---|
+| (media channel) | Primary GIF path — same as studio generate |
+| `GIF_BASE_URL` / `GIF_API_URL` | Optional GIF lane override |
+| `GIF_API_KEY` | Optional GIF lane secret |
+| `GIF_DEFAULT_MODEL` | Optional model id |
+| `ECOM_BASE_URL` / `ECOM_API_URL` | Documented only (seat stub) |
+| `ECOM_API_KEY` | Documented only (seat stub) |
 
 ## Verbatim URL rule
 
-When either seat goes live: pass upstream result URLs through unchanged (no domain rewrite), scrub tokens in errors only.
+Pass upstream result URLs through unchanged (no domain rewrite); scrub tokens in errors only.

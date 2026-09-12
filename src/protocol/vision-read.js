@@ -86,7 +86,7 @@ function scrub(text, token) {
 export async function reversePrompt(req, env = loadVisionEnv()) {
   if (!env?.configured || !env.baseUrl || !env.apiKey) {
     const err = new Error(
-      'Vision lane not configured. Set VISION_BASE_URL + VISION_API_KEY (+ optional VISION_MODEL) in media.env. Images/ANTHROPIC/GPTIMG keys are a separate lane and are not used.',
+      'Vision lane not configured. Set visionBaseUrl + visionApiKey in Settings→Plugins, or VISION_BASE_URL + VISION_API_KEY (+ optional VISION_MODEL) in media.env. Images/ANTHROPIC/GPTIMG keys are a separate lane and are not used.',
     )
     err.code = VISION_NOT_CONFIGURED
     throw err

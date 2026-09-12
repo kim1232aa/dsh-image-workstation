@@ -1,8 +1,8 @@
-import { writeFileSync, mkdirSync } from 'node:fs'
-import path from 'node:path'
+import { writeFileSync } from 'node:fs'
 import { Config, resolveConfig, SETTINGS_NAMESPACE } from './config.js'
 import { mediaEnvSummary } from './protocol/load-media-env.js'
-import { resolveMediaBag, resolveVideoBag } from './protocol/resolve-media.js'
+import { resolveMediaBag, resolveVideoBag, resolveVisionCfg } from './protocol/resolve-media.js'
+import { ensureMediaSeats, MEDIA_STORAGE_SUBDIRS } from './protocol/media-storage.js'
 import { createHostProxy } from './protocol/host-proxy.js'
 import { attachCtaRpc, CTA_RPC_CHANNEL } from './protocol/cta-rpc.js'
 import { attachSkillRpc, SKILL_RPC_CHANNEL } from './protocol/skill-rpc.js'
@@ -27,26 +27,11 @@ export { Config, SETTINGS_NAMESPACE }
 /** connection for RPC; webServer via nested inject; settings optional for Plugins card */
 export const inject = ['connection']
 
-/** Ensure gallery/history/generated seats under dataDir (client-safe relative names). */
-export const MEDIA_STORAGE_SUBDIRS = Object.freeze([
-  'media/generated',
-  'media/gallery',
-  'media/history',
-])
+export { MEDIA_STORAGE_SUBDIRS, ensureMediaSeats }
 
-/**
- * @param {string} dataDir
- */
+/** @deprecated use ensureMediaSeats */
 export function ensureMediaStorageDirs(dataDir) {
-  const root = String(dataDir || '').trim()
-  if (!root) return
-  for (const sub of MEDIA_STORAGE_SUBDIRS) {
-    try {
-      mkdirSync(path.join(root, sub), { recursive: true })
-    } catch {
-      /* ignore */
-    }
-  }
+  return ensureMediaSeats(dataDir)
 }
 
 /**
@@ -62,9 +47,10 @@ export function apply(ctx, config) {
 
   const rebuild = (cfg) => {
     runtime.resolved = resolveConfig(cfg)
-    ensureMediaStorageDirs(runtime.resolved.dataDir)
+    ensureMediaSeats(runtime.resolved.dataDir)
     const media = resolveMediaBag(runtime.resolved)
     media.video = resolveVideoBag(runtime.resolved)
+    media.vision = resolveVisionCfg(runtime.resolved)
     runtime.proxy = createHostProxy(runtime.resolved, media)
     return mediaEnvSummary(media)
   }
@@ -206,6 +192,6 @@ export function apply(ctx, config) {
   }))
 
   ctx.logger?.info?.(
-    `[dsh-image-workstation] host apply dataDir=${runtime.resolved.dataDir} skillDir=${runtime.resolved.skillDir || '(unset)'} media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate|probe|storage.paths settings=${SETTINGS_NAMESPACE} agentImage=${runtime.resolved.allowAgentImageGeneration} skills=${listSkills().length}`,
+    `[dsh-image-workstation] host apply dataDir=${runtime.resolved.dataDir} skillDir=${runtime.resolved.skillDir || '(unset)'} media ${JSON.stringify(mediaSummary)} configured=${mediaFacade.mediaConfigured} rpc=${CTA_RPC_CHANNEL}/generate|probe|storage.paths|gallery.add settings=${SETTINGS_NAMESPACE} agentImage=${runtime.resolved.allowAgentImageGeneration} skills=${listSkills().length}`,
   )
 }

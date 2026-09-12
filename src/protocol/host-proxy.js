@@ -34,7 +34,10 @@ export function createHostProxy(resolved, mediaEnv = null) {
   const liveGenerate = baseUrlSet && tokenSet
   const videoAdapter = createVideoAsyncAdapter(resolved, mediaEnv?.video || null)
   const videoLive = Boolean(videoAdapter?.live)
-  const visionConfigured = loadVisionEnv().configured
+  const visionEnv = mediaEnv?.vision && typeof mediaEnv.vision === 'object'
+    ? mediaEnv.vision
+    : loadVisionEnv()
+  const visionConfigured = Boolean(visionEnv?.configured)
 
   const proxy = {
     lanes: CREDENTIAL_LANES,
@@ -306,19 +309,17 @@ export function createHostProxy(resolved, mediaEnv = null) {
       return videoAdapter.cancel(jobId)
     },
 
-    /** Vision lane reverse-prompt (VISION_* only). Alias: visionReversePrompt. */
+    /** Vision lane reverse-prompt (settings vision* or VISION_*). Alias: visionReversePrompt. */
     async reversePrompt(req) {
-      const env = loadVisionEnv()
-      return visionReversePrompt(req || {}, env)
+      return visionReversePrompt(req || {}, visionEnv)
     },
     async visionReversePrompt(req) {
       return proxy.reversePrompt(req)
     },
 
-    /** 提示词增强 — same VISION_* lane as reversePrompt. */
+    /** 提示词增强 — same vision lane as reversePrompt. */
     async enhancePrompt(req) {
-      const env = loadVisionEnv()
-      return runEnhancePrompt(req || {}, env)
+      return runEnhancePrompt(req || {}, visionEnv)
     },
 
     /** GIF stub — always GIF_STUB_NOT_WIRED */
@@ -332,7 +333,7 @@ export function createHostProxy(resolved, mediaEnv = null) {
     },
 
     visionSummary() {
-      return visionEnvSummary(loadVisionEnv())
+      return visionEnvSummary(visionEnv)
     },
 
     describeChannels() {
