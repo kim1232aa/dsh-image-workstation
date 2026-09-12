@@ -1,9 +1,8 @@
 # Host row by package name. Browser half loads via package.json dsh.client
 # (served at /plugins/<packageName>/client.js) — same split as VisioWork; this is a rebuild.
-# insert id is `imagegen` so Settings→插件列表 search hits entryId.
-# Package name MUST be ASCII `dsh-image-workstation` — non-ASCII paths 404 on
-# /plugins/??…/client.js (Node ERR_UNESCAPED_CHARACTERS). Keywords/description
-# keep 「生图」 for search; SETTINGS_NAMESPACE stays dsh-image-workstation.
+# Package name MUST stay ASCII `dsh-image-workstation` (/plugins URL-safe).
+# insert id `imagegen-生图工作台`: imagegen + 「生图」 both hit host inventory matches().
+# SETTINGS_NAMESPACE stays dsh-image-workstation.
 - insert:
-    - id: imagegen
+    - id: imagegen-生图工作台
       name: dsh-image-workstation
