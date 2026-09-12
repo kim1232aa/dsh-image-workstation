@@ -2,6 +2,7 @@
  * 电商套图 page shell — upload → params → CTA stub 「通道未接」(docs/ui/07).
  * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
  * Labels exact from ../ui/labels.js. No fake success / no paid generate.
+ * Wired via TOP_TABS 「电商模式」 like video-host.
  */
 import {
   ECOM_UPLOAD,
