@@ -1,20 +1,10 @@
 import { loadMediaEnv } from './load-media-env.js'
+import { loadVisionEnv } from './vision-read.js'
 
 /**
  * Prefer settings Config media* when set; else media.env channels.
- * Settings mediaProvider `gptimg` selects birdsun channel from env when URL/key empty.
- * Also merges videoBaseUrl / videoApiKey (and poll/model) into `video` for video.async.
- * @param {{
- *   mediaBaseUrl?: string,
- *   mediaApiKey?: string,
- *   mediaProvider?: string,
- *   videoBaseUrl?: string,
- *   videoApiKey?: string,
- *   videoProvider?: string,
- *   videoDefaultModel?: string,
- *   videoPollIntervalMs?: number,
- *   videoPollTimeoutMs?: number,
- * }} [cfg]
+ * Merges video* / vision* into dedicated lanes (settings-first, else env).
+ * @param {Record<string, unknown>} [cfg]
  */
 export function resolveMediaBag(cfg = {}) {
   const env = loadMediaEnv()
@@ -55,7 +45,9 @@ export function resolveMediaBag(cfg = {}) {
     provider: settingsVideoProvider || envVideo.provider || 'video.async',
   }
 
-  // Explicit settings URL/key wins
+  const vision = resolveVisionCfg(cfg)
+  const withLanes = (base) => ({ ...base, video, vision })
+
   if (settingsUrl || settingsKey) {
     const provider =
       settingsProvider === 'anthropic-compat' || settingsProvider === 'gptimg'
@@ -63,39 +55,32 @@ export function resolveMediaBag(cfg = {}) {
           ? 'openai-images'
           : 'anthropic-compat'
         : settingsProvider || 'openai-images'
-    // If only provider=gptimg and no URL, fall through to env channel
-    if (settingsUrl || settingsKey) {
-      const ch =
+    const ch =
+      settingsProvider === 'gptimg'
+        ? env.channels?.find((c) => c.id === 'gptimg')
+        : settingsProvider === 'anthropic-compat'
+          ? env.channels?.find((c) => c.id === 'primary')
+          : null
+    return withLanes({
+      baseUrl: settingsUrl || ch?.baseUrl || env.baseUrl || '',
+      token: settingsKey || ch?.token || env.token || '',
+      provider: provider === 'anthropic-compat' ? 'anthropic-compat' : 'openai-images',
+      defaultModel:
         settingsProvider === 'gptimg'
-          ? env.channels?.find((c) => c.id === 'gptimg')
-          : settingsProvider === 'anthropic-compat'
-            ? env.channels?.find((c) => c.id === 'primary')
-            : null
-      return {
-        baseUrl: settingsUrl || ch?.baseUrl || env.baseUrl || '',
-        token: settingsKey || ch?.token || env.token || '',
-        provider: provider === 'anthropic-compat' ? 'anthropic-compat' : 'openai-images',
-        defaultModel:
-          settingsProvider === 'gptimg'
-            ? 'gpt-image-2'
-            : ch?.defaultModel || env.defaultModel || 'grok-imagine-image',
-        activeId: settingsProvider === 'gptimg' ? 'gptimg' : ch?.id || env.activeId,
-        channels: env.channels || [],
-        source: 'settings',
-        video,
-      }
-    }
+          ? 'gpt-image-2'
+          : ch?.defaultModel || env.defaultModel || 'grok-imagine-image',
+      activeId: settingsProvider === 'gptimg' ? 'gptimg' : ch?.id || env.activeId,
+      channels: env.channels || [],
+      source: 'settings',
+    })
   }
 
-  // Provider-only switch from settings (no pasted URL).
-  // Only settingsProvider === 'gptimg' selects birdsun; openai-images alone
-  // must fall through to env primary (do not hijack to gptimg channel).
   if (settingsProvider === 'gptimg') {
     const ch =
       env.channels?.find((c) => c.id === 'gptimg') ||
       env.channels?.find((c) => c.provider === 'openai-images' && c.id === 'gptimg')
     if (ch) {
-      return {
+      return withLanes({
         baseUrl: ch.baseUrl,
         token: ch.token,
         provider: 'openai-images',
@@ -103,14 +88,13 @@ export function resolveMediaBag(cfg = {}) {
         activeId: ch.id,
         channels: env.channels || [],
         source: env.source,
-        video,
-      }
+      })
     }
   }
   if (settingsProvider === 'anthropic-compat') {
     const ch = env.channels?.find((c) => c.id === 'primary')
     if (ch) {
-      return {
+      return withLanes({
         baseUrl: ch.baseUrl,
         token: ch.token,
         provider: ch.provider,
@@ -118,12 +102,11 @@ export function resolveMediaBag(cfg = {}) {
         activeId: ch.id,
         channels: env.channels || [],
         source: env.source,
-        video,
-      }
+      })
     }
   }
 
-  return {
+  return withLanes({
     baseUrl: env.baseUrl || '',
     token: env.token || '',
     provider: env.provider || 'unknown',
@@ -131,44 +114,42 @@ export function resolveMediaBag(cfg = {}) {
     activeId: env.activeId || '',
     channels: env.channels || [],
     source: env.source,
-    video,
-  }
+  })
 }
 
-/**
- * Settings-first video channel resolve (else media.env VIDEO_*).
- * Also available via resolveMediaBag(...).video — kept as explicit export for host apply.
- * @param {{
- *   videoBaseUrl?: string,
- *   videoApiKey?: string,
- *   videoProvider?: string,
- *   videoDefaultModel?: string,
- *   videoPollIntervalMs?: number,
- *   videoPollTimeoutMs?: number,
- * }} [cfg]
- */
+/** @param {Record<string, unknown>} [cfg] */
 export function resolveVideoCfg(cfg = {}) {
   return resolveMediaBag(cfg).video
 }
 
-/**
- * Resolve video.async env from settings cfg + media.env (same sources as resolveMediaBag().video).
- * Prefer settings videoBaseUrl/videoApiKey when set.
- * @param {{
- *   videoBaseUrl?: string,
- *   videoApiKey?: string,
- *   videoProvider?: string,
- *   videoDefaultModel?: string,
- *   videoPollIntervalMs?: number,
- *   videoPollTimeoutMs?: number,
- * }} [cfg]
- */
+/** @param {Record<string, unknown>} [cfg] */
 export function resolveVideoEnv(cfg = {}) {
   return resolveMediaBag(cfg).video
 }
 
-/** @deprecated alias — prefer resolveVideoEnv */
-export const resolveVideoBag = resolveVideoEnv
+/**
+ * Settings-first vision lane (else media.env VISION_*). Never uses images/video keys.
+ * @param {{ visionBaseUrl?: string, visionApiKey?: string, visionModel?: string }} [cfg]
+ */
+export function resolveVisionCfg(cfg = {}) {
+  const env = loadVisionEnv()
+  const settingsUrl = String(cfg.visionBaseUrl || '').trim()
+  const settingsKey = String(cfg.visionApiKey || '')
+  const settingsModel = String(cfg.visionModel || '').trim()
+  const baseUrl = settingsUrl || env.baseUrl || ''
+  const apiKey = settingsKey || env.apiKey || ''
+  const model = settingsModel || env.model || 'gpt-4o-mini'
+  return {
+    baseUrl,
+    apiKey,
+    model,
+    source: settingsUrl || settingsKey ? 'settings' : env.source,
+    configured: Boolean(baseUrl && apiKey),
+    lane: 'vision',
+  }
+}
 
-/** @deprecated alias — prefer resolveMediaBag */
+/** @deprecated */
+export const resolveVideoBag = resolveVideoEnv
+/** @deprecated */
 export const resolveMediaCfg = resolveMediaBag
