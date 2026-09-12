@@ -23,8 +23,8 @@ export const IMAGE_PAGE = '普通生图'
 export const VIDEO_PAGE = '视频生成'
 
 const DEFAULT_PROJECT_NAME = '未命名项目'
-const EDGE_HINT = '文本→配置＝提示词；图片→配置＝参考图（第一张＝图生图底图）'
-const ADD_NODE_HINT = '双击空白或点「添加」建节点；选配置后底部「开始生成」真出图'
+const EDGE_HINT = '文本→配置＝提示词'
+const ADD_NODE_HINT = '选配置后写提示词生成'
 const MODE_TXT = MODE_TABS[0]
 const MODE_IMG = MODE_TABS[1]
 /** Studio default — empty 「选择模型」 must not block or POST blank modelId */
@@ -143,6 +143,7 @@ export function canvasHostStyles() {
   return `
 [data-dsh-ws-studio-host] [data-ws-page="canvas"] {
   display:none; pointer-events:none; flex:1; min-height:0; width:100%; flex-direction:column;
+  position:relative;
 }
 [data-dsh-ws-studio-host][data-ws-top-page="无限画布"] [data-ws-page="canvas"] {
   display:flex; pointer-events:auto;
@@ -235,9 +236,7 @@ export function canvasHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-canvas-img-stub][data-generating] {
   border-style:solid; color: var(--dsw-alias-label-secondary);
 }
-[data-dsh-ws-studio-host] [data-ws-canvas-node-tools] {
-  display:flex; flex-wrap:wrap; gap:4px; padding:0 8px 8px;
-}
+/* node-tools footer styled with floating composer block */
 [data-dsh-ws-studio-host] [data-ws-canvas-port] {
   position:absolute; width:10px; height:10px; border-radius:999px;
   background: var(--dsw-alias-bg-base);
@@ -266,41 +265,82 @@ export function canvasHostStyles() {
   background: var(--dsw-alias-bg-base);
   border:1px solid var(--dsw-alias-border-l2);
 }
+/* Floating composer (VisioWork density cue — original CSS, --dsw-* tokens) */
 [data-dsh-ws-studio-host] [data-ws-canvas-generator] {
-  display:none; flex-shrink:0; flex-direction:column; gap:6px;
-  padding:8px 12px 10px;
-  border-top:1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-base);
+  display:none;
+  position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+  z-index:6; width:min(560px, calc(100% - 24px));
+  flex-direction:column; gap:8px;
+  padding:10px;
+  border-radius:14px;
+  border:1px solid var(--dsw-alias-border-l1, var(--dsw-alias-border-l2));
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base)) 96%, transparent);
+  box-shadow: 0 16px 44px rgb(15 23 42 / 18%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-generator][data-open] {
   display:flex;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-gen-prompt] {
+  width:100%; min-height:38px; max-height:120px; resize:none;
+  border:none; outline:none; background:transparent;
+  color: var(--dsw-alias-label-primary);
+  font:inherit; font-size:13px; line-height:1.5; padding:2px 4px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-gen-prompt]::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-composer-row] {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-send] {
+  flex:none; min-width:5.5rem; min-height:32px; width:auto;
+  padding:0 14px; border:0; border-radius:999px;
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+  cursor:pointer; font:inherit; font-weight:600; font-size:13px;
+  display:inline-flex; align-items:center; justify-content:center;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:hover:not([disabled]) {
   background: var(--dsw-alias-button-primary-hover);
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-send][disabled],
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:disabled {
-  opacity:.45; cursor:not-allowed; filter:grayscale(.3); pointer-events:none;
+  opacity:.3; cursor:not-allowed; filter:none; pointer-events:none; box-shadow:none;
 }
-[data-dsh-ws-studio-host] [data-ws-canvas-send]:active { filter:brightness(.96); }
+[data-dsh-ws-studio-host] [data-ws-canvas-send]:active:not([disabled]) { filter:brightness(.96); }
 [data-dsh-ws-studio-host] [data-ws-canvas-send]:focus-visible {
   outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:2px;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-status] {
-  margin:0; font-size:11px; color: var(--dsw-alias-label-tertiary);
+  margin:0; font-size:11px; color: var(--dsw-alias-label-tertiary); line-height:1.3;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-chips] {
-  display:flex; flex-wrap:wrap; gap:4px;
+  display:flex; flex-wrap:wrap; gap:3px 4px;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-chips] button {
-  padding:2px 8px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
+  padding:1px 7px; border:1px solid var(--dsw-alias-border-l2); border-radius:999px;
   background:transparent; color: var(--dsw-alias-label-secondary);
-  font:inherit; font-size:11.5px; cursor:pointer;
+  font:inherit; font-size:11px; cursor:pointer; line-height:1.25;
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-chips] button[aria-current="true"] {
   background: var(--dsw-alias-interactive-bg-active);
   color: var(--dsw-alias-label-primary);
   border-color: var(--dsw-alias-border-l4);
+}
+/* Image node footer actions under image — not white empty shell */
+[data-dsh-ws-studio-host] [data-ws-canvas-node-tools] {
+  display:flex; flex-wrap:wrap; gap:4px;
+  padding:6px 8px 8px; margin:0;
+  background: var(--dsw-alias-bg-module-platform, transparent);
+  border-top:1px solid var(--dsw-alias-border-l2);
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node][data-type="image"] [data-ws-canvas-node-body] {
+  padding:0; gap:0;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-node][data-type="image"] [data-ws-canvas-img] {
+  border-radius:0; aspect-ratio:auto; max-height:220px;
 }
 `
 }
@@ -406,37 +446,19 @@ export function buildCanvasPageHtml(T, css, state) {
   </div>
 
   <div data-ws-canvas-generator ${state.generatorOpen ? 'data-open' : ''} aria-label="底部生成器">
-    <div style="display:flex;align-items:baseline;gap:8px;">
-      <strong style="font-size:12px;color:${T.fg2};">${CANVAS_NODES.genConfig}</strong>
-      <span style="font-size:11px;color:${T.fg3};">${ADD_NODE_HINT}</span>
-    </div>
-    <div>
-      <div style="${css.paramLabel};margin-bottom:4px;">${PROMPT_FIELDS.prompt}</div>
-      <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词或连文本节点后点开始生成" style="width:100%;min-height:52px;padding:6px 8px;border:1px solid ${T.border2};border-radius:8px;background:${T.input};color:${T.fg};font:inherit;font-size:12px;"></textarea>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="${css.paramLabel}">${PARAM_LABELS.model}</span>
-        <input data-ws-canvas-param-model value="${escapeHtml(state.nodes.find((n) => n.type === 'genConfig')?.modelId || DEFAULT_CANVAS_MODEL)}" placeholder="${escapeHtml(DEFAULT_CANVAS_MODEL)}" style="padding:0 10px;height:28px;border-radius:14px;width:10rem;border:1px solid ${T.border2};background:${T.input};color:${T.fg};font:inherit;font-size:12px;" />
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="${css.paramLabel}">${PARAM_LABELS.ratio}</span>
-        <div data-ws-canvas-chips data-param="ratio">${chip('ratio', RATIOS, state.nodes.find((n) => n.type === 'genConfig')?.ratio || RATIOS[0])}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="${css.paramLabel}">${PARAM_LABELS.clarity}</span>
-        <div data-ws-canvas-chips data-param="clarity">${chip('clarity', CLARITY, CLARITY[0])}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="${css.paramLabel}">${PARAM_LABELS.count}</span>
-        <div data-ws-canvas-chips data-param="count">${chip('count', COUNTS, COUNTS[0])}</div>
-      </div>
+    <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词，或连文本节点后生成" ></textarea>
+    <div data-ws-canvas-composer-row>
+      <input data-ws-canvas-param-model value="${escapeHtml(state.nodes.find((n) => n.type === 'genConfig')?.modelId || DEFAULT_CANVAS_MODEL)}" placeholder="${escapeHtml(DEFAULT_CANVAS_MODEL)}" aria-label="${PARAM_LABELS.model}" style="padding:0 10px;height:28px;border-radius:14px;width:7.5rem;border:1px solid ${T.border2};background:transparent;color:${T.fg};font:inherit;font-size:11.5px;" />
+      <div data-ws-canvas-chips data-param="ratio" aria-label="${PARAM_LABELS.ratio}">${chip('ratio', RATIOS, state.nodes.find((n) => n.type === 'genConfig')?.ratio || RATIOS[0])}</div>
+      <div data-ws-canvas-chips data-param="clarity" aria-label="${PARAM_LABELS.clarity}">${chip('clarity', CLARITY, CLARITY[0])}</div>
+      <div data-ws-canvas-chips data-param="count" aria-label="${PARAM_LABELS.count}">${chip('count', COUNTS, COUNTS[0])}</div>
+      <span style="flex:1"></span>
+      <button type="button" data-ws-canvas-send disabled>${CTA}</button>
     </div>
     <div data-ws-canvas-node-tools-slot style="display:flex;flex-wrap:wrap;gap:4px;">
       ${nodeTools}
     </div>
-    <button type="button" data-ws-canvas-send style="${css.cta}">${CTA}</button>
-    <p data-ws-canvas-status class="note">拖节点 · 端口连线 · ${CTA} → 真 /dsh-ws/generate（失败如实报错）</p>
+    <p data-ws-canvas-status class="note">${ADD_NODE_HINT}</p>
   </div>
 </div>
 `
@@ -626,7 +648,7 @@ export function mountCanvasPage(host, opts) {
           } else if (err) {
             body = `<div data-ws-canvas-img-stub data-empty>${escapeHtml(err.slice(0, 120)) || '出图失败'}</div>`
           } else {
-            body = `<div data-ws-canvas-img-stub data-empty>空节点 · 拖入 / 粘贴图片<br/>或点「${CTA}」出图</div>`
+            body = `<div data-ws-canvas-img-stub data-empty>拖入 / 粘贴图片</div>`
           }
           body += `<div data-ws-canvas-node-tools>
               ${Object.values(CANVAS_NODE_TOOLS)

@@ -6,12 +6,12 @@
 import {
   COLUMNS,
   RATIOS,
-  CLARITY,
   HISTORY_ACTIONS,
   HISTORY_EMPTY,
   VIDEO_MODE_TABS,
   VIDEO_FRAMES,
   VIDEO_PARAMS,
+  VIDEO_CLARITY_TIERS,
   VIDEO_CTA,
   VIDEO_RESULT_ACTIONS,
   PROMPT_FIELDS,
@@ -33,7 +33,7 @@ const STAGE_EMPTY_HINT = '生成后显示在这里'
 const HISTORY_EMPTY_HINT = HISTORY_EMPTY
 const FRAME_HINT = '上传 / 拖拽 / 粘贴'
 const VIDEO_MODEL_EMPTY = '未配置视频模型'
-const VIDEO_CFG_HINT = '请到 设置 → 插件 → dsh-image-workstation 填写视频 Base URL 与 API Key'
+const VIDEO_CFG_HINT = '视频渠道未配置'
 
 /** @param {string} raw */
 function humanizeVideoError(raw) {
@@ -150,8 +150,32 @@ export function videoHostStyles() {
 [data-dsh-ws-studio-host] [data-ws-video-cta]:disabled {
   opacity:.4; cursor:not-allowed; filter:grayscale(.4); pointer-events:none; box-shadow:none;
 }
-[data-dsh-ws-studio-host] [data-ws-video-cta]:hover:not([disabled]) {
+[data-dsh-ws-studio-host] [data-ws-video-cta]:hover:not([disabled]):not([data-ws-cta-outline]) {
   background: var(--dsw-alias-button-primary-hover);
+}
+/* Unconfigured: outline secondary 「去配置」 — not grey primary */
+[data-dsh-ws-studio-host] [data-ws-video-cta][data-ws-cta-outline] {
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  border: 1px solid var(--dsw-alias-border-l2);
+  box-shadow: none;
+  font-weight: 500;
+  opacity: 1;
+  filter: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+[data-dsh-ws-studio-host] [data-ws-video-cta][data-ws-cta-outline]:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+/* Don't stack fail + empty hint */
+[data-dsh-ws-studio-host] [data-ws-video-stage]:has([data-ws-video-fail][data-visible]) [data-ws-video-stage-empty-hint] {
+  display: none !important;
+}
+[data-dsh-ws-studio-host] [data-ws-video-clarity-chip][disabled],
+[data-dsh-ws-studio-host] [data-ws-video-clarity-chip]:disabled {
+  opacity: .45; cursor: not-allowed; pointer-events: none;
 }
 `
 }
@@ -164,7 +188,7 @@ export function defaultVideoState() {
     mode: MODE_TXT,
     prompt: '',
     duration: VIDEO_DURATIONS[0],
-    clarity: CLARITY[0],
+    clarity: VIDEO_CLARITY_TIERS[0],
     ratio: RATIOS[5] || RATIOS[0], // prefer 16:9 when present
     modelId: '',
     firstFrame: null,
@@ -291,7 +315,7 @@ export function buildVideoPageHtml(T, css, paneWidths, state) {
         <div data-ws-param-group>
           <span style="${css.paramLabel}">${VIDEO_PARAMS.clarity}</span>
           <div data-ws-chips role="group" aria-label="${VIDEO_PARAMS.clarity}">
-            ${chipButtonsHtml('clarity', CLARITY, state.clarity)}
+            ${chipButtonsHtml('clarity', VIDEO_CLARITY_TIERS, state.clarity)}
           </div>
         </div>
         <div data-ws-param-group>
@@ -545,21 +569,41 @@ export function mountVideoPage(host, opts) {
   let videoConfigured = false
   const cta = page.querySelector('[data-ws-video-cta]')
   const modelInput = page.querySelector('[data-ws-video-param="model"]')
+  const openVideoConfig = () => {
+    setStatus(VIDEO_CFG_HINT)
+    try {
+      document.dispatchEvent(
+        new CustomEvent('dsh-ws-open-settings', { bubbles: true, detail: { focus: 'video' } }),
+      )
+    } catch (_) {}
+    try {
+      host.dispatchEvent(
+        new CustomEvent('dsh-ws-go-config', { bubbles: true, detail: { focus: 'video' } }),
+      )
+    } catch (_) {}
+  }
   const syncVideoCta = () => {
     if (!(cta instanceof HTMLButtonElement)) return
     const hasPrompt = String(state.prompt || '').trim().length > 0
-    const disable = !videoConfigured || !hasPrompt
-    cta.disabled = disable
-    if (disable) cta.setAttribute('disabled', '')
-    else cta.removeAttribute('disabled')
     if (!videoConfigured) {
+      // Outline secondary 「去配置」 — clickable, never teach secrets / never grey 「开始生成」
+      cta.disabled = false
+      cta.removeAttribute('disabled')
+      cta.textContent = GO_CONFIGURE
+      cta.setAttribute('data-ws-cta-outline', '')
       cta.title = VIDEO_CFG_HINT
       if (modelInput instanceof HTMLInputElement && !String(modelInput.value || '').trim()) {
         modelInput.placeholder = VIDEO_MODEL_EMPTY
       }
-    } else {
-      cta.title = hasPrompt ? '' : '请先输入提示词'
+      return
     }
+    cta.removeAttribute('data-ws-cta-outline')
+    cta.textContent = VIDEO_CTA
+    const disable = !hasPrompt
+    cta.disabled = disable
+    if (disable) cta.setAttribute('disabled', '')
+    else cta.removeAttribute('disabled')
+    cta.title = hasPrompt ? '' : '请先输入提示词'
   }
   syncVideoCta()
 
@@ -730,7 +774,7 @@ export function mountVideoPage(host, opts) {
 
   cta?.addEventListener('click', () => {
     if (!videoConfigured) {
-      showStubFailure('VIDEO_NOT_CONFIGURED')
+      openVideoConfig()
       return
     }
     if (!String(state.prompt || '').trim()) {
@@ -775,10 +819,7 @@ export function mountVideoPage(host, opts) {
     const retry = page.querySelector('[data-ws-video-retry]')
     const mode = retry instanceof HTMLElement ? retry.dataset.wsVideoRetryMode : 'retry'
     if (mode === 'configure') {
-      setStatus(VIDEO_CFG_HINT)
-      try {
-        document.dispatchEvent(new CustomEvent('dsh-ws-open-settings', { bubbles: true, detail: { focus: 'video' } }))
-      } catch (_) {}
+      openVideoConfig()
       return
     }
     if (!videoConfigured) {
@@ -839,9 +880,10 @@ export function mountVideoPage(host, opts) {
       }
     }
     syncVideoCta()
+    const fail = page.querySelector('[data-ws-video-fail]')
+    const hint = page.querySelector('[data-ws-video-stage-empty-hint]')
     if (!videoConfigured) {
-      // Soft empty fail strip — don't spam duplicate codes into status
-      const fail = page.querySelector('[data-ws-video-fail]')
+      // Soft fail strip — hide empty hint so they don't stack
       const reason = fail?.querySelector('[data-ws-fail-reason]')
       if (fail instanceof HTMLElement && reason) {
         fail.setAttribute('data-visible', '')
@@ -850,9 +892,14 @@ export function mountVideoPage(host, opts) {
         if (retry instanceof HTMLButtonElement) {
           retry.textContent = GO_CONFIGURE
           retry.dataset.wsVideoRetryMode = 'configure'
+          retry.hidden = false
         }
       }
+      if (hint instanceof HTMLElement) hint.hidden = true
       setStatus(VIDEO_CFG_HINT)
+    } else if (fail instanceof HTMLElement) {
+      fail.removeAttribute('data-visible')
+      if (hint instanceof HTMLElement) hint.hidden = false
     }
   }
 

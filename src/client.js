@@ -613,23 +613,21 @@ export function apply(ctx, _config) {
     const closeStudio = studio.close.bind(studio)
     studio.open = () => {
       openStudio()
-      // Left 「生图」 = module entry; only highlight when 普通生图 page (avoid dual chrome)
+      // Left 「生图」 = module entry for whole plugin; New Session must not look selected
       sidebarEntry.setSelected('studio')
     }
     studio.close = () => {
       closeStudio()
-      // Studio closed → neither dual-highlight New Session as active workstation
+      // Studio closed → clear both; never leave New Session painted as workstation
       sidebarEntry.setSelected('none')
     }
     const onTopTab = (ev) => {
-      const d = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
       if (!studio.isOpen?.()) {
         sidebarEntry.setSelected('none')
         return
       }
-      // B/E: top 「视频生成」 etc. → clear left 「生图」 selected highlight (page chrome owns selection)
-      if (d.studioPage) sidebarEntry.setSelected('studio')
-      else sidebarEntry.setSelected('none')
+      // Prefer: left 生图 active for whole plugin; top tab shows which page
+      sidebarEntry.setSelected('studio')
     }
     document.addEventListener('dsh-ws-top-tab', onTopTab)
     disposers.push(() => document.removeEventListener('dsh-ws-top-tab', onTopTab))

@@ -268,9 +268,9 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   opacity:.7;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage] {
-  /* Right column = result landing. Pack head+grid+actions at TOP (same lesson as CTA). */
-  flex:0 1 auto; min-height:0; max-height:none; display:flex; flex-direction:column;
-  justify-content:flex-start; gap:8px;
+  /* Right column = result landing. Idle: pack short; with results: grow. */
+  flex:0 0 auto; min-height:0; max-height:none; display:flex; flex-direction:column;
+  justify-content:flex-start; gap:6px;
   margin:0; padding:0; overflow:hidden; background:transparent; border:0;
 }
 [data-dsh-ws-studio-host] [data-ws-inspire-wall] [data-ws-stage][data-has-results],
@@ -290,8 +290,8 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 [data-dsh-ws-studio-host] [data-ws-stage-empty] {
   flex:0 0 auto; min-height:0;
   display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start;
-  gap:4px; padding:12px 14px; text-align:left;
-  border:0; border-radius:10px;
+  gap:2px; padding:8px 10px; text-align:left;
+  border:0; border-radius:8px;
   background: var(--dsw-alias-bg-module-platform);
 }
 [data-dsh-ws-studio-host] [data-ws-stage-empty][hidden],
@@ -382,8 +382,8 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 [data-dsh-ws-studio-host] [data-ws-dock] {
   /* Pack to natural height — continuous with [data-ws-cta-footer] (gap 0 / small).
      NEVER margin-top:auto / flex-grow between dock params and CTA. */
-  flex:0 0 auto; display:flex; flex-direction:column; gap:4px;
-  padding:8px 12px 0; background: transparent;
+  flex:0 0 auto; display:flex; flex-direction:column; gap:3px;
+  padding:6px 10px 0; background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-2, transparent));
   border-top:0;
   max-height:none; overflow:auto; min-height:0;
 }
@@ -399,9 +399,16 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
 [data-dsh-ws-studio-host] [data-ws-cta-footer] {
   /* Pack directly under dock at TOP of mid — write+CTA only; results on right. */
   flex:0 0 auto; margin-top:0; position:relative; z-index:2;
-  padding:6px 12px 10px; background: transparent;
-  display:flex; flex-direction:column; gap:4px;
+  padding:4px 10px 8px; background: var(--dsw-alias-bg-base, var(--dsw-alias-bg-layer-2, transparent));
+  display:flex; flex-direction:column; gap:3px;
   border-top:1px solid var(--dsw-alias-border-l2);
+  border-bottom:1px solid var(--dsw-alias-border-l2);
+}
+/* Mid leftover under CTA: muted token slab — never huge white void */
+[data-dsh-ws-studio-host] [data-ws-page="image"] [data-ws-col="studio"]::after {
+  content:''; flex:1 1 auto; min-height:0;
+  background: var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, transparent));
+  pointer-events:none;
 }
 [data-dsh-ws-studio-host] [data-ws-advanced] { margin:0; }
 [data-dsh-ws-studio-host] [data-ws-advanced] > summary {
@@ -489,8 +496,13 @@ body[data-ds-dark-theme] [data-dsh-ws-studio-host] { color-scheme: dark; }
   cursor:pointer; font:inherit; font-size:12.5px; line-height:1.25; min-height:32px;
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions] > button[data-ws-result-secondary] {
-  background: transparent; border-style:solid; color: var(--dsw-alias-label-secondary);
-  font-weight:400;
+  background: transparent; border:1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-weight:400; box-shadow:none;
+}
+[data-dsh-ws-studio-host] [data-ws-result-actions] > button[data-ws-result-secondary]:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 [data-dsh-ws-studio-host] [data-ws-result-actions] button[data-ws-unwired] {
   opacity:.7; border-style:dashed; color: var(--dsw-alias-label-tertiary);
@@ -823,13 +835,13 @@ export function createStudioHost(opts = {}) {
     })
     // Stamp top-page for sibling page CSS (video/canvas/gallery/ecom hide image cols).
     host?.setAttribute('data-ws-top-page', name)
-    // Sync host sidebar chrome: module entry stays 「生图」 only when page is 普通生图;
-    // other top tabs clear dual-highlight with left 「生图」.
+    // Sync host sidebar: left 「生图」 stays active for whole plugin while studio open;
+    // top tabs show which page — never paint New Session as selected.
     try {
       document.dispatchEvent(
         new CustomEvent('dsh-ws-top-tab', {
           bubbles: true,
-          detail: { tab: name, studioPage: name === IMAGE_PAGE },
+          detail: { tab: name, studioPage: true },
         }),
       )
     } catch (_) {}
@@ -1539,7 +1551,7 @@ export function createStudioHost(opts = {}) {
       empty.dataset.wsHistoryEmpty = ''
       empty.style.cssText = `padding:8px 4px;font-size:12px;color:${T.fg3};`
       empty.textContent = HISTORY_EMPTY_HINT
-      empty.title = '本机工作台生图历史（≠ 左侧宿主会话列表）'
+      empty.removeAttribute('title')
       histEl.appendChild(empty)
     }
     syncHistoryChrome()
@@ -1824,7 +1836,6 @@ export function createStudioHost(opts = {}) {
         <!-- LEFT: 历史记录 -->
         <aside data-ws-col="history" style="width:${state.paneWidths.history}px;flex-shrink:0;border-right:1px solid ${T.border2};padding:8px;overflow:auto;background:${T.sidebar};display:flex;flex-direction:column;gap:6px;">
           <div style="font-size:13px;font-weight:600;color:${T.fg};">${COLUMNS.history}</div>
-          <div style="font-size:10.5px;color:${T.fg3};line-height:1.3;">本机生图 · 异于左侧会话</div>
           <div data-ws-history-filters hidden>
             <input type="search" placeholder="搜索历史" aria-label="搜索历史" style="width:100%;${css.field};font-size:12px;" />
             <div style="display:flex;gap:6px;margin-top:6px;">
@@ -1980,8 +1991,7 @@ export function createStudioHost(opts = {}) {
             <div data-ws-results hidden></div>
             <div data-ws-result-actions>
               ${RESULT_PRIMARY_ACTIONS.map((a) => {
-                  const regen = a === '重新生成'
-                  return `<button type="button" data-ws-result-action="${a}"${regen ? ' data-ws-result-secondary' : ''}>${a}</button>`
+                  return `<button type="button" data-ws-result-action="${a}" data-ws-result-secondary>${a}</button>`
                 }).join('')}
               <div data-ws-result-more>
                 <button type="button" data-ws-result-more-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${TOOL_MORE}">${TOOL_MORE} ▾</button>
