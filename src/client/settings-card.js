@@ -30,6 +30,10 @@ export function WorkstationSettingsCard(props) {
   const [videoProvider, setVideoProvider] = useState('video.async')
   const [videoDefaultModel, setVideoDefaultModel] = useState('')
   const [videoKeyConfigured, setVideoKeyConfigured] = useState(false)
+  const [visionBaseUrl, setVisionBaseUrl] = useState('')
+  const [visionApiKeyDraft, setVisionApiKeyDraft] = useState('')
+  const [visionModel, setVisionModel] = useState('')
+  const [visionKeyConfigured, setVisionKeyConfigured] = useState(false)
   const [revision, setRevision] = useState(undefined)
   const [status, setStatus] = useState('')
   const [models, setModels] = useState([])
@@ -64,6 +68,17 @@ export function WorkstationSettingsCard(props) {
           'set' in videoSecretMeta &&
           videoSecretMeta.set)
       setVideoKeyConfigured(Boolean(videoKeySet))
+      setVisionBaseUrl(String(v.visionBaseUrl || ''))
+      setVisionModel(String(v.visionModel || ''))
+      const visionSecretMeta = secrets.visionApiKey
+      const visionKeySet =
+        visionSecretMeta === true ||
+        visionSecretMeta?.set === true ||
+        (typeof visionSecretMeta === 'object' &&
+          visionSecretMeta != null &&
+          'set' in visionSecretMeta &&
+          visionSecretMeta.set)
+      setVisionKeyConfigured(Boolean(visionKeySet))
       setRevision(snap.revision)
     }
   }, [scope])
@@ -90,12 +105,17 @@ export function WorkstationSettingsCard(props) {
         { op: 'set', path: ['videoBaseUrl'], value: videoBaseUrl.trim() },
         { op: 'set', path: ['videoProvider'], value: videoProvider.trim() || 'video.async' },
         { op: 'set', path: ['videoDefaultModel'], value: videoDefaultModel.trim() },
+        { op: 'set', path: ['visionBaseUrl'], value: visionBaseUrl.trim() },
+        { op: 'set', path: ['visionModel'], value: visionModel.trim() },
       ]
       if (apiKeyDraft.trim()) {
         ops.push({ op: 'set', path: ['mediaApiKey'], value: apiKeyDraft.trim() })
       }
       if (videoApiKeyDraft.trim()) {
         ops.push({ op: 'set', path: ['videoApiKey'], value: videoApiKeyDraft.trim() })
+      }
+      if (visionApiKeyDraft.trim()) {
+        ops.push({ op: 'set', path: ['visionApiKey'], value: visionApiKeyDraft.trim() })
       }
       if (typeof scope.mutate === 'function') {
         await scope.mutate(ops, revision)
@@ -104,8 +124,10 @@ export function WorkstationSettingsCard(props) {
       }
       setApiKeyDraft('')
       setVideoApiKeyDraft('')
+      setVisionApiKeyDraft('')
       if (apiKeyDraft.trim()) setKeyConfigured(true)
       if (videoApiKeyDraft.trim()) setVideoKeyConfigured(true)
+      if (visionApiKeyDraft.trim()) setVisionKeyConfigured(true)
       setStatus('Saved (keys stored on host only)')
       pull()
     } catch (e) {
@@ -403,6 +425,69 @@ export function WorkstationSettingsCard(props) {
                 value: videoDefaultModel,
                 placeholder: 'e.g. grok-imagine-video',
                 onChange: (e) => setVideoDefaultModel(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'div',
+              {
+                style: {
+                  margin: '4px 0 8px',
+                  paddingTop: 8,
+                  borderTop: border,
+                  color: fgSecondary,
+                  fontWeight: 650,
+                  fontSize: 12,
+                },
+              },
+              'Vision',
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Vision API base URL'),
+              h('input', {
+                style: inputStyle,
+                value: visionBaseUrl,
+                placeholder: 'Vision base URL (chat/completions)',
+                onChange: (e) => setVisionBaseUrl(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h(
+                'span',
+                { style: { display: 'flex', justifyContent: 'space-between' } },
+                h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Vision API key'),
+                h(
+                  'span',
+                  { style: { color: fgMuted, fontSize: 11 } },
+                  visionKeyConfigured ? 'Configured' : 'Not configured',
+                ),
+              ),
+              h('input', {
+                style: inputStyle,
+                type: 'password',
+                autoComplete: 'new-password',
+                value: visionApiKeyDraft,
+                placeholder: visionKeyConfigured
+                  ? 'Leave blank to keep stored key'
+                  : 'Paste key, then Save',
+                onChange: (e) => setVisionApiKeyDraft(e.target.value),
+                disabled: busy,
+              }),
+            ),
+            h(
+              'label',
+              { style: fieldStyle },
+              h('span', { style: { color: fgSecondary, fontWeight: 500 } }, 'Vision model'),
+              h('input', {
+                style: inputStyle,
+                value: visionModel,
+                placeholder: 'e.g. gpt-4o-mini',
+                onChange: (e) => setVisionModel(e.target.value),
                 disabled: busy,
               }),
             ),

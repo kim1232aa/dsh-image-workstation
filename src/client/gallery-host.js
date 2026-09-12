@@ -28,6 +28,8 @@ const DEFAULT_PATHS = Object.freeze({
   generated: 'media/generated',
   gallery: 'media/gallery',
   history: 'media/history',
+  canvas: 'media/canvas',
+  templates: 'media/templates',
 })
 const EMPTY_HINT =
   '画廊还是空的。在普通生图或视频结果里点「加画廊」，满意作品会沉淀到这里。'
@@ -148,6 +150,8 @@ export async function fetchStorageMedia(opts) {
       if (v.generated) paths.generated = String(v.generated)
       if (v.gallery) paths.gallery = String(v.gallery)
       if (v.history) paths.history = String(v.history)
+      if (v.canvas) paths.canvas = String(v.canvas)
+      if (v.templates) paths.templates = String(v.templates)
     }
   } catch (_) {
     /* keep defaults */

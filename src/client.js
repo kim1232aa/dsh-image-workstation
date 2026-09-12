@@ -29,7 +29,7 @@ export const CTA_RPC_ECOM_GENERATE = 'ecommerceGenerate'
 export const CTA_RPC_REVERSE_PROMPT = 'reversePrompt'
 export const CTA_RPC_ENHANCE_PROMPT = 'enhancePrompt'
 export const CTA_RPC_STORAGE_PATHS = 'storage.paths'
-/** Future write seat — not registered yet; client must stay honest 未接线 */
+/** Host gallery persist (media/gallery + index.json). */
 export const CTA_RPC_GALLERY_ADD = 'gallery.add'
 export const SKILL_RPC_CHANNEL = '/dsh-ws-skill'
 export const SKILL_RPC_PLAN = 'plan'
@@ -717,7 +717,8 @@ export function apply(ctx, _config) {
   const onGalleryAdd = async (ev) => {
     const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
     const src = detail.src || ''
-    if (!src) {
+    const localPath = detail.localPath || ''
+    if (!src && !localPath) {
       studio.setStatus?.('无图可加画廊')
       return
     }
@@ -735,6 +736,7 @@ export function apply(ctx, _config) {
       }
       const result = await rpc.call(CTA_RPC_CHANNEL, CTA_RPC_GALLERY_ADD, {
         src,
+        localPath,
         prompt: detail.prompt || '',
         snapshot: detail.snapshot || null,
         galleryRel: paths.value.gallery,

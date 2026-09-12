@@ -31,12 +31,12 @@ import { mountTemplateHost, TEMPLATE_PAGE } from './template-host.js'
 import { mountGalleryPage, GALLERY_PAGE } from './gallery-host.js'
 import { mountEcomPage, ECOM_PAGE } from './ecom-host.js'
 import { TOOL_MORE, TOOL_MENU, TOOL_ENTRIES } from '../ui/labels.js'
-export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 import {
   savePendingProposal,
   loadPendingProposal,
   clearPendingProposal,
 } from '../skills/proposal.js'
+export const STUDIO_HOST = '[data-dsh-ws-studio-host]'
 
 /** Soft photo-noise fallback for broken real images only (not fake content) */
 function inspireFallbackSvg(seedIdx = 0) {

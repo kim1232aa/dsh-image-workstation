@@ -2,7 +2,16 @@ export { PROTOCOL_KINDS, CREDENTIAL_LANES, IMAGE_MODALITIES, VIDEO_MODALITIES } 
 export { createAdapterStub, listPhase1Adapters } from './adapters.js'
 export { createHostProxy, attachHostProxy } from './host-proxy.js'
 export { loadMediaEnv, mediaEnvSummary, loadVideoEnv, resolveVideoEnvFromMap } from './load-media-env.js'
-export { resolveMediaBag, resolveVideoEnv, resolveVideoBag } from './resolve-media.js'
+export { resolveMediaBag, resolveVideoEnv, resolveVideoBag, resolveVisionCfg } from './resolve-media.js'
+export {
+  MEDIA_SEATS,
+  MEDIA_STORAGE_SUBDIRS,
+  ensureMediaSeats,
+  storagePathsOf,
+  listMediaSeat,
+  addGalleryItem,
+  persistGenerateToSeats,
+} from './media-storage.js'
 export { openaiImagesGenerate, openaiImagesEdit } from './openai-images.js'
 export { DEFAULT_IMAGE_MODEL, isMediaModelId } from './defaults.js'
 
