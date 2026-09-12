@@ -10,7 +10,8 @@ import {
   GIF_CTA,
   PROMPT_FIELDS,
 } from '../ui/labels.js'
-import { GIF_STUB_NOT_WIRED } from '../protocol/gif-ecom.js'
+/** Client-safe copy — avoid bundling nodeful protocol/gif-ecom.js */
+const GIF_STUB_NOT_WIRED = 'GIF_STUB_NOT_WIRED'
 
 export const GIF_PAGE = GIF_TITLE
 

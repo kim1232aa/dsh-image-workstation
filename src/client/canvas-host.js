@@ -1,7 +1,9 @@
 /**
  * 无限画布 page shell — independent of 普通生图 dock.
  * VisioWork-shaped density only; original CSS via --dsw-* host tokens.
- * Labels exact from ../ui/labels.js. CTA / 发送 = honest stubs (no fake success).
+ * Labels exact from ../ui/labels.js.
+ * 发送 → gather linked text/refs → dsh-ws-canvas-generate → client callCtaRpc(/dsh-ws/generate).
+ * Never fake success.
  */
 import {
   CANVAS_NODES,
@@ -12,6 +14,7 @@ import {
   CLARITY,
   COUNTS,
   PROMPT_FIELDS,
+  MODE_TABS,
 } from '../ui/labels.js'
 
 export const CANVAS_PAGE = '无限画布'
@@ -20,8 +23,9 @@ export const VIDEO_PAGE = '视频生成'
 
 const DEFAULT_PROJECT_NAME = '未命名项目'
 const EDGE_HINT = '文本→配置＝提示词；图片→配置＝参考图（第一张＝图生图底图）'
-const ADD_NODE_HINT = '双击空白或点「添加」建节点（壳）'
-const STUB_SEND = '画布生成通道未接'
+const ADD_NODE_HINT = '双击空白或点「添加」建节点；选配置后底部发送真出图'
+const MODE_TXT = MODE_TABS[0]
+const MODE_IMG = MODE_TABS[1]
 const STUB_ACTION = (name) => `「${name}」未接线`
 
 /** @param {string} s */
@@ -36,6 +40,81 @@ function escapeHtml(s) {
 /** @returns {string} */
 function uid(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+/**
+ * Nova-shaped: walk incoming edges into cfg, skip genConfig, collect text/image resources.
+ * @param {ReturnType<typeof defaultCanvasState>} state
+ * @param {string} cfgId
+ */
+function upstreamResourceNodes(state, cfgId) {
+  const byId = new Map(state.nodes.map((n) => [n.id, n]))
+  const incoming = new Map()
+  for (const edge of state.edges) {
+    const list = incoming.get(edge.to) || []
+    list.push(edge)
+    incoming.set(edge.to, list)
+  }
+  const out = []
+  const visited = new Set([cfgId])
+  const walk = (targetId) => {
+    for (const edge of incoming.get(targetId) || []) {
+      if (visited.has(edge.from)) continue
+      visited.add(edge.from)
+      const src = byId.get(edge.from)
+      if (!src || src.type === 'genConfig') continue
+      walk(src.id)
+      if (src.type === 'text' || src.type === 'image') out.push(src)
+    }
+  }
+  walk(cfgId)
+  return out
+}
+
+/**
+ * Nova default buildNodeGenerationContext (no route/composer tokens):
+ * prompt = cfg.prompt + upstream texts; refs = linked image srcs; mode by refs.
+ * @param {ReturnType<typeof defaultCanvasState>} state
+ * @param {any} cfg
+ */
+function buildCanvasGenerateDetail(state, cfg) {
+  const inputs = upstreamResourceNodes(state, cfg.id)
+  const textParts = inputs
+    .filter((n) => n.type === 'text')
+    .map((n) => String(n.text || '').trim())
+    .filter(Boolean)
+  const upstreamText = textParts.join('\n\n')
+  const basePrompt = String(cfg.prompt || '').trim()
+  const prompt = upstreamText ? (basePrompt ? `${basePrompt}\n\n${upstreamText}` : upstreamText) : basePrompt
+  const refImages = inputs
+    .filter((n) => n.type === 'image' && String(n.src || '').trim())
+    .map((n) => ({
+      id: n.id,
+      url: String(n.src),
+      name: n.name || `${n.id}.png`,
+    }))
+  const mode = refImages.length ? MODE_IMG : MODE_TXT
+  return {
+    projectId: state.projectId,
+    nodeId: cfg.id,
+    prompt,
+    modelId: cfg.modelId || '',
+    ratio: cfg.ratio || RATIOS[0],
+    count: Math.min(Math.max(Number(cfg.count) || 1, 1), 4),
+    clarity: cfg.clarity || CLARITY[0],
+    mode,
+    refImages,
+    textCount: textParts.length,
+    imageCount: refImages.length,
+  }
+}
+
+/** Pick displayable result URL (same spirit as studio pickDisplayUrl). */
+function pickCanvasResultUrl(r) {
+  const url = r?.url != null ? String(r.url) : r?.dataUrl != null ? String(r.dataUrl) : ''
+  if (!url) return ''
+  if (/^file:/i.test(url)) return ''
+  return url
 }
 
 /**
@@ -127,6 +206,13 @@ export function canvasHostStyles() {
   background: var(--dsw-alias-bg-module-platform);
   display:flex; align-items:center; justify-content:center;
   color: var(--dsw-alias-label-tertiary); font-size:11px; text-align:center; padding:8px;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-img] {
+  width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px;
+  background: var(--dsw-alias-bg-module-platform); display:block;
+}
+[data-dsh-ws-studio-host] [data-ws-canvas-img-stub][data-generating] {
+  border-style:solid; color: var(--dsw-alias-label-secondary);
 }
 [data-dsh-ws-studio-host] [data-ws-canvas-node-tools] {
   display:flex; flex-wrap:wrap; gap:4px; padding:0 8px 8px;
@@ -301,7 +387,7 @@ export function buildCanvasPageHtml(T, css, state) {
     </div>
     <div>
       <div style="${css.paramLabel};margin-bottom:4px;">${PROMPT_FIELDS.prompt}</div>
-      <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词后点发送（壳）" style="width:100%;min-height:52px;padding:6px 8px;border:1px solid ${T.border2};border-radius:8px;background:${T.input};color:${T.fg};font:inherit;font-size:12px;"></textarea>
+      <textarea data-ws-canvas-gen-prompt rows="2" placeholder="写提示词或连文本节点后点发送" style="width:100%;min-height:52px;padding:6px 8px;border:1px solid ${T.border2};border-radius:8px;background:${T.input};color:${T.fg};font:inherit;font-size:12px;"></textarea>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;">
       <div style="display:flex;align-items:center;gap:6px;">
@@ -325,7 +411,7 @@ export function buildCanvasPageHtml(T, css, state) {
       ${nodeTools}
     </div>
     <button type="button" data-ws-canvas-send style="${css.cta}">${CANVAS_CHROME.send}</button>
-    <p data-ws-canvas-status class="note">壳：拖节点 · 端口连线 stub · ${CANVAS_CHROME.send} → 「${STUB_SEND}」（无假成功）</p>
+    <p data-ws-canvas-status class="note">拖节点 · 端口连线 · ${CANVAS_CHROME.send} → 真 /dsh-ws/generate（失败如实报错）</p>
   </div>
 </div>
 `
@@ -441,6 +527,14 @@ export function mountCanvasPage(host, opts) {
       else generator.removeAttribute('data-open')
     }
     if (selected) {
+      // Prefill empty composer from linked text nodes (Nova/VisioWork empty-state UX)
+      if (!String(selected.prompt || '').trim()) {
+        const texts = upstreamResourceNodes(state, selected.id)
+          .filter((n) => n.type === 'text')
+          .map((n) => String(n.text || '').trim())
+          .filter(Boolean)
+        if (texts.length) selected.prompt = texts.join('\n\n')
+      }
       const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
       if (ta instanceof HTMLTextAreaElement && ta.value !== (selected.prompt || '')) {
         ta.value = selected.prompt || ''
@@ -468,8 +562,19 @@ export function mountCanvasPage(host, opts) {
         if (n.type === 'text') {
           body = `<textarea data-ws-node-text="${escapeHtml(n.id)}" placeholder="文本 → 连配置＝提示词" rows="3">${escapeHtml(n.text || '')}</textarea>`
         } else if (n.type === 'image') {
-          body = `<div data-ws-canvas-img-stub>图 stub<br/>拖入 / 粘贴未接线</div>
-            <div data-ws-canvas-node-tools>
+          const src = String(n.src || '').trim()
+          const generating = n.status === 'generating' || n.status === 'submitting'
+          const err = n.error ? String(n.error) : ''
+          if (src) {
+            body = `<img data-ws-canvas-img src="${escapeHtml(src)}" alt="" />`
+          } else if (generating) {
+            body = `<div data-ws-canvas-img-stub data-generating>出图中…</div>`
+          } else if (err) {
+            body = `<div data-ws-canvas-img-stub>${escapeHtml(err.slice(0, 120))}</div>`
+          } else {
+            body = `<div data-ws-canvas-img-stub>拖入 / 粘贴图片<br/>或等待生成结果</div>`
+          }
+          body += `<div data-ws-canvas-node-tools>
               ${Object.values(CANVAS_NODE_TOOLS)
                 .map(
                   (label) =>
@@ -818,30 +923,218 @@ export function mountCanvasPage(host, opts) {
     )
   })
 
-  // 发送 — never fake success
+  // 发送 — Nova collect → client callCtaRpc(/dsh-ws/generate); never fake success
+  let generateBusy = false
   const sendBtn = page.querySelector('[data-ws-canvas-send]')
   if (sendBtn instanceof HTMLButtonElement) {
     sendBtn.disabled = false
     sendBtn.removeAttribute('disabled')
   }
+
+  const placeResultNodes = (cfg, count) => {
+    const ids = []
+    const originX = (cfg.x || 0) + 280
+    const originY = cfg.y || 0
+    for (let i = 0; i < count; i += 1) {
+      const id = uid('n-img')
+      state.nodes.push({
+        type: 'image',
+        id,
+        x: originX,
+        y: originY + i * 200,
+        src: '',
+        status: 'generating',
+        sourceNodeId: cfg.id,
+      })
+      state.edges.push({ id: uid('e'), from: cfg.id, to: id })
+      ids.push(id)
+    }
+    return ids
+  }
+
+  /**
+   * Apply host generate result onto placeholder image nodes (keep edges).
+   * @param {{ ok?: boolean, phase?: string, error?: string, resultNodeIds?: string[], value?: any, nodeId?: string }} detail
+   */
+  const applyGenerateResult = (detail) => {
+    const d = detail && typeof detail === 'object' ? detail : {}
+    const phase = String(d.phase || '')
+    const resultNodeIds = Array.isArray(d.resultNodeIds) ? d.resultNodeIds : []
+    if (d.ok && (phase === 'done' || phase === 'completed' || !phase)) {
+      const results = Array.isArray(d.value?.results) ? d.value.results : []
+      const urls = results.map(pickCanvasResultUrl).filter(Boolean)
+      if (!urls.length) {
+        generateBusy = false
+        if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+        for (const id of resultNodeIds) {
+          const node = state.nodes.find((n) => n.id === id)
+          if (node && node.type === 'image') {
+            node.status = 'error'
+            node.error = '生成完成但无可用图片 URL'
+          }
+        }
+        setStatus('生成完成但无可用图片 URL')
+        paintNodes()
+        return
+      }
+      urls.forEach((url, i) => {
+        let node = resultNodeIds[i] ? state.nodes.find((n) => n.id === resultNodeIds[i]) : null
+        if (!node) {
+          const cfg = state.nodes.find((n) => n.id === d.nodeId && n.type === 'genConfig')
+          const id = uid('n-img')
+          node = {
+            type: 'image',
+            id,
+            x: (cfg?.x || 0) + 280 + i * 40,
+            y: (cfg?.y || 0) + i * 200,
+            src: '',
+            sourceNodeId: cfg?.id,
+          }
+          state.nodes.push(node)
+          if (cfg) state.edges.push({ id: uid('e'), from: cfg.id, to: id })
+        }
+        node.src = url
+        node.status = 'success'
+        node.error = undefined
+      })
+      for (let i = urls.length; i < resultNodeIds.length; i += 1) {
+        const node = state.nodes.find((n) => n.id === resultNodeIds[i])
+        if (node && node.type === 'image' && !node.src) node.status = 'idle'
+      }
+      generateBusy = false
+      if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+      setStatus(`已出图 ${urls.length} 张`)
+      paintNodes()
+      return
+    }
+    if (phase === 'cancelled') {
+      for (const id of resultNodeIds) {
+        const node = state.nodes.find((n) => n.id === id)
+        if (node && node.type === 'image' && !node.src) {
+          node.status = 'idle'
+          node.error = '已取消'
+        }
+      }
+      generateBusy = false
+      if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+      setStatus('客户端已取消；宿主取消未挂')
+      paintNodes()
+      return
+    }
+    const msg = String(d.error || '画布出图失败')
+    for (const id of resultNodeIds) {
+      const node = state.nodes.find((n) => n.id === id)
+      if (node && node.type === 'image' && !node.src) {
+        node.status = 'error'
+        node.error = msg
+      }
+    }
+    generateBusy = false
+    if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false
+    setStatus(msg)
+    paintNodes()
+  }
+
+  const onCanvasGenerateResult = (ev) => {
+    applyGenerateResult(ev?.detail && typeof ev.detail === 'object' ? ev.detail : {})
+  }
+  document.addEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
+
   sendBtn?.addEventListener('click', () => {
     const cfg = state.nodes.find((n) => state.selection.includes(n.id) && n.type === 'genConfig')
-    setStatus(STUB_SEND)
+    if (!cfg) {
+      setStatus('请先选中生成配置节点')
+      return
+    }
+    if (generateBusy) {
+      setStatus('已有画布出图任务进行中…')
+      return
+    }
+    const ta = page.querySelector('[data-ws-canvas-gen-prompt]')
+    if (ta instanceof HTMLTextAreaElement) cfg.prompt = ta.value
+    const detail = buildCanvasGenerateDetail(state, cfg)
+    if (!String(detail.prompt || '').trim()) {
+      setStatus('请先输入提示词（文本节点或底部输入框）')
+      return
+    }
+    const resultNodeIds = placeResultNodes(cfg, detail.count)
+    detail.resultNodeIds = resultNodeIds
+    generateBusy = true
+    if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = true
+    setStatus(
+      detail.mode === MODE_IMG
+        ? `图生图提交中…（参考图 ${detail.imageCount}）`
+        : '文生图提交中…',
+    )
+    paintNodes()
     host.dispatchEvent(
       new CustomEvent('dsh-ws-canvas-generate', {
         bubbles: true,
-        detail: {
-          projectId: state.projectId,
-          nodeId: cfg?.id || null,
-          prompt: cfg?.prompt || '',
-          modelId: cfg?.modelId || '',
-          ratio: cfg?.ratio || RATIOS[0],
-          count: cfg?.count || 1,
-          clarity: cfg?.clarity || CLARITY[0],
-          edges: state.edges.slice(),
-        },
+        composed: true,
+        detail,
       }),
     )
+  })
+
+  const addImageFromDataUrl = (dataUrl, name, at) => {
+    const node = {
+      type: 'image',
+      id: uid('n-img'),
+      x: at?.x ?? 120 + state.nodes.length * 24,
+      y: at?.y ?? 140 + state.nodes.length * 16,
+      src: dataUrl,
+      name: name || 'paste.png',
+      status: 'success',
+    }
+    state.nodes.push(node)
+    state.selection = [node.id]
+    paintNodes()
+    setStatus(`已添加${CANVAS_NODES.image}`)
+    return node
+  }
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+      reader.onerror = () => reject(reader.error || new Error('read failed'))
+      reader.readAsDataURL(file)
+    })
+
+  viewport?.addEventListener('dragover', (e) => {
+    e.preventDefault()
+  })
+  viewport?.addEventListener('drop', async (e) => {
+    e.preventDefault()
+    if (!(e instanceof DragEvent) || !(viewport instanceof HTMLElement)) return
+    const files = [...(e.dataTransfer?.files || [])].filter((f) => /^image\//.test(f.type))
+    if (!files.length) return
+    const rect = viewport.getBoundingClientRect()
+    const zoom = state.viewport.zoom || 1
+    const x = (e.clientX - rect.left - state.viewport.x) / zoom
+    const y = (e.clientY - rect.top - state.viewport.y) / zoom
+    for (let i = 0; i < files.length; i += 1) {
+      try {
+        const dataUrl = await readFileAsDataUrl(files[i])
+        if (dataUrl) addImageFromDataUrl(dataUrl, files[i].name, { x: x + i * 24, y: y + i * 16 })
+      } catch (_) {
+        setStatus('图片读取失败')
+      }
+    }
+  })
+  page.addEventListener('paste', async (e) => {
+    if (!(e instanceof ClipboardEvent)) return
+    const items = [...(e.clipboardData?.items || [])]
+    const imgItem = items.find((it) => it.type && /^image\//.test(it.type))
+    if (!imgItem) return
+    const file = imgItem.getAsFile()
+    if (!file) return
+    e.preventDefault()
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      if (dataUrl) addImageFromDataUrl(dataUrl, file.name || 'paste.png')
+    } catch (_) {
+      setStatus('粘贴图片失败')
+    }
   })
 
   applyTransform()
@@ -856,9 +1149,11 @@ export function mountCanvasPage(host, opts) {
     state,
     setPage,
     setStatus,
+    applyGenerateResult,
     dispose() {
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('keyup', onKeyUp)
+      document.removeEventListener('dsh-ws-canvas-generate-result', onCanvasGenerateResult)
       page.remove()
       styleEl?.remove()
     },

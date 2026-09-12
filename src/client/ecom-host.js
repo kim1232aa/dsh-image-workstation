@@ -11,7 +11,8 @@ import {
   ECOM_FLOW,
   ECOM_RESULT_ACTIONS,
 } from '../ui/labels.js'
-import { ECOM_STUB_NOT_WIRED } from '../protocol/gif-ecom.js'
+/** Client-safe copy — avoid bundling nodeful protocol/gif-ecom.js */
+const ECOM_STUB_NOT_WIRED = 'ECOM_STUB_NOT_WIRED'
 
 export const ECOM_PAGE = '电商模式'
 export const IMAGE_PAGE = '普通生图'

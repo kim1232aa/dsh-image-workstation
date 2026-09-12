@@ -239,6 +239,134 @@ export function apply(ctx, _config) {
   disposers.push(() => document.removeEventListener('dsh-ws-generate', onGenerate))
   disposers.push(() => document.removeEventListener('dsh-ws-cancel', onCancel))
 
+  /**
+   * 无限画布 发送 → same /dsh-ws/generate as 普通生图 (refs/mode=图生图 → host edit).
+   * Payload matches studio CTA; result → dsh-ws-canvas-generate-result for canvas-host paint.
+   */
+  let canvasInflight = false
+  /** @type {AbortController | null} */
+  let canvasAbort = null
+  const emitCanvasResult = (detail) => {
+    document.dispatchEvent(
+      new CustomEvent('dsh-ws-canvas-generate-result', {
+        bubbles: true,
+        composed: true,
+        detail: detail && typeof detail === 'object' ? detail : {},
+      }),
+    )
+  }
+  const onCanvasGenerate = async (ev) => {
+    const detail = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+    const resultNodeIds = Array.isArray(detail.resultNodeIds) ? detail.resultNodeIds : []
+    const nodeId = detail.nodeId || null
+    if (canvasInflight || inflight) {
+      emitCanvasResult({
+        ok: false,
+        phase: 'failed',
+        error: '已有出图任务进行中…',
+        resultNodeIds,
+        nodeId,
+      })
+      return
+    }
+    if (!String(detail.prompt || '').trim()) {
+      emitCanvasResult({
+        ok: false,
+        phase: 'failed',
+        error: '请先输入提示词（文本节点或底部输入框）',
+        resultNodeIds,
+        nodeId,
+      })
+      return
+    }
+    const rpc = ctx.connection?.rpc
+    const canCall = typeof globalThis.fetch === 'function' || (rpc && typeof rpc.call === 'function')
+    if (!canCall) {
+      emitCanvasResult({
+        ok: false,
+        phase: 'failed',
+        error: '连接不可用，无法出图',
+        resultNodeIds,
+        nodeId,
+      })
+      return
+    }
+    canvasInflight = true
+    const ac = new AbortController()
+    canvasAbort = ac
+    const started = Date.now()
+    const timer = setTimeout(() => ac.abort(), CLIENT_GENERATE_TIMEOUT_MS)
+    try {
+      const result = await callCtaRpc(
+        rpc,
+        CTA_RPC_GENERATE,
+        {
+          prompt: detail.prompt,
+          negativePrompt: detail.negativePrompt,
+          mode: detail.mode,
+          skillId: detail.skillId,
+          skillPlan: detail.skillPlan,
+          ratio: detail.ratio,
+          clarity: detail.clarity,
+          count: detail.count,
+          detail: detail.detail,
+          modelId: detail.modelId,
+          compareModels: detail.compareModels,
+          refImages: detail.refImages,
+        },
+        ac.signal,
+      )
+      if (result?.ok) {
+        emitCanvasResult({
+          ok: true,
+          phase: result.value?.phase || 'done',
+          value: {
+            ...(result.value || {}),
+            phase: result.value?.phase || 'done',
+            elapsedMs: Date.now() - started,
+          },
+          resultNodeIds,
+          nodeId,
+        })
+      } else {
+        const msg = formatHostGenerateError(result?.error || {})
+        emitCanvasResult({
+          ok: false,
+          phase: 'failed',
+          error: msg,
+          resultNodeIds,
+          nodeId,
+        })
+      }
+    } catch (e) {
+      if (ac.signal.aborted) {
+        emitCanvasResult({
+          ok: false,
+          phase: 'cancelled',
+          error: '客户端已取消；宿主取消未挂',
+          resultNodeIds,
+          nodeId,
+        })
+      } else {
+        const msg = formatClientRpcFailure(e)
+        console.warn('[dsh-image-workstation] canvas CTA RPC failed:', scrubErrorMessage(e?.message || e))
+        emitCanvasResult({
+          ok: false,
+          phase: 'failed',
+          error: msg,
+          resultNodeIds,
+          nodeId,
+        })
+      }
+    } finally {
+      clearTimeout(timer)
+      canvasInflight = false
+      canvasAbort = null
+    }
+  }
+  document.addEventListener('dsh-ws-canvas-generate', onCanvasGenerate)
+  disposers.push(() => document.removeEventListener('dsh-ws-canvas-generate', onCanvasGenerate))
+
   try {
     mountSettingsCard(ctx)
   } catch (error) {
