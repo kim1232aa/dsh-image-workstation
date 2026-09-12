@@ -117,6 +117,6 @@ Rules: verbatim result URLs; same queue/history concepts as image; **no Nova JSO
 | `allowAgentImageGeneration` | default **ON** (`!== false`); both tools refuse when false |
 | `IMAGE_API_NOT_CONFIGURED` guidance | points to **Settings → Plugins → dsh-image-workstation** or host `media.env` |
 | chat conversation invoke + URL return (generate) | **evidenced once** (session `b8d66d07…`; prompt `城市夜景街道，电影感灯光`; `job_id=05779418-cba0-45d8-ba60-6a0ff9381068`; url `https://imgen.x.ai/xai-imgen/xai-tmp-imgen-8bb5d195-11c9-9f7c-ba12-6ea4a0b98dcb-c0500bfe.jpeg`); UI shot `docs/ui/ref/dsh-agent-generate-image-ok.png` |
-| chat-with-image / edit invoke | **host register-path live** (`edit_image` via `registerAgentImageTools`; prompt `城市夜景，霓虹更亮`; ref=local night-street jpg; `job_id=1f85952a-209f-41d2-93d8-10cc5f4a8650`; url `https://imgen.x.ai/xai-imgen/xai-tmp-imgen-b917c7cd-1085-9df3-951e-bb925eb7aaa5-4c416900.jpeg`); full chat-attachment UX = **not Pass** |
+| chat-with-image / edit invoke | **host register-path live**; `edit_image` prefers **current user-message attachments** over model-picked workspace paths (no silent swap). Full chat-attachment e2e = **not Pass** |
 | full Agent UX (inline chat, slash edit, vision, web search) | **not Pass** |
 | verify | `node scripts/verify-agent-generate-image.mjs` (no paid APIs) |

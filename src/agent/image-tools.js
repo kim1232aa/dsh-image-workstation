@@ -22,6 +22,9 @@ import {
   pickAgentRefImageSource,
   scrubAgentError,
   listConfiguredAgentModels,
+  listImageRefsFromUserMessage,
+  findLatestUserPromptMessage,
+  resolveEditRefInputs,
 } from './model-policy.js'
 
 export {
@@ -33,6 +36,9 @@ export {
   normalizeAgentRefImages,
   pickAgentRefImageSource,
   scrubAgentError,
+  listImageRefsFromUserMessage,
+  findLatestUserPromptMessage,
+  resolveEditRefInputs,
 } from './model-policy.js'
 
 /**
@@ -155,6 +161,42 @@ async function resolveEditImageMaterial(source, signal) {
 }
 
 /**
+ * Turn a session ImageAttachmentRef into a path/dataUrl for mediaProxy.edit.
+ * @param {any} ref
+ * @param {any} attachments ctx.attachments store
+ * @param {AbortSignal | undefined} signal
+ */
+async function materializeSessionImageRef(ref, attachments, signal) {
+  if (!ref || !attachments) {
+    const err = new Error('session attachment unavailable')
+    err.code = 'REF_REQUIRED'
+    throw err
+  }
+  try {
+    const hostPath =
+      typeof attachments.imageHostPath === 'function' ? attachments.imageHostPath(ref) : undefined
+    if (hostPath && existsSync(String(hostPath))) return String(hostPath)
+  } catch {
+    /* fall through to readImage */
+  }
+  if (typeof attachments.readImage !== 'function') {
+    const err = new Error('attachments.readImage unavailable for chat image')
+    err.code = 'BAD_REF_IMAGE'
+    throw err
+  }
+  const stored = await attachments.readImage(ref, signal)
+  const bytes = stored?.data
+  if (!bytes || !(bytes instanceof Uint8Array || Buffer.isBuffer(bytes))) {
+    const err = new Error('chat attachment has no image bytes')
+    err.code = 'BAD_REF_IMAGE'
+    throw err
+  }
+  const mime =
+    stored?.ref?.mediaType || ref.mediaType || 'image/png'
+  return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`
+}
+
+/**
  * @param {any} out mediaProxy result
  * @param {string} okMessage
  */
@@ -183,6 +225,14 @@ function mapProxyResult(out, okMessage) {
  * @returns {() => void} disposer
  */
 export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
+  const getAttachments = () => {
+    try {
+      return typeof ctx?.get === 'function' ? ctx.get('attachments') : null
+    } catch {
+      return null
+    }
+  }
+
   if (!ctx?.tools?.register) {
     throw new Error('[dsh-image-workstation] ctx.tools.register unavailable')
   }
@@ -300,7 +350,8 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
       name: 'edit_image',
       description:
         'Image-to-image (图生图) via the dsh-image-workstation host mediaProxy.edit — same /v1/images/edits path as the studio CTA when refImages are present. ' +
-        'Pass refImages from chat attachments as url, dataUrl, or local path. ' +
+        'Prefer the image(s) attached to the CURRENT user message. Do NOT silently pick another jpg from the workspace when the user already attached a reference. ' +
+        'Pass refImages/image only when the message has no attachment (url, dataUrl, or explicit path). ' +
         'Skill auto-match must NOT block 图生图 when the user did not name a skill — call this tool whenever the user provides a reference image and wants an edit. ' +
         'When multiple image models are configured, ask which model to use and pass model. ' +
         'If channels are not configured, tell the user to open Settings → Plugins → dsh-image-workstation (or host media.env). ' +
@@ -342,42 +393,79 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
           err.code = 'HOST_PROXY_NOT_WIRED'
           throw err
         }
-        const refs = normalizeAgentRefImages(
+        const argRaw =
           Array.isArray(args?.refImages) && args.refImages.length
             ? args.refImages
             : args?.image
               ? [args.image]
-              : [],
-        )
-        const source = pickAgentRefImageSource(refs)
-        if (!source) {
-          const err = new Error(
-            '图生图需要参考图（refImages：url / dataUrl / path）。请附带聊天图片或传入本地路径。',
-          )
-          err.code = 'REF_REQUIRED'
-          throw err
-        }
-        const model = resolveAgentImageModel(config, args.model)
-        const material = await resolveEditImageMaterial(source, exec?.signal)
-        const req = mapAgentEditRequest(args, model, material, exec?.signal)
-        const srcStr = String(source || '')
-        const refKind = srcStr.startsWith('data:')
-          ? 'dataUrl'
-          : /^https?:\/\//i.test(srcStr)
-            ? 'url'
-            : 'path'
+              : []
+        const latestUser = findLatestUserPromptMessage(exec?.agent)
+        const messageImageRefs = listImageRefsFromUserMessage(latestUser)
+        const decided = resolveEditRefInputs({
+          argRefs: argRaw,
+          messageImageRefs,
+        })
+        let material
+        let refKind
         let refBase = null
         let refBytes = null
-        if (refKind === 'path') {
-          try {
-            refBase = srcStr.split(/[\\/]/).pop() || null
-          } catch {
-            refBase = null
+        let sourceHint = decided.source
+        if (decided.source === 'message_attachment') {
+          const attachments =
+            (typeof getAttachments === 'function' ? getAttachments() : null) ||
+            (typeof ctx?.get === 'function' ? ctx.get('attachments') : null)
+          if (!attachments) {
+            const err = new Error(
+              '当前消息有附图，但 attachments 服务不可用，无法读取会话附件。',
+            )
+            err.code = 'REF_REQUIRED'
+            throw err
           }
-        } else if (refKind === 'dataUrl') {
-          const m = /^data:[^;]+;base64,(.+)$/i.exec(srcStr)
-          refBytes = m ? Math.floor((m[1].length * 3) / 4) : null
+          const firstRef = decided.refs[0]
+          material = await materializeSessionImageRef(firstRef, attachments, exec?.signal)
+          refKind = 'message_attachment'
+          refBase = firstRef?.name || firstRef?.attachmentId || null
+          refBytes = typeof firstRef?.bytes === 'number' ? firstRef.bytes : null
+          if (decided.ignoredArgCount > 0) {
+            hitAgentToolLog({
+              at: new Date().toISOString(),
+              status: 'ref_override',
+              tool: 'edit_image',
+              reason: 'prefer_current_message_attachment',
+              ignoredArgCount: decided.ignoredArgCount,
+              messageRefName: refBase,
+            })
+          }
+        } else {
+          const refs = normalizeAgentRefImages(decided.refs)
+          const source = pickAgentRefImageSource(refs)
+          if (!source) {
+            const err = new Error(
+              '图生图需要参考图：请在当前消息附带图片，或传入 refImages/image（url / dataUrl / path）。禁止静默改用工作区其它文件。',
+            )
+            err.code = 'REF_REQUIRED'
+            throw err
+          }
+          material = await resolveEditImageMaterial(source, exec?.signal)
+          const srcStr = String(source || '')
+          refKind = srcStr.startsWith('data:')
+            ? 'dataUrl'
+            : /^https?:\/\//i.test(srcStr)
+              ? 'url'
+              : 'path'
+          if (refKind === 'path') {
+            try {
+              refBase = srcStr.split(/[\\/]/).pop() || null
+            } catch {
+              refBase = null
+            }
+          } else if (refKind === 'dataUrl') {
+            const m = /^data:[^;]+;base64,(.+)$/i.exec(srcStr)
+            refBytes = m ? Math.floor((m[1].length * 3) / 4) : null
+          }
         }
+        const model = resolveAgentImageModel(config, args.model)
+        const req = mapAgentEditRequest(args, model, material, exec?.signal)
         hitAgentToolLog({
           at: new Date().toISOString(),
           status: 'invoke',
@@ -388,6 +476,7 @@ export async function registerAgentImageTools(ctx, mediaProxy, resolveConfig) {
           refKind,
           refBase,
           refBytes,
+          refSource: sourceHint,
         })
         try {
           // Prefer direct edit (CTA 图生图 seat). Also mirrors wantsEdit → edit.

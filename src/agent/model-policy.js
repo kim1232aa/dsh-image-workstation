@@ -230,6 +230,71 @@ export function mapAgentEditRequest(args, model, image, signal) {
 /**
  * @param {string} msg
  */
+
+/**
+ * ImageAttachmentRef[] from one user message content (type=image blocks only).
+ * @param {{ content?: unknown[] } | null | undefined} message
+ * @returns {any[]}
+ */
+export function listImageRefsFromUserMessage(message) {
+  const content = message?.content
+  if (!Array.isArray(content)) return []
+  /** @type {any[]} */
+  const out = []
+  for (const block of content) {
+    if (block && block.type === 'image' && block.attachment) out.push(block.attachment)
+  }
+  return out
+}
+
+/**
+ * Latest human prompt on the session surface that is not a tool/plugin inject.
+ * @param {{ session?: { surface?: { nodes?: Iterable<unknown> }, eventAt?: Function } } | null | undefined} agent
+ * @returns {{ role?: string, content?: unknown[], source?: { kind?: string } } | null}
+ */
+export function findLatestUserPromptMessage(agent) {
+  const session = agent?.session
+  const nodes = session?.surface?.nodes
+  if (!session || !nodes || typeof session.eventAt !== 'function') return null
+  const list =
+    typeof nodes.toReversed === 'function'
+      ? nodes.toReversed()
+      : Array.isArray(nodes)
+        ? [...nodes].reverse()
+        : [...nodes].reverse()
+  for (const seq of list) {
+    const event = session.eventAt(seq)
+    if (!event || event.type !== 'user/message') continue
+    const msg = event.data
+    if (!msg || msg.role !== 'user') continue
+    const kind = msg.source?.kind
+    if (kind === 'tool' || kind === 'plugin' || kind === 'agent-instructions') continue
+    return msg
+  }
+  return null
+}
+
+/**
+ * Prefer current-message attachments over model-supplied workspace paths.
+ * When the user message carries images, those win — never silently keep a
+ * different jpg the model picked from the workspace.
+ *
+ * @param {{ argRefs?: unknown[], messageImageRefs?: unknown[] }} input
+ * @returns {{ refs: unknown[], source: 'message_attachment' | 'tool_args', ignoredArgCount: number }}
+ */
+export function resolveEditRefInputs(input = {}) {
+  const msgRefs = Array.isArray(input.messageImageRefs) ? input.messageImageRefs.filter(Boolean) : []
+  const argRefs = Array.isArray(input.argRefs) ? input.argRefs.filter((x) => x != null && x !== '') : []
+  if (msgRefs.length > 0) {
+    return {
+      refs: msgRefs,
+      source: 'message_attachment',
+      ignoredArgCount: argRefs.length,
+    }
+  }
+  return { refs: argRefs, source: 'tool_args', ignoredArgCount: 0 }
+}
+
 export function scrubAgentError(msg) {
   return String(msg || 'generate failed')
     .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')

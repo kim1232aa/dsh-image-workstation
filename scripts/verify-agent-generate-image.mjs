@@ -8,6 +8,9 @@ import {
   normalizeAgentRefImages,
   pickAgentRefImageSource,
   mapAgentEditRequest,
+  resolveEditRefInputs,
+  listImageRefsFromUserMessage,
+  findLatestUserPromptMessage,
 } from '../src/agent/model-policy.js'
 import {
   renderGenerateImageOutput,
@@ -129,6 +132,67 @@ ensureAgentImageConfigured({ allowAgentImageGeneration: true }, { mediaConfigure
   if (!t.startsWith('edit_image:')) fail(`edit label ${t}`)
   if (!t.includes(`![generated](${url})`)) fail(`edit markdown ${t}`)
   if (!/job_id=job-edit-1/.test(t)) fail('edit job')
+}
+
+// message attachments win over workspace path args
+{
+  const decided = resolveEditRefInputs({
+    argRefs: ['/workspace/other-city.jpg'],
+    messageImageRefs: [{ attachmentId: 'att-1', name: 'user-upload.png', bytes: 12 }],
+  })
+  if (decided.source !== 'message_attachment') fail('expected message_attachment')
+  if (decided.refs[0]?.attachmentId !== 'att-1') fail('wrong ref')
+  if (decided.ignoredArgCount !== 1) fail('ignoredArgCount')
+}
+{
+  const decided = resolveEditRefInputs({
+    argRefs: ['/workspace/only.jpg'],
+    messageImageRefs: [],
+  })
+  if (decided.source !== 'tool_args') fail('expected tool_args')
+  if (decided.refs[0] !== '/workspace/only.jpg') fail('arg passthrough')
+}
+{
+  const msg = {
+    role: 'user',
+    source: { kind: 'user' },
+    content: [
+      { type: 'text', text: 'edit this' },
+      { type: 'image', attachment: { attachmentId: 'a', name: 'shot.png' } },
+    ],
+  }
+  const refs = listImageRefsFromUserMessage(msg)
+  if (refs.length !== 1 || refs[0].name !== 'shot.png') fail('listImageRefs')
+}
+{
+  const agent = {
+    session: {
+      surface: { nodes: [1, 2] },
+      eventAt(seq) {
+        if (seq === 2)
+          return {
+            type: 'user/message',
+            data: {
+              role: 'user',
+              source: { kind: 'user' },
+              content: [{ type: 'image', attachment: { attachmentId: 'cur' } }],
+            },
+          }
+        if (seq === 1)
+          return {
+            type: 'user/message',
+            data: {
+              role: 'user',
+              source: { kind: 'plugin', plugin: 'x' },
+              content: [{ type: 'image', attachment: { attachmentId: 'old' } }],
+            },
+          }
+        return null
+      },
+    },
+  }
+  const latest = findLatestUserPromptMessage(agent)
+  if (listImageRefsFromUserMessage(latest)[0]?.attachmentId !== 'cur') fail('latest user prompt')
 }
 
 console.log('OK verify-agent-generate-image')
